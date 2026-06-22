@@ -32,7 +32,7 @@ function AdminLayout() {
 
         <nav>
           <Link to="/">
-            <LayoutDashboard size={20} /> Dashboard
+            <LayoutDashboard size={20} /> DasDDhboard
           </Link>
 
           <Link to="/importacao">
