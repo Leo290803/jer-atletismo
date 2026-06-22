@@ -297,7 +297,7 @@ export default function Boletins() {
         <h1>Boletins</h1>
 
         <p className="muted">
-          Gere, puDblique, despublique ou exclua resultados do boletim por período.
+          Gere, puDblique, deDspublique ou exclua resultados do boletim por período.
         </p>
 
         <div className="card" style={{ marginBottom: 20 }}>
