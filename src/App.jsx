@@ -15,12 +15,13 @@ import Sumulas from "./pages/Sumulas";
 import Resultados from "./pages/Resultados";
 import Boletins from "./pages/Boletins";
 import Configuracoes from "./pages/Configuracoes";
-import Series from "./pages/Series";
 import Publico from "./pages/Publico";
 import MedalhasPublico from "./pages/MedalhasPublico";
 import Telao from "./pages/Telao";
 import Tv from "./pages/Tv";
 import TvConfig from "./pages/TvConfig";
+import PistaAoVivo from "./pages/PistaAoVivo";
+import TelaoPista from "./pages/TelaoPista";
 
 import "./App.css";
 
@@ -51,6 +52,10 @@ function AdminLayout() {
             <Trophy size={20} /> Resultados
           </Link>
 
+          <Link to="/pista-ao-vivo">
+            <Trophy size={20} /> Pista ao Vivo
+          </Link>
+
           <Link to="/boletins">
             <FileText size={20} /> Boletins
           </Link>
@@ -71,6 +76,10 @@ function AdminLayout() {
             <Trophy size={20} /> Telão Público
           </Link>
 
+          <Link to="/publico/telao-pista" target="_blank">
+            <Trophy size={20} /> Telão Pista
+          </Link>
+
           <Link to="/tv" target="_blank">
             <Trophy size={20} /> TV Entrada
           </Link>
@@ -88,6 +97,7 @@ function AdminLayout() {
           <Route path="/provas" element={<Provas />} />
           <Route path="/sumulas" element={<Sumulas />} />
           <Route path="/resultados" element={<Resultados />} />
+          <Route path="/pista-ao-vivo" element={<PistaAoVivo />} />
           <Route path="/boletins" element={<Boletins />} />
           <Route path="/configuracoes" element={<Configuracoes />} />
           <Route path="/tv-config" element={<TvConfig />} />
@@ -106,6 +116,7 @@ export default function App() {
         <Route path="/publico" element={<Publico />} />
         <Route path="/publico/medalhas" element={<MedalhasPublico />} />
         <Route path="/publico/telao" element={<Telao />} />
+        <Route path="/publico/telao-pista" element={<TelaoPista />} />
 
         {/* ADMIN COM MENU */}
         <Route path="/*" element={<AdminLayout />} />
