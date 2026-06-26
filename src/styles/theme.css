@@ -1,0 +1,23 @@
+:root {
+  --primary: #059669;
+  --primary-hover: #047857;
+
+  --bg: #f4f4f5;
+  --card: #ffffff;
+  --border: #e4e4e7;
+
+  --text: #18181b;
+  --text-light: #71717a;
+
+  --sidebar-bg: #09090b;
+  --sidebar-hover: #18181b;
+
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.08);
+
+  --transition: 0.2s;
+}
