@@ -122,8 +122,8 @@ function AdminLayout() {
       <main className="main">
         <header className="topbar">
           <div>
-            <h2>Sistema de Atletismo</h2>
-            <p>Jogos Escolares de Roraima 2026</p>
+            <h2>Gestão Oficial do Atletismo</h2>
+            <p>Jogos Escolares de Roraima • Súmulas, Resultados e Boletins</p>
           </div>
 
           <div className="topbar-badge">
