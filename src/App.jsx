@@ -27,6 +27,7 @@ import TvConfig from "./pages/TvConfig";
 import PistaAoVivo from "./pages/PistaAoVivo";
 import TelaoPista from "./pages/TelaoPista";
 
+import "./styles/theme.css";
 import "./App.css";
 
 function MenuItem({ to, icon: Icon, children, target }) {
@@ -153,14 +154,12 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* PÚBLICO SEM MENU ADMIN */}
         <Route path="/tv" element={<Tv />} />
         <Route path="/publico" element={<Publico />} />
         <Route path="/publico/medalhas" element={<MedalhasPublico />} />
         <Route path="/publico/telao" element={<Telao />} />
         <Route path="/publico/telao-pista" element={<TelaoPista />} />
 
-        {/* ADMIN COM MENU */}
         <Route path="/*" element={<AdminLayout />} />
       </Routes>
     </BrowserRouter>
