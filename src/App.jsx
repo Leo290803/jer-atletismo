@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
   Upload,
@@ -6,6 +6,10 @@ import {
   FileText,
   Trophy,
   Settings,
+  Monitor,
+  Medal,
+  Tv2,
+  Radio,
 } from "lucide-react";
 
 import Dashboard from "./pages/Dashboard";
@@ -25,83 +29,121 @@ import TelaoPista from "./pages/TelaoPista";
 
 import "./App.css";
 
+function MenuItem({ to, icon: Icon, children, target }) {
+  return (
+    <NavLink
+      to={to}
+      target={target}
+      className={({ isActive }) => (isActive ? "active" : "")}
+    >
+      <Icon size={20} />
+      <span>{children}</span>
+    </NavLink>
+  );
+}
+
 function AdminLayout() {
   return (
     <div className="app">
       <aside className="sidebar">
-        <h1>JER Atletismo</h1>
+        <div className="sidebar-header">
+          <div className="logo-box">
+            <Trophy size={30} />
+          </div>
+
+          <div>
+            <h1>JER Atletismo</h1>
+            <p>Sistema Oficial</p>
+          </div>
+        </div>
 
         <nav>
-          <Link to="/">
-            <LayoutDashboard size={20} /> Dashboard
-          </Link>
+          <MenuItem to="/" icon={LayoutDashboard}>
+            Dashboard
+          </MenuItem>
 
-          <Link to="/importacao">
-            <Upload size={20} /> Importação
-          </Link>
+          <MenuItem to="/importacao" icon={Upload}>
+            Importação
+          </MenuItem>
 
-          <Link to="/provas">
-            <ClipboardList size={20} /> Provas
-          </Link>
+          <MenuItem to="/provas" icon={ClipboardList}>
+            Provas
+          </MenuItem>
 
-          <Link to="/sumulas">
-            <FileText size={20} /> Súmulas
-          </Link>
+          <MenuItem to="/sumulas" icon={FileText}>
+            Súmulas
+          </MenuItem>
 
-          <Link to="/resultados">
-            <Trophy size={20} /> Resultados
-          </Link>
+          <MenuItem to="/resultados" icon={Trophy}>
+            Resultados
+          </MenuItem>
 
-          <Link to="/pista-ao-vivo">
-            <Trophy size={20} /> Pista ao Vivo
-          </Link>
+          <MenuItem to="/pista-ao-vivo" icon={Radio}>
+            Pista ao Vivo
+          </MenuItem>
 
-          <Link to="/boletins">
-            <FileText size={20} /> Boletins
-          </Link>
+          <MenuItem to="/boletins" icon={FileText}>
+            Boletins
+          </MenuItem>
 
-          <Link to="/configuracoes">
-            <Settings size={20} /> Configurações
-          </Link>
+          <MenuItem to="/configuracoes" icon={Settings}>
+            Configurações
+          </MenuItem>
 
-          <Link to="/publico" target="_blank">
-            <Trophy size={20} /> Página Pública
-          </Link>
+          <div className="menu-divider" />
 
-          <Link to="/publico/medalhas" target="_blank">
-            <Trophy size={20} /> Medalhas Público
-          </Link>
+          <MenuItem to="/publico" icon={Monitor} target="_blank">
+            Página Pública
+          </MenuItem>
 
-          <Link to="/publico/telao" target="_blank">
-            <Trophy size={20} /> Telão Público
-          </Link>
+          <MenuItem to="/publico/medalhas" icon={Medal} target="_blank">
+            Medalhas Público
+          </MenuItem>
 
-          <Link to="/publico/telao-pista" target="_blank">
-            <Trophy size={20} /> Telão Pista
-          </Link>
+          <MenuItem to="/publico/telao" icon={Tv2} target="_blank">
+            Telão Público
+          </MenuItem>
 
-          <Link to="/tv" target="_blank">
-            <Trophy size={20} /> TV Entrada
-          </Link>
+          <MenuItem to="/publico/telao-pista" icon={Tv2} target="_blank">
+            Telão Pista
+          </MenuItem>
 
-          <Link to="/tv-config">
-            <Settings size={20} /> Config TV Entrada
-          </Link>
+          <MenuItem to="/tv" icon={Tv2} target="_blank">
+            TV Entrada
+          </MenuItem>
+
+          <MenuItem to="/tv-config" icon={Settings}>
+            Config TV Entrada
+          </MenuItem>
         </nav>
       </aside>
 
-      <main className="content">
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/importacao" element={<Importacao />} />
-          <Route path="/provas" element={<Provas />} />
-          <Route path="/sumulas" element={<Sumulas />} />
-          <Route path="/resultados" element={<Resultados />} />
-          <Route path="/pista-ao-vivo" element={<PistaAoVivo />} />
-          <Route path="/boletins" element={<Boletins />} />
-          <Route path="/configuracoes" element={<Configuracoes />} />
-          <Route path="/tv-config" element={<TvConfig />} />
-        </Routes>
+      <main className="main">
+        <header className="topbar">
+          <div>
+            <h2>Sistema de Atletismo</h2>
+            <p>Jogos Escolares de Roraima 2026</p>
+          </div>
+
+          <div className="topbar-badge">
+            <span></span>
+            Online
+          </div>
+        </header>
+
+        <section className="content">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/importacao" element={<Importacao />} />
+            <Route path="/provas" element={<Provas />} />
+            <Route path="/sumulas" element={<Sumulas />} />
+            <Route path="/resultados" element={<Resultados />} />
+            <Route path="/pista-ao-vivo" element={<PistaAoVivo />} />
+            <Route path="/boletins" element={<Boletins />} />
+            <Route path="/configuracoes" element={<Configuracoes />} />
+            <Route path="/tv-config" element={<TvConfig />} />
+          </Routes>
+        </section>
       </main>
     </div>
   );
