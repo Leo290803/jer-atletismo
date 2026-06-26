@@ -134,11 +134,19 @@ textarea {
 
 .topbar {
   height: 92px;
-  background: linear-gradient(90deg, #ffffff 0%, #f8fafc 60%, #eef6f1 100%);
+  background: linear-gradient(
+    90deg,
+    #ffffff 0%,
+    #f8fafc 60%,
+    #eef6f1 100%
+  );
+
   border-bottom: 1px solid var(--border);
+
   display: flex;
   align-items: center;
   justify-content: space-between;
+
   padding: 0 34px;
 }
 
@@ -158,9 +166,13 @@ textarea {
   background: #ecfdf5;
   color: var(--primary);
   border: 1px solid #86efac;
+
   padding: 10px 15px;
+
   border-radius: 999px;
+
   font-weight: 900;
+
   display: flex;
   align-items: center;
   gap: 8px;
@@ -179,17 +191,33 @@ textarea {
   padding: 30px;
   flex: 1;
   overflow-y: auto;
+
   background:
-    radial-gradient(circle at top right, rgba(0, 107, 63, 0.08), transparent 360px),
+    radial-gradient(
+      circle at top right,
+      rgba(0, 107, 63, 0.08),
+      transparent 360px
+    ),
     var(--bg);
+}
+
+/* CORREÇÃO DAS ÁREAS INTERNAS */
+
+.content section {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
 }
 
 /* CONTAINERS */
 
 .card,
-section,
 .box,
-.panel {
+.panel,
+.form-card,
+.table-card,
+.page-card {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -198,28 +226,52 @@ section,
 }
 
 .card:hover,
-section:hover,
 .panel:hover,
-.box:hover {
+.box:hover,
+.form-card:hover,
+.table-card:hover,
+.page-card:hover {
   box-shadow: var(--shadow-md);
 }
 
+/* CARDS DAS PROVAS */
+
+.prova-card,
+.prova-item,
+.event-card {
+  background: #ffffff !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.prova-card h3,
+.prova-card p,
+.prova-item h3,
+.prova-item p,
+.event-card h3,
+.event-card p {
+  color: var(--text) !important;
+}
+
+/* TÍTULOS */
+
 .card h1,
-section h1 {
+.page-card h1 {
   color: var(--secondary);
   font-size: 30px;
   font-weight: 900;
 }
 
 .card h2,
-section h2 {
+.page-card h2 {
   color: var(--secondary);
   font-size: 24px;
   font-weight: 900;
 }
 
 .card h3,
-section h3 {
+.page-card h3 {
   color: var(--secondary);
   font-size: 18px;
   margin-bottom: 12px;
@@ -235,13 +287,23 @@ button {
 }
 
 button:not(.unstyled) {
-  background: linear-gradient(135deg, var(--primary), #0f9f6e);
+  background: linear-gradient(
+    135deg,
+    var(--primary),
+    #0f9f6e
+  );
+
   color: white;
+
   padding: 11px 16px;
 }
 
 button:not(.unstyled):hover {
-  background: linear-gradient(135deg, var(--primary-hover), var(--primary));
+  background: linear-gradient(
+    135deg,
+    var(--primary-hover),
+    var(--primary)
+  );
 }
 
 /* INPUTS */
@@ -254,13 +316,19 @@ textarea {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   outline: none;
-  background: white;
+  background: #ffffff !important;
+  color: var(--text) !important;
+}
+
+input::placeholder {
+  color: #94a3b8 !important;
 }
 
 input:focus,
 select:focus,
 textarea:focus {
   border-color: var(--primary);
+
   box-shadow: 0 0 0 4px rgba(0, 107, 63, 0.1);
 }
 
