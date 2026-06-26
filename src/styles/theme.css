@@ -1,23 +1,33 @@
 :root {
-  --primary: #059669;
-  --primary-hover: #047857;
+  --primary: #006b3f;
+  --primary-hover: #005532;
 
-  --bg: #f4f4f5;
+  --secondary: #003366;
+  --secondary-hover: #00264d;
+
+  --accent: #f2b705;
+
+  --bg: #f3f6f9;
   --card: #ffffff;
-  --border: #e4e4e7;
+  --border: #dbe3ea;
 
-  --text: #18181b;
-  --text-light: #71717a;
+  --text: #102033;
+  --text-light: #667085;
 
-  --sidebar-bg: #09090b;
-  --sidebar-hover: #18181b;
+  --sidebar-bg: #07111f;
+  --sidebar-hover: #102033;
 
-  --radius-sm: 10px;
-  --radius-md: 16px;
-  --radius-lg: 22px;
+  --success: #16a34a;
+  --warning: #f59e0b;
+  --danger: #dc2626;
+  --info: #0284c7;
 
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.08);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+
+  --shadow-sm: 0 4px 14px rgba(16, 32, 51, 0.06);
+  --shadow-md: 0 12px 35px rgba(16, 32, 51, 0.12);
 
   --transition: 0.2s;
 }
