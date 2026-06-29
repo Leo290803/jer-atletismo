@@ -1749,8 +1749,12 @@ function classificarSaltoAltura() {
         {`
           @media print {
             @page {
-              size: A3 landscape;
-              margin: 3mm;
+              size: A4 landscape;
+              margin: 6mm;
+            }
+
+            html, body {
+              zoom: 1.05 !important;
             }
 
             * {
@@ -1874,13 +1878,13 @@ function classificarSaltoAltura() {
             /* PISTA / CORRIDAS */
             .sumula-pista table {
               table-layout: fixed !important;
-              font-size: 12.2px !important;
+              font-size: 13.5px !important;
             }
 
             .sumula-pista th,
             .sumula-pista td {
-              padding: 6px 6px !important;
-              line-height: 1.18 !important;
+              padding: 7px 7px !important;
+              line-height: 1.3 !important;
             }
 
             .sumula-pista th:nth-child(1),
@@ -1931,13 +1935,13 @@ function classificarSaltoAltura() {
             /* CAMPO: arremesso, lançamentos, distância e triplo */
             .sumula-campo table {
               table-layout: fixed !important;
-              font-size: 10px !important;
+              font-size: 11.5px !important;
             }
 
             .sumula-campo th,
             .sumula-campo td {
-              padding: 4px 4px !important;
-              line-height: 1.12 !important;
+              padding: 5px 5px !important;
+              line-height: 1.2 !important;
             }
 
             .sumula-campo th:nth-child(1),
@@ -1965,13 +1969,13 @@ function classificarSaltoAltura() {
             /* REVEZAMENTO */
             .sumula-revezamento table {
               table-layout: fixed !important;
-              font-size: 12px !important;
+              font-size: 13px !important;
             }
 
             .sumula-revezamento th,
             .sumula-revezamento td {
-              padding: 6px 5px !important;
-              line-height: 1.15 !important;
+              padding: 7px 6px !important;
+              line-height: 1.25 !important;
             }
 
             .sumula-revezamento th:nth-child(1),
@@ -2022,12 +2026,12 @@ function classificarSaltoAltura() {
             /* SALTO EM ALTURA */
             .sumula-salto-altura table {
               table-layout: fixed !important;
-              font-size: 7.2px !important;
+              font-size: 8.5px !important;
             }
 
             .sumula-salto-altura th,
             .sumula-salto-altura td {
-              padding: 2px 1px !important;
+              padding: 3px 2px !important;
               line-height: 1.05 !important;
               text-align: center !important;
             }
