@@ -228,6 +228,127 @@ export default function Boletins() {
     });
   }
 
+  function gerarWord() {
+    const estilos = `
+      body { font-family: Arial, sans-serif; color: #111827; }
+      h1, h2, h3, h4 { margin: 0 0 10px; }
+      p { margin: 0 0 10px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+      th, td { border: 1px solid #111827; padding: 8px; }
+      th { background: #f3f4f6; }
+      .cabecalho { margin-bottom: 20px; }
+      .secao { margin-top: 20px; }
+    `;
+
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta charset="utf-8">
+          <title>Boletim Oficial de Resultados</title>
+          <style>${estilos}</style>
+        </head>
+        <body>
+          <div class="cabecalho">
+            <h1>JOGOS ESCOLARES DE RORAIMA - JER 2026</h1>
+            <h2>BOLETIM OFICIAL DE RESULTADOS</h2>
+            <p><strong>Modalidade:</strong> Atletismo</p>
+            <p><strong>Período:</strong> ${formatarData(dataInicio)} até ${formatarData(dataFim)}</p>
+            <p><strong>Total de provas com resultado publicado:</strong> ${grupos.length}</p>
+            <p><strong>Total de registros publicados:</strong> ${resultados.length}</p>
+          </div>
+
+          ${grupos
+            .map((grupo) => {
+              const fase = grupo.prova?.fase || "QUALIFICAÇÃO";
+              const final = ehFinalDaProva(fase);
+              const resultadosOrdenados = ordenarResultados(grupo.resultados, final);
+              const seriesDaProva = agruparPorSerie(resultadosOrdenados);
+
+              return `
+                <div class="secao">
+                  <h3>${formatarData(grupo.data)} — ${grupo.prova?.nome} - ${grupo.prova?.categoria} - ${grupo.prova?.naipe} - ${fase}</h3>
+                  ${final ? `
+                    <h4>Medalhistas</h4>
+                    ${gerarTabelaResultados(resultadosOrdenados)}
+                  ` : `
+                    <h4>Resultados por Série</h4>
+                    ${seriesDaProva
+                      .map(
+                        (serie) => `
+                          <div style="margin-bottom: 16px;">
+                            <h4>Série ${serie.numeroSerie}</h4>
+                            ${gerarTabelaResultados(serie.resultados)}
+                          </div>
+                        `
+                      )
+                      .join("")}
+                  `}
+                </div>
+              `;
+            })
+            .join("")}
+        </body>
+      </html>
+    `;
+
+    const blob = new Blob(["\ufeff", html], {
+      type: "application/msword",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Boletim-${dataInicio}-a-${dataFim}.doc`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  function gerarTabelaResultados(resultadosTabela) {
+    const temStatusDiferenteOk = resultadosTabela.some(
+      (r) => r.status && r.status !== "OK"
+    );
+
+    const temQualificacao = resultadosTabela.some((r) => r.qualificacao);
+
+    return `
+      <table>
+        <thead>
+          <tr>
+            <th>Colocação</th>
+            <th>Nº</th>
+            <th>Atleta</th>
+            <th>Escola</th>
+            <th>Município</th>
+            <th>Resultado</th>
+            ${temStatusDiferenteOk ? "<th>Status</th>" : ""}
+            ${temQualificacao ? "<th>Class.</th>" : ""}
+          </tr>
+        </thead>
+        <tbody>
+          ${resultadosTabela
+            .map((r, i) => {
+              const atleta = r.inscricoes?.atletas;
+              return `
+                <tr>
+                  <td>${r.colocacao ? `${r.colocacao}º` : `${i + 1}º`}</td>
+                  <td>${atleta?.numero || ""}</td>
+                  <td>${atleta?.nome || ""}</td>
+                  <td>${atleta?.escolas?.nome || ""}</td>
+                  <td>${atleta?.municipio || ""}</td>
+                  <td>${resultadoFinal(r)}</td>
+                  ${temStatusDiferenteOk ? `<td>${r.status && r.status !== "OK" ? r.status : ""}</td>` : ""}
+                  ${temQualificacao ? `<td>${r.qualificacao || ""}</td>` : ""}
+                </tr>
+              `;
+            })
+            .join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
   function imprimir() {
     window.print();
   }
@@ -348,6 +469,18 @@ export default function Boletins() {
               style={botaoAzul}
             >
               Imprimir
+            </button>
+
+            <button
+              onClick={gerarWord}
+              disabled={resultados.length === 0}
+              style={{
+                ...botaoBase,
+                background: "#2563eb",
+                color: "white",
+              }}
+            >
+              Exportar em Word
             </button>
           </div>
 
