@@ -616,16 +616,32 @@ export default function NumeracaoBalizamento() {
     <div>
       <style>
         {`
+          @page {
+            size: A4 landscape;
+            margin: 12mm;
+          }
+
           @media print {
+            @page {
+              size: A4 landscape;
+              margin: 12mm;
+            }
+
+            html,
             body {
+              width: 100% !important;
+              min-height: 100% !important;
               background: white !important;
               color: black !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              font-size: 10pt !important;
+              -webkit-print-color-adjust: exact !important;
             }
 
             .sidebar,
             .nao-imprimir,
             .topbar,
-            .page-header,
             .toolbar,
             .action-row {
               display: none !important;
@@ -638,26 +654,56 @@ export default function NumeracaoBalizamento() {
               max-width: none !important;
             }
 
+            .page-header {
+              display: block !important;
+              margin: 0 0 12px 0 !important;
+              page-break-after: avoid !important;
+            }
+
             .card {
               border: none !important;
               background: white !important;
               box-shadow: none !important;
               padding: 0 !important;
               margin: 0 0 16px 0 !important;
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
             }
 
             table {
               width: 100% !important;
               border-collapse: collapse !important;
-              font-size: 10px !important;
+              font-size: 9pt !important;
+              page-break-inside: auto !important;
+              break-inside: auto !important;
+            }
+
+            thead {
+              display: table-header-group !important;
+            }
+
+            tfoot {
+              display: table-footer-group !important;
+            }
+
+            tr {
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
             }
 
             th,
             td {
               border: 1px solid black !important;
-              padding: 5px !important;
+              padding: 4px 6px !important;
               color: black !important;
               vertical-align: middle !important;
+            }
+
+            th {
+              background: #f3f4f6 !important;
+              color: black !important;
+              font-weight: 700 !important;
+              -webkit-print-color-adjust: exact !important;
             }
 
             h1,
@@ -668,13 +714,85 @@ export default function NumeracaoBalizamento() {
             }
 
             .quebra-pagina {
-              break-after: page;
-              page-break-after: always;
+              break-after: page !important;
+              page-break-after: always !important;
             }
 
             .quebra-pagina:last-child {
-              break-after: auto;
-              page-break-after: auto;
+              break-after: auto !important;
+              page-break-after: auto !important;
+            }
+          }
+
+          .print-only {
+            display: none;
+          }
+
+          .print-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+            margin-bottom: 16px;
+          }
+
+          .print-logos {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+          }
+
+          .print-logos img {
+            max-height: 70px;
+            object-fit: contain;
+          }
+
+          .print-title {
+            flex: 1;
+            min-width: 280px;
+          }
+
+          .print-title h1 {
+            margin: 0 0 8px 0;
+            font-size: 22px;
+          }
+
+          .print-title p {
+            margin: 0;
+            font-size: 11pt;
+          }
+
+          .print-group {
+            margin-bottom: 24px;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+
+          .school-header {
+            font-weight: 700;
+            margin-bottom: 10px;
+          }
+
+          .print-only table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+
+          .nao-imprimir {
+            display: block;
+          }
+
+          @media print {
+            .print-only {
+              display: block !important;
+            }
+
+            .nao-imprimir {
+              display: none !important;
+            }
+
+            .page-header {
+              display: none !important;
             }
           }
 
@@ -706,6 +824,57 @@ export default function NumeracaoBalizamento() {
           }
         `}
       </style>
+
+      <div className="print-only">
+        <div className="print-header">
+          <div className="print-logos">
+            <img src="/logo-jer.png" alt="Jogos Escolares" />
+            <img
+              src="/logo-idjuv.png"
+              alt="IDJUV"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
+          </div>
+          <div className="print-title">
+            <h1>Relatório de Balizamento por Escola</h1>
+            <p>Instituto de Desporto, Juventude e Lazer do Estado de Roraima</p>
+          </div>
+        </div>
+
+        {balizamentoPorEscola.map((grupo, index) => (
+          <section key={`${grupo.municipio}-${grupo.escola}`} className="print-group">
+            <div className="school-header">
+              <strong>{grupo.escola}</strong> • {grupo.municipio} • {grupo.atletas.length} atleta(s)
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th align="left">Nº</th>
+                  <th align="left">Nome</th>
+                  <th align="left">Categoria</th>
+                  <th align="left">Naipe</th>
+                  <th align="left">Provas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {grupo.atletas.map((atleta) => (
+                  <tr key={atleta.id}>
+                    <td className="numero-competicao">
+                      {formatarNumeroCompeticao(atleta.numero_competicao)}
+                    </td>
+                    <td>{atleta.nome}</td>
+                    <td>{atleta.categoria || "-"}</td>
+                    <td>{atleta.naipe || "-"}</td>
+                    <td>{gerarLinhaProvas(atleta)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        ))}
+      </div>
 
       <div className="nao-imprimir">
         <div className="page-header" style={{ marginBottom: 20 }}>
@@ -1008,7 +1177,6 @@ export default function NumeracaoBalizamento() {
                       <th align="left">Categoria</th>
                       <th align="left">Naipe</th>
                       <th align="left">Provas</th>
-                      <th align="left">Assinatura</th>
                     </tr>
                   </thead>
 
@@ -1022,7 +1190,6 @@ export default function NumeracaoBalizamento() {
                         <td>{atleta.categoria || "-"}</td>
                         <td>{atleta.naipe || "-"}</td>
                         <td>{gerarLinhaProvas(atleta)}</td>
-                        <td style={{ minWidth: 150 }} />
                       </tr>
                     ))}
                   </tbody>

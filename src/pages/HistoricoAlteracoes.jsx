@@ -3,6 +3,18 @@ import { supabase } from "../lib/supabase";
 
 const PAGE_SIZE = 20;
 
+function formatarJson(valor) {
+  if (!valor) return "-";
+
+  if (typeof valor === "string") return valor;
+
+  try {
+    return JSON.stringify(valor);
+  } catch {
+    return "-";
+  }
+}
+
 export default function HistoricoAlteracoes() {
   const [registros, setRegistros] = useState([]);
   const [pageIndex, setPageIndex] = useState(0);
@@ -25,17 +37,23 @@ export default function HistoricoAlteracoes() {
     const { data, error, count } = await supabase
       .from("historico_alteracoes")
       .select(
-        `id,usuario,acao,motivo,antes,depois,created_at, atleta:atletas(id,nome)`,
+        `
+        id,
+        usuario,
+        acao,
+        motivo,
+        atleta,
+        antes,
+        depois,
+        created_at
+      `,
         { count: "exact" }
       )
       .order("created_at", { ascending: false })
       .range(start, end);
 
     if (error) {
-      setMensagem(
-        "Erro ao carregar histórico. Verifique se a tabela historico_alteracoes foi criada. " +
-          error.message
-      );
+      setMensagem("Erro ao carregar histórico: " + error.message);
       setLoading(false);
       return;
     }
@@ -53,21 +71,25 @@ export default function HistoricoAlteracoes() {
     return registros.filter((registro) => {
       if (
         filtros.usuario &&
-        !registro.usuario?.toLowerCase().includes(filtros.usuario.toLowerCase())
+        !String(registro.usuario || "")
+          .toLowerCase()
+          .includes(filtros.usuario.toLowerCase())
       ) {
         return false;
       }
 
       if (
         filtros.acao &&
-        !registro.acao?.toLowerCase().includes(filtros.acao.toLowerCase())
+        !String(registro.acao || "")
+          .toLowerCase()
+          .includes(filtros.acao.toLowerCase())
       ) {
         return false;
       }
 
       if (
         filtros.atleta &&
-        !registro.atleta?.nome
+        !String(registro.atleta || "")
           .toLowerCase()
           .includes(filtros.atleta.toLowerCase())
       ) {
@@ -81,6 +103,7 @@ export default function HistoricoAlteracoes() {
   return (
     <div>
       <h1>Histórico de Alterações</h1>
+
       <p className="muted">
         Registro de ações técnicas e ajustes feitos pela secretaria em atletas e inscrições.
       </p>
@@ -94,6 +117,7 @@ export default function HistoricoAlteracoes() {
             }
             placeholder="Usuário"
           />
+
           <input
             value={filtros.acao}
             onChange={(e) =>
@@ -101,6 +125,7 @@ export default function HistoricoAlteracoes() {
             }
             placeholder="Ação"
           />
+
           <input
             value={filtros.atleta}
             onChange={(e) =>
@@ -130,16 +155,21 @@ export default function HistoricoAlteracoes() {
                   <th>Depois</th>
                 </tr>
               </thead>
+
               <tbody>
                 {registrosFiltrados.map((registro) => (
                   <tr key={registro.id}>
-                    <td>{new Date(registro.created_at).toLocaleString()}</td>
-                    <td>{registro.usuario}</td>
-                    <td>{registro.acao}</td>
-                    <td>{registro.atleta?.nome || "-"}</td>
+                    <td>
+                      {registro.created_at
+                        ? new Date(registro.created_at).toLocaleString("pt-BR")
+                        : "-"}
+                    </td>
+                    <td>{registro.usuario || "-"}</td>
+                    <td>{registro.acao || "-"}</td>
+                    <td>{registro.atleta || "-"}</td>
                     <td>{registro.motivo || "-"}</td>
-                    <td>{registro.antes || "-"}</td>
-                    <td>{registro.depois || "-"}</td>
+                    <td>{formatarJson(registro.antes)}</td>
+                    <td>{formatarJson(registro.depois)}</td>
                   </tr>
                 ))}
 
@@ -155,10 +185,15 @@ export default function HistoricoAlteracoes() {
           </div>
         )}
 
-        <div className="action-row" style={{ marginTop: 16, justifyContent: "space-between" }}>
+        <div
+          className="action-row"
+          style={{ marginTop: 16, justifyContent: "space-between" }}
+        >
           <span>
-            Página {pageIndex + 1} de {Math.max(1, Math.ceil(totalRows / PAGE_SIZE))}
+            Página {pageIndex + 1} de{" "}
+            {Math.max(1, Math.ceil(totalRows / PAGE_SIZE))}
           </span>
+
           <div style={{ display: "flex", gap: 12 }}>
             <button
               className="secondary-button"
@@ -167,6 +202,7 @@ export default function HistoricoAlteracoes() {
             >
               Anterior
             </button>
+
             <button
               className="secondary-button"
               disabled={(pageIndex + 1) * PAGE_SIZE >= totalRows}

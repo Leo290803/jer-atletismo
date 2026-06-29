@@ -13,8 +13,40 @@ function formatarDataBR(dataISO) {
   return `${dia}/${mes}/${ano}`;
 }
 
+function normalizarTexto(valor) {
+  return String(valor || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function idsIguais(a, b) {
+  return String(a) === String(b);
+}
+
+function getEscolaNome(atleta) {
+  return atleta?.escolas?.nome || atleta?.escola || "Sem escola";
+}
+
+function getProvasUnicas(inscricoes = []) {
+  const mapa = new Map();
+
+  inscricoes.forEach((inscricao) => {
+    const prova = inscricao?.provas;
+    if (!prova?.id) return;
+
+    if (!mapa.has(String(prova.id))) {
+      mapa.set(String(prova.id), prova);
+    }
+  });
+
+  return [...mapa.values()];
+}
+
 function Modal({ open, titulo, onClose, children }) {
   if (!open) return null;
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-dialog" onClick={(event) => event.stopPropagation()}>
@@ -37,7 +69,9 @@ export default function GestaoInscricoes() {
   const [pageIndex, setPageIndex] = useState(0);
   const [totalRows, setTotalRows] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState("");
+
   const [filtros, setFiltros] = useState({
     nome: "",
     numero: "",
@@ -47,10 +81,13 @@ export default function GestaoInscricoes() {
     categoria: "",
     naipe: "",
   });
+
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("");
   const [selectedAtleta, setSelectedAtleta] = useState(null);
   const [selectedInscricao, setSelectedInscricao] = useState(null);
+  const [replacementAtletaId, setReplacementAtletaId] = useState("");
+
   const [formState, setFormState] = useState({
     nome: "",
     data_nascimento: "",
@@ -61,12 +98,11 @@ export default function GestaoInscricoes() {
     cpf: "",
     provas: [],
   });
-  const [replacementAtletaId, setReplacementAtletaId] = useState("");
 
   const carregarProvas = useCallback(async () => {
     const { data, error } = await supabase
       .from("provas")
-      .select(`id,nome,categoria,naipe,status`)
+      .select("id,nome,categoria,naipe,status")
       .order("nome", { ascending: true });
 
     if (error) {
@@ -80,7 +116,7 @@ export default function GestaoInscricoes() {
   const carregarEscolas = useCallback(async () => {
     const { data, error } = await supabase
       .from("escolas")
-      .select("id,nome")
+      .select("id,nome,municipio")
       .order("nome", { ascending: true });
 
     if (error) {
@@ -98,24 +134,83 @@ export default function GestaoInscricoes() {
     const start = pageIndex * PAGE_SIZE;
     const end = start + PAGE_SIZE - 1;
 
-    const query = supabase
+    const { data: atletasData, error: atletasError, count } = await supabase
       .from("atletas")
       .select(
-        `id,nome,numero,municipio,categoria,naipe,escola_id,escolas(nome),inscricoes(id,prova_id,provas(id,nome,categoria,naipe,status))`,
+        `
+        id,
+        nome,
+        numero,
+        numero_competicao,
+        municipio,
+        categoria,
+        naipe,
+        data_nascimento,
+        escola_id,
+        escolas (
+          id,
+          nome
+        )
+      `,
         { count: "exact" }
       )
       .order("nome", { ascending: true })
       .range(start, end);
 
-    const { data, error, count } = await query;
-
-    if (error) {
-      setMensagem("Erro ao carregar atletas: " + error.message);
+    if (atletasError) {
+      setMensagem("Erro ao carregar atletas: " + atletasError.message);
       setLoading(false);
       return;
     }
 
-    setAtletas(data || []);
+    const atletasPagina = atletasData || [];
+    const atletaIds = atletasPagina.map((atleta) => atleta.id).filter(Boolean);
+    let inscricoesData = [];
+
+    if (atletaIds.length > 0) {
+      const { data, error } = await supabase
+        .from("inscricoes")
+        .select(
+          `
+          id,
+          atleta_id,
+          prova_id,
+          provas (
+            id,
+            nome,
+            categoria,
+            naipe,
+            status
+          )
+        `
+        )
+        .in("atleta_id", atletaIds)
+        .order("id", { ascending: true });
+
+      if (error) {
+        setMensagem("Erro ao carregar inscrições: " + error.message);
+        setLoading(false);
+        return;
+      }
+
+      inscricoesData = data || [];
+    }
+
+    const inscricoesPorAtleta = new Map();
+
+    inscricoesData.forEach((inscricao) => {
+      const chave = String(inscricao.atleta_id);
+      const lista = inscricoesPorAtleta.get(chave) || [];
+      lista.push(inscricao);
+      inscricoesPorAtleta.set(chave, lista);
+    });
+
+    const atletasComInscricoes = atletasPagina.map((atleta) => ({
+      ...atleta,
+      inscricoes: inscricoesPorAtleta.get(String(atleta.id)) || [],
+    }));
+
+    setAtletas(atletasComInscricoes);
     setTotalRows(count || 0);
     setLoading(false);
   }, [pageIndex]);
@@ -132,77 +227,64 @@ export default function GestaoInscricoes() {
   const atletasEnriquecidos = useMemo(() => {
     return (atletas || []).map((atleta) => ({
       ...atleta,
-      escola: atleta.escolas?.nome || "Sem escola",
-      provas:
-        atleta.inscricoes?.map((inscricao) => inscricao.provas).filter(Boolean) || [],
+      escola: getEscolaNome(atleta),
+      provas: getProvasUnicas(atleta.inscricoes || []),
     }));
   }, [atletas]);
 
   const atletasFiltrados = useMemo(() => {
     return atletasEnriquecidos.filter((atleta) => {
-      if (
-        filtros.nome &&
-        !atleta.nome.toLowerCase().includes(filtros.nome.toLowerCase())
-      ) {
+      if (filtros.nome && !normalizarTexto(atleta.nome).includes(normalizarTexto(filtros.nome))) {
         return false;
       }
 
-      if (
-        filtros.numero &&
-        String(atleta.numero).indexOf(String(filtros.numero)) === -1
-      ) {
+      if (filtros.numero && !String(atleta.numero || atleta.numero_competicao || "").includes(String(filtros.numero))) {
         return false;
       }
 
-      if (
-        filtros.escola &&
-        !atleta.escola.toLowerCase().includes(filtros.escola.toLowerCase())
-      ) {
+      if (filtros.escola && !normalizarTexto(atleta.escola).includes(normalizarTexto(filtros.escola))) {
         return false;
       }
 
-      if (
-        filtros.municipio &&
-        !String(atleta.municipio || "")
-          .toLowerCase()
-          .includes(filtros.municipio.toLowerCase())
-      ) {
+      if (filtros.municipio && !normalizarTexto(atleta.municipio).includes(normalizarTexto(filtros.municipio))) {
         return false;
       }
 
-      if (
-        filtros.categoria &&
-        !String(atleta.categoria || "")
-          .toLowerCase()
-          .includes(filtros.categoria.toLowerCase())
-      ) {
+      if (filtros.categoria && !normalizarTexto(atleta.categoria).includes(normalizarTexto(filtros.categoria))) {
         return false;
       }
 
-      if (
-        filtros.naipe &&
-        !String(atleta.naipe || "")
-          .toLowerCase()
-          .includes(filtros.naipe.toLowerCase())
-      ) {
+      if (filtros.naipe && !normalizarTexto(atleta.naipe).includes(normalizarTexto(filtros.naipe))) {
         return false;
       }
 
       if (filtros.prova) {
-        const provaf = filtros.prova.toLowerCase();
-        return atleta.provas.some((prova) =>
-          prova.nome?.toLowerCase().includes(provaf)
-        );
+        const provaFiltro = normalizarTexto(filtros.prova);
+        return atleta.provas.some((prova) => normalizarTexto(prova.nome).includes(provaFiltro));
       }
 
       return true;
     });
   }, [atletasEnriquecidos, filtros]);
 
+  function resetForm() {
+    setFormState({
+      nome: "",
+      data_nascimento: "",
+      municipio: "",
+      escola_id: "",
+      categoria: "",
+      naipe: "",
+      cpf: "",
+      provas: [],
+    });
+  }
+
   function abrirModal(mode, atleta = null, inscricao = null) {
     setModalMode(mode);
     setSelectedAtleta(atleta);
     setSelectedInscricao(inscricao);
+    setReplacementAtletaId("");
     setMensagem("");
 
     if (mode === "editar" && atleta) {
@@ -213,8 +295,11 @@ export default function GestaoInscricoes() {
         escola_id: atleta.escola_id || "",
         categoria: atleta.categoria || "",
         naipe: atleta.naipe || "",
-        provas: atleta.provas.map((prova) => prova.id) || [],
+        cpf: atleta.cpf || "",
+        provas: (atleta.provas || []).map((prova) => prova.id),
       });
+    } else if (mode === "adicionar_prova") {
+      resetForm();
     } else if (mode === "trocar_prova" && inscricao) {
       setFormState({
         nome: "",
@@ -227,16 +312,7 @@ export default function GestaoInscricoes() {
         provas: [inscricao.prova_id],
       });
     } else {
-      setFormState({
-        nome: "",
-        data_nascimento: "",
-        municipio: "",
-        escola_id: "",
-        categoria: "",
-        naipe: "",
-        cpf: "",
-        provas: [],
-      });
+      resetForm();
     }
 
     setModalOpen(true);
@@ -247,129 +323,187 @@ export default function GestaoInscricoes() {
     setSelectedAtleta(null);
     setSelectedInscricao(null);
     setReplacementAtletaId("");
-    setMensagem("");
+    resetForm();
+  }
+
+  async function sincronizarInscricoesDoAtleta(atletaId, inscricoesAtuais = [], provasSelecionadas = []) {
+    const provasAtuais = new Map();
+
+    inscricoesAtuais.forEach((inscricao) => {
+      if (!inscricao.prova_id) return;
+      provasAtuais.set(String(inscricao.prova_id), inscricao);
+    });
+
+    const provasFinal = [...new Set((provasSelecionadas || []).map((provaId) => String(provaId)).filter(Boolean))];
+    const provasFinalSet = new Set(provasFinal);
+
+    const inscricoesParaRemover = inscricoesAtuais.filter(
+      (inscricao) => inscricao.prova_id && !provasFinalSet.has(String(inscricao.prova_id))
+    );
+
+    const provasParaAdicionar = provasFinal.filter((provaId) => !provasAtuais.has(String(provaId)));
+
+    if (inscricoesParaRemover.length > 0) {
+      const idsRemover = inscricoesParaRemover.map((inscricao) => inscricao.id);
+      const { error } = await supabase.from("inscricoes").delete().in("id", idsRemover);
+
+      if (error) throw new Error("Erro ao remover provas antigas: " + error.message);
+    }
+
+    if (provasParaAdicionar.length > 0) {
+      const payload = provasParaAdicionar.map((provaId) => ({
+        atleta_id: atletaId,
+        prova_id: provaId,
+      }));
+
+      const { error } = await supabase.from("inscricoes").insert(payload);
+
+      if (error) throw new Error("Erro ao adicionar novas provas: " + error.message);
+    }
   }
 
   async function salvarAtleta() {
-    const atletaPayload = {
-      nome: formState.nome,
-      data_nascimento: formState.data_nascimento || null,
-      municipio: formState.municipio || null,
-      escola_id: formState.escola_id || null,
-      categoria: formState.categoria || null,
-      naipe: formState.naipe || null,
-    };
+    try {
+      setSalvando(true);
+      setMensagem("");
 
-    if (modalMode === "editar" && selectedAtleta) {
-      const { error } = await supabase
+      if (!formState.nome.trim()) {
+        setMensagem("Informe o nome do atleta.");
+        setSalvando(false);
+        return;
+      }
+
+      const atletaPayload = {
+        nome: formState.nome.trim().toUpperCase(),
+        data_nascimento: formState.data_nascimento || null,
+        municipio: formState.municipio?.trim().toUpperCase() || null,
+        escola_id: formState.escola_id || null,
+        categoria: formState.categoria || null,
+        naipe: formState.naipe || null,
+      };
+
+      if (modalMode === "editar" && selectedAtleta) {
+        const { error } = await supabase
+          .from("atletas")
+          .update(atletaPayload)
+          .eq("id", selectedAtleta.id);
+
+        if (error) throw new Error("Erro ao atualizar atleta: " + error.message);
+
+        await sincronizarInscricoesDoAtleta(
+          selectedAtleta.id,
+          selectedAtleta.inscricoes || [],
+          formState.provas || []
+        );
+
+        setMensagem("Atleta e provas atualizados com sucesso.");
+        fecharModal();
+        await carregarAtletas();
+        return;
+      }
+
+      const { data: novoAtleta, error: erroAtleta } = await supabase
         .from("atletas")
-        .update(atletaPayload)
-        .eq("id", selectedAtleta.id);
+        .insert(atletaPayload)
+        .select("id")
+        .single();
 
-      if (error) {
-        setMensagem("Erro ao atualizar atleta: " + error.message);
-        return;
+      if (erroAtleta) throw new Error("Erro ao criar atleta: " + erroAtleta.message);
+
+      const provasSelecionadas = [...new Set((formState.provas || []).map((id) => String(id)).filter(Boolean))];
+
+      if (provasSelecionadas.length > 0) {
+        const inscricoesParaCriar = provasSelecionadas.map((provaId) => ({
+          atleta_id: novoAtleta.id,
+          prova_id: provaId,
+        }));
+
+        const { error: erroInscricoes } = await supabase.from("inscricoes").insert(inscricoesParaCriar);
+
+        if (erroInscricoes) {
+          throw new Error("Atleta salvo, mas erro ao adicionar provas: " + erroInscricoes.message);
+        }
       }
 
-      setMensagem("Atleta atualizado com sucesso.");
+      setMensagem("Atleta criado com sucesso.");
       fecharModal();
-      void carregarAtletas();
-      return;
+      await carregarAtletas();
+    } catch (erro) {
+      setMensagem(erro.message || "Erro ao salvar atleta.");
+    } finally {
+      setSalvando(false);
     }
-
-    const { data: novoAtleta, error: erroAtleta } = await supabase
-      .from("atletas")
-      .insert(atletaPayload)
-      .select("id")
-      .single();
-
-    if (erroAtleta) {
-      setMensagem("Erro ao criar atleta: " + erroAtleta.message);
-      return;
-    }
-
-    const inscricoesParaCriar = (formState.provas || []).map((provaId) => ({
-      atleta_id: novoAtleta.id,
-      prova_id: provaId,
-    }));
-
-    if (inscricoesParaCriar.length > 0) {
-      const { error: erroInscricoes } = await supabase
-        .from("inscricoes")
-        .insert(inscricoesParaCriar);
-
-      if (erroInscricoes) {
-        setMensagem("Atleta salvo, mas erro ao adicionar provas: " + erroInscricoes.message);
-        return;
-      }
-    }
-
-    setMensagem("Atleta criado com sucesso.");
-    fecharModal();
-    void carregarAtletas();
   }
 
   async function adicionarProvas() {
-    if (!selectedAtleta) return;
-    const novasProvas = (formState.provas || []).filter(
-      (provaId) =>
-        !selectedAtleta.provas.some((prova) => prova.id === provaId)
-    );
+    try {
+      if (!selectedAtleta) return;
 
-    if (novasProvas.length === 0) {
-      setMensagem("Selecione provas diferentes para adicionar.");
-      return;
+      setSalvando(true);
+      setMensagem("");
+
+      const provasAtuais = new Set((selectedAtleta.provas || []).map((prova) => String(prova.id)));
+      const novasProvas = [...new Set((formState.provas || []).map((provaId) => String(provaId)).filter(Boolean))].filter(
+        (provaId) => !provasAtuais.has(provaId)
+      );
+
+      if (novasProvas.length === 0) {
+        setMensagem("Selecione provas diferentes para adicionar.");
+        return;
+      }
+
+      const payload = novasProvas.map((provaId) => ({
+        atleta_id: selectedAtleta.id,
+        prova_id: provaId,
+      }));
+
+      const { error } = await supabase.from("inscricoes").insert(payload);
+
+      if (error) throw new Error("Erro ao adicionar provas: " + error.message);
+
+      setMensagem("Provas adicionadas com sucesso.");
+      fecharModal();
+      await carregarAtletas();
+    } catch (erro) {
+      setMensagem(erro.message || "Erro ao adicionar provas.");
+    } finally {
+      setSalvando(false);
     }
-
-    const payload = novasProvas.map((provaId) => ({
-      atleta_id: selectedAtleta.id,
-      prova_id: provaId,
-    }));
-
-    const { error } = await supabase.from("inscricoes").insert(payload);
-
-    if (error) {
-      setMensagem("Erro ao adicionar provas: " + error.message);
-      return;
-    }
-
-    setMensagem("Provas adicionadas com sucesso.");
-    fecharModal();
-    void carregarAtletas();
   }
 
   async function trocarProva() {
-    if (!selectedInscricao || formState.provas.length !== 1) {
-      setMensagem("Selecione a nova prova para a troca.");
-      return;
+    try {
+      if (!selectedInscricao || formState.provas.length !== 1 || !formState.provas[0]) {
+        setMensagem("Selecione a nova prova para a troca.");
+        return;
+      }
+
+      setSalvando(true);
+      setMensagem("");
+
+      const novaProvaId = formState.provas[0];
+      const { error } = await supabase
+        .from("inscricoes")
+        .update({ prova_id: novaProvaId })
+        .eq("id", selectedInscricao.id);
+
+      if (error) throw new Error("Erro ao trocar prova: " + error.message);
+
+      setMensagem("Prova trocada com sucesso.");
+      fecharModal();
+      await carregarAtletas();
+    } catch (erro) {
+      setMensagem(erro.message || "Erro ao trocar prova.");
+    } finally {
+      setSalvando(false);
     }
-
-    const novaProvaId = formState.provas[0];
-    const { error } = await supabase
-      .from("inscricoes")
-      .update({ prova_id: novaProvaId })
-      .eq("id", selectedInscricao.id);
-
-    if (error) {
-      setMensagem("Erro ao trocar prova: " + error.message);
-      return;
-    }
-
-    setMensagem("Prova trocada com sucesso.");
-    fecharModal();
-    void carregarAtletas();
   }
 
   async function removerProva(inscricao) {
-    const confirmar = window.confirm(
-      "Remover esta prova do atleta? Esta ação não pode ser desfeita."
-    );
+    const confirmar = window.confirm("Remover esta prova do atleta? Esta ação não pode ser desfeita.");
     if (!confirmar) return;
 
-    const { error } = await supabase
-      .from("inscricoes")
-      .delete()
-      .eq("id", inscricao.id);
+    const { error } = await supabase.from("inscricoes").delete().eq("id", inscricao.id);
 
     if (error) {
       setMensagem("Erro ao remover prova: " + error.message);
@@ -382,14 +516,11 @@ export default function GestaoInscricoes() {
 
   async function desativarAtleta(atleta) {
     const confirmar = window.confirm(
-      "Excluir este atleta do fluxo ativo? Isso removerá o atleta da lista de gerenciamento. Deseja continuar?"
+      "Remover este atleta do fluxo ativo? Isso apaga o atleta e suas inscrições. Deseja continuar?"
     );
     if (!confirmar) return;
 
-    const { error } = await supabase
-      .from("atletas")
-      .delete()
-      .eq("id", atleta.id);
+    const { error } = await supabase.from("atletas").delete().eq("id", atleta.id);
 
     if (error) {
       setMensagem("Erro ao remover atleta: " + error.message);
@@ -401,24 +532,47 @@ export default function GestaoInscricoes() {
   }
 
   async function substituirAtleta() {
-    if (!selectedInscricao || !replacementAtletaId) {
-      setMensagem("Selecione o atleta substituto.");
-      return;
+    try {
+      if (!selectedInscricao || !replacementAtletaId) {
+        setMensagem("Selecione o atleta substituto.");
+        return;
+      }
+
+      setSalvando(true);
+      setMensagem("");
+
+      const { error } = await supabase
+        .from("inscricoes")
+        .update({ atleta_id: replacementAtletaId })
+        .eq("id", selectedInscricao.id);
+
+      if (error) throw new Error("Erro ao substituir atleta: " + error.message);
+
+      setMensagem("Atleta substituído com sucesso.");
+      fecharModal();
+      await carregarAtletas();
+    } catch (erro) {
+      setMensagem(erro.message || "Erro ao substituir atleta.");
+    } finally {
+      setSalvando(false);
     }
+  }
 
-    const { error } = await supabase
-      .from("inscricoes")
-      .update({ atleta_id: replacementAtletaId })
-      .eq("id", selectedInscricao.id);
+  function selecionarProva(provaId, permitirMultiplas = true) {
+    setFormState((current) => {
+      const id = String(provaId);
 
-    if (error) {
-      setMensagem("Erro ao substituir atleta: " + error.message);
-      return;
-    }
+      if (!permitirMultiplas) {
+        return { ...current, provas: [id] };
+      }
 
-    setMensagem("Atleta substituído com sucesso.");
-    fecharModal();
-    void carregarAtletas();
+      const atuais = (current.provas || []).map((item) => String(item));
+      const selecionadas = atuais.includes(id)
+        ? atuais.filter((item) => item !== id)
+        : [...atuais, id];
+
+      return { ...current, provas: selecionadas };
+    });
   }
 
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
@@ -426,76 +580,53 @@ export default function GestaoInscricoes() {
   return (
     <div>
       <h1>Secretaria Técnica</h1>
-      <p className="muted">
-        Gestão de inscrições, validação técnica e ajustes oficiais de competição.
-      </p>
+      <p className="muted">Gestão de inscrições, validação técnica e ajustes oficiais de competição.</p>
 
       <div className="card" style={{ marginBottom: 20 }}>
         <div className="filter-grid">
           <input
             value={filtros.nome}
-            onChange={(e) =>
-              setFiltros((current) => ({ ...current, nome: e.target.value }))
-            }
+            onChange={(e) => setFiltros((current) => ({ ...current, nome: e.target.value }))}
             placeholder="Nome"
           />
           <input
             value={filtros.numero}
-            onChange={(e) =>
-              setFiltros((current) => ({ ...current, numero: e.target.value }))
-            }
+            onChange={(e) => setFiltros((current) => ({ ...current, numero: e.target.value }))}
             placeholder="Número"
           />
           <input
             value={filtros.escola}
-            onChange={(e) =>
-              setFiltros((current) => ({ ...current, escola: e.target.value }))
-            }
+            onChange={(e) => setFiltros((current) => ({ ...current, escola: e.target.value }))}
             placeholder="Escola"
           />
           <input
             value={filtros.municipio}
-            onChange={(e) =>
-              setFiltros((current) => ({ ...current, municipio: e.target.value }))
-            }
+            onChange={(e) => setFiltros((current) => ({ ...current, municipio: e.target.value }))}
             placeholder="Município"
           />
           <input
             value={filtros.prova}
-            onChange={(e) =>
-              setFiltros((current) => ({ ...current, prova: e.target.value }))
-            }
+            onChange={(e) => setFiltros((current) => ({ ...current, prova: e.target.value }))}
             placeholder="Prova"
           />
           <input
             value={filtros.categoria}
-            onChange={(e) =>
-              setFiltros((current) => ({ ...current, categoria: e.target.value }))
-            }
+            onChange={(e) => setFiltros((current) => ({ ...current, categoria: e.target.value }))}
             placeholder="Categoria"
           />
           <input
             value={filtros.naipe}
-            onChange={(e) =>
-              setFiltros((current) => ({ ...current, naipe: e.target.value }))
-            }
+            onChange={(e) => setFiltros((current) => ({ ...current, naipe: e.target.value }))}
             placeholder="Naipe"
           />
         </div>
 
         <div className="action-row" style={{ marginTop: 16, gap: 12 }}>
           <button onClick={() => abrirModal("novo")}>Novo Atleta</button>
-          <button
-            className="secondary-button"
-            onClick={() => carregarAtletas()}
-          >
+          <button className="secondary-button" onClick={() => carregarAtletas()}>
             Atualizar
           </button>
-          <button
-            className="secondary-button"
-            disabled={loading}
-            onClick={() => setPageIndex(0)}
-          >
+          <button className="secondary-button" disabled={loading} onClick={() => setPageIndex(0)}>
             Ir para página 1
           </button>
         </div>
@@ -524,7 +655,7 @@ export default function GestaoInscricoes() {
               <tbody>
                 {atletasFiltrados.map((atleta) => (
                   <tr key={atleta.id}>
-                    <td>{atleta.numero || "-"}</td>
+                    <td>{atleta.numero || atleta.numero_competicao || "-"}</td>
                     <td>{atleta.nome}</td>
                     <td>{atleta.escola}</td>
                     <td>{atleta.categoria || "-"}</td>
@@ -534,31 +665,23 @@ export default function GestaoInscricoes() {
                         : "Sem prova"}
                     </td>
                     <td className="table-actions">
-                      <button
-                        className="small-button"
-                        onClick={() => abrirModal("editar", atleta)}
-                      >
+                      <button className="small-button" onClick={() => abrirModal("editar", atleta)}>
                         Editar
                       </button>
                       <button
                         className="small-button"
-                        onClick={() => {
-                          abrirModal("adicionar_prova", atleta);
-                          setFormState((current) => ({ ...current, provas: [] }));
-                        }}
+                        onClick={() => abrirModal("adicionar_prova", atleta)}
                       >
                         Adicionar Prova
                       </button>
                       <button
                         className="small-button"
+                        disabled={!atleta.inscricoes?.length}
                         onClick={() => abrirModal("trocar_prova", atleta, atleta.inscricoes?.[0])}
                       >
                         Trocar Prova
                       </button>
-                      <button
-                        className="small-button"
-                        onClick={() => desativarAtleta(atleta)}
-                      >
+                      <button className="small-button" onClick={() => desativarAtleta(atleta)}>
                         Desativar
                       </button>
                     </td>
@@ -579,7 +702,7 @@ export default function GestaoInscricoes() {
 
         <div className="action-row" style={{ marginTop: 16, justifyContent: "space-between" }}>
           <span>
-            Página {pageIndex + 1} de {totalPages} — {totalRows} atletas carregados
+            Página {pageIndex + 1} de {totalPages} — {totalRows} atletas no banco
           </span>
           <div style={{ display: "flex", gap: 12 }}>
             <button
@@ -611,6 +734,8 @@ export default function GestaoInscricoes() {
             ? "Adicionar Prova"
             : modalMode === "trocar_prova"
             ? "Trocar Prova"
+            : modalMode === "substituir_atleta"
+            ? "Substituir Atleta"
             : "Operação"
         }
         onClose={fecharModal}
@@ -622,9 +747,7 @@ export default function GestaoInscricoes() {
                 <label>Nome</label>
                 <input
                   value={formState.nome}
-                  onChange={(e) =>
-                    setFormState((current) => ({ ...current, nome: e.target.value }))
-                  }
+                  onChange={(e) => setFormState((current) => ({ ...current, nome: e.target.value }))}
                 />
               </div>
               <div>
@@ -633,10 +756,7 @@ export default function GestaoInscricoes() {
                   type="date"
                   value={formState.data_nascimento}
                   onChange={(e) =>
-                    setFormState((current) => ({
-                      ...current,
-                      data_nascimento: e.target.value,
-                    }))
+                    setFormState((current) => ({ ...current, data_nascimento: e.target.value }))
                   }
                 />
               </div>
@@ -644,36 +764,28 @@ export default function GestaoInscricoes() {
                 <label>Município</label>
                 <input
                   value={formState.municipio}
-                  onChange={(e) =>
-                    setFormState((current) => ({ ...current, municipio: e.target.value }))
-                  }
+                  onChange={(e) => setFormState((current) => ({ ...current, municipio: e.target.value }))}
                 />
               </div>
               <div>
                 <label>Categoria</label>
                 <input
                   value={formState.categoria}
-                  onChange={(e) =>
-                    setFormState((current) => ({ ...current, categoria: e.target.value }))
-                  }
+                  onChange={(e) => setFormState((current) => ({ ...current, categoria: e.target.value }))}
                 />
               </div>
               <div>
                 <label>Naipe</label>
                 <input
                   value={formState.naipe}
-                  onChange={(e) =>
-                    setFormState((current) => ({ ...current, naipe: e.target.value }))
-                  }
+                  onChange={(e) => setFormState((current) => ({ ...current, naipe: e.target.value }))}
                 />
               </div>
               <div>
                 <label>Escola</label>
                 <select
                   value={formState.escola_id}
-                  onChange={(e) =>
-                    setFormState((current) => ({ ...current, escola_id: e.target.value }))
-                  }
+                  onChange={(e) => setFormState((current) => ({ ...current, escola_id: e.target.value }))}
                 >
                   <option value="">Selecione a escola</option>
                   {escolas.map((escola) => (
@@ -686,25 +798,14 @@ export default function GestaoInscricoes() {
             </div>
 
             <div style={{ marginTop: 16 }}>
-              <label>Provas</label>
+              <label>Provas do atleta</label>
               <div className="tag-list">
                 {provas.map((prova) => (
                   <button
                     key={prova.id}
                     type="button"
-                    className={
-                      formState.provas.includes(prova.id)
-                        ? "tag-button selected"
-                        : "tag-button"
-                    }
-                    onClick={() => {
-                      setFormState((current) => {
-                        const selecionadas = current.provas.includes(prova.id)
-                          ? current.provas.filter((id) => id !== prova.id)
-                          : [...current.provas, prova.id];
-                        return { ...current, provas: selecionadas };
-                      });
-                    }}
+                    className={formState.provas.map(String).includes(String(prova.id)) ? "tag-button selected" : "tag-button"}
+                    onClick={() => selecionarProva(prova.id, true)}
                   >
                     {prova.nome} ({prova.categoria}/{prova.naipe})
                   </button>
@@ -712,9 +813,36 @@ export default function GestaoInscricoes() {
               </div>
             </div>
 
+            {modalMode === "editar" && selectedAtleta?.inscricoes?.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <label>Remoção rápida</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+                  {selectedAtleta.inscricoes.map((inscricao) => (
+                    <div
+                      key={inscricao.id}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 10,
+                        alignItems: "center",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: 8,
+                        padding: 8,
+                      }}
+                    >
+                      <span>{inscricao.provas?.nome || "Prova não encontrada"}</span>
+                      <button className="small-button" onClick={() => removerProva(inscricao)}>
+                        Remover
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="modal-footer">
-              <button onClick={salvarAtleta}>
-                {modalMode === "editar" ? "Salvar alterações" : "Criar atleta"}
+              <button onClick={salvarAtleta} disabled={salvando}>
+                {salvando ? "Salvando..." : modalMode === "editar" ? "Salvar alterações" : "Criar atleta"}
               </button>
             </div>
           </>
@@ -733,28 +861,19 @@ export default function GestaoInscricoes() {
                     <button
                       key={prova.id}
                       type="button"
-                      className={
-                        formState.provas.includes(prova.id)
-                          ? "tag-button selected"
-                          : "tag-button"
-                      }
-                      onClick={() => {
-                        setFormState((current) => {
-                          const selecionadas = current.provas.includes(prova.id)
-                            ? current.provas.filter((id) => id !== prova.id)
-                            : [...current.provas, prova.id];
-                          return { ...current, provas: selecionadas };
-                        });
-                      }}
+                      className={formState.provas.map(String).includes(String(prova.id)) ? "tag-button selected" : "tag-button"}
+                      onClick={() => selecionarProva(prova.id, true)}
                     >
-                      {prova.nome}
+                      {prova.nome} ({prova.categoria}/{prova.naipe})
                     </button>
                   ))}
                 </div>
               </div>
             </div>
             <div className="modal-footer">
-              <button onClick={adicionarProvas}>Salvar provas</button>
+              <button onClick={adicionarProvas} disabled={salvando}>
+                {salvando ? "Salvando..." : "Salvar provas"}
+              </button>
             </div>
           </>
         )}
@@ -767,21 +886,13 @@ export default function GestaoInscricoes() {
             <div className="field-grid">
               <div>
                 <label>Prova atual</label>
-                <input
-                  readOnly
-                  value={selectedInscricao.provas?.nome || "Sem prova"}
-                />
+                <input readOnly value={selectedInscricao.provas?.nome || "Sem prova"} />
               </div>
               <div>
                 <label>Nova prova</label>
                 <select
                   value={formState.provas[0] || ""}
-                  onChange={(e) =>
-                    setFormState((current) => ({
-                      ...current,
-                      provas: [Number(e.target.value)],
-                    }))
-                  }
+                  onChange={(e) => selecionarProva(e.target.value, false)}
                 >
                   <option value="">Selecione</option>
                   {provas.map((prova) => (
@@ -793,7 +904,9 @@ export default function GestaoInscricoes() {
               </div>
             </div>
             <div className="modal-footer">
-              <button onClick={trocarProva}>Confirmar troca</button>
+              <button onClick={trocarProva} disabled={salvando}>
+                {salvando ? "Salvando..." : "Confirmar troca"}
+              </button>
             </div>
           </>
         )}
@@ -805,10 +918,7 @@ export default function GestaoInscricoes() {
             </p>
             <div>
               <label>Atleta substituto</label>
-              <select
-                value={replacementAtletaId}
-                onChange={(e) => setReplacementAtletaId(e.target.value)}
-              >
+              <select value={replacementAtletaId} onChange={(e) => setReplacementAtletaId(e.target.value)}>
                 <option value="">Selecione um atleta</option>
                 {atletasEnriquecidos.map((atleta) => (
                   <option key={atleta.id} value={atleta.id}>
@@ -818,7 +928,9 @@ export default function GestaoInscricoes() {
               </select>
             </div>
             <div className="modal-footer">
-              <button onClick={substituirAtleta}>Confirmar substituição</button>
+              <button onClick={substituirAtleta} disabled={salvando}>
+                {salvando ? "Salvando..." : "Confirmar substituição"}
+              </button>
             </div>
           </>
         )}
