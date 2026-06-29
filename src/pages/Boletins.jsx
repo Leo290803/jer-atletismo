@@ -356,45 +356,192 @@ export default function Boletins() {
   const grupos = agruparPorProva(resultados);
 
   return (
-    <div>
+    <div className="boletim-pagina">
       <style>
         {`
+          .boletim-pagina {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 20px 18px 40px;
+            color: #0f172a;
+            font-family: Inter, system-ui, sans-serif;
+          }
+
+          .boletim-pagina .card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+          }
+
+          .cabecalho-boletim {
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            padding: 22px 24px;
+            margin-bottom: 28px;
+            background: #ffffff;
+          }
+
+          .cabecalho-logos {
+            display: grid;
+            grid-template-columns: 1fr minmax(320px, 2.7fr) 1fr;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 18px;
+          }
+
+          .cabecalho-logos img {
+            width: auto;
+            height: 66px;
+            object-fit: contain;
+          }
+
+          .boletim-titulo {
+            text-align: center;
+          }
+
+          .boletim-titulo h2,
+          .boletim-titulo h3 {
+            margin: 0;
+          }
+
+          .boletim-titulo h2 {
+            font-size: 22px;
+            letter-spacing: 0.02em;
+            line-height: 1.2;
+          }
+
+          .boletim-titulo h3 {
+            margin-top: 6px;
+            font-size: 16px;
+            color: #334155;
+          }
+
+          .boletim-titulo {
+            text-align: center;
+            margin: 0 auto;
+            max-width: 640px;
+          }
+
+          .boletim-titulo h2 {
+            margin: 0;
+            font-size: 24px;
+            letter-spacing: 0.04em;
+          }
+
+          .boletim-titulo h3 {
+            margin: 10px 0 0;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+          }
+
+          .linha-rodape {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+            color: #475569;
+            font-size: 14px;
+          }
+
+          .linha-rodape span {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+          }
+
+          .boletim-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+            font-size: 14px;
+            background: white;
+          }
+
+          .boletim-table th,
+          .boletim-table td {
+            border: 1px solid #cbd5e1;
+            padding: 12px 10px;
+            text-align: left;
+          }
+
+          .boletim-table th {
+            background: #f1f5f9;
+            color: #0f172a;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 13px;
+            letter-spacing: 0.04em;
+          }
+
+          .boletim-table tbody tr:nth-child(even) {
+            background: #f8fafc;
+          }
+
+          .subtitulo {
+            margin: 28px 0 12px;
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+          }
+
+          .resumo-titulo {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 20px;
+            font-weight: 700;
+          }
+
+          .boletim-table th:first-child,
+          .boletim-table td:first-child {
+            width: 120px;
+          }
+
           @media print {
             .sidebar,
+            .topbar,
             .nao-imprimir {
               display: none !important;
             }
 
+            html,
             body {
+              margin: 0 !important;
+              padding: 0 !important;
               background: white !important;
               color: black !important;
             }
 
             .content {
               padding: 0 !important;
+              margin: 0 !important;
             }
 
             .card {
-              background: white !important;
-              color: black !important;
-              border: none !important;
               box-shadow: none !important;
+              border: none !important;
             }
 
-            table {
-              border-collapse: collapse !important;
-              width: 100% !important;
-              font-size: 10.5px;
+            .boletim-pagina {
+              margin: 0;
+              padding: 0;
             }
 
-            th, td {
+            .boletim-table {
+              font-size: 10.5px !important;
+            }
+
+            .boletim-table th,
+            .boletim-table td {
               border: 1px solid black !important;
-              padding: 5px !important;
+              padding: 6px !important;
               color: black !important;
             }
 
-            h1, h2, h3, h4, p {
-              color: black !important;
+            .boletim-table th {
+              background: #e2e8f0 !important;
             }
 
             .quebra-pagina {
@@ -406,9 +553,12 @@ export default function Boletins() {
             }
 
             .cabecalho-boletim {
-              border: 2px solid black !important;
-              padding: 12px !important;
-              margin-bottom: 18px !important;
+              border-color: black !important;
+              padding: 18px !important;
+            }
+
+            .cabecalho-logos img {
+              height: 54px !important;
             }
           }
         `}
@@ -418,7 +568,7 @@ export default function Boletins() {
         <h1>Boletins</h1>
 
         <p className="muted">
-          Gere, puDblique, deDspublique ou exclua resultados do boletim por período.
+          Gere, publique, despublique ou exclua resultados do boletim por período.
         </p>
 
         <div className="card" style={{ marginBottom: 20 }}>
@@ -490,25 +640,30 @@ export default function Boletins() {
 
       {resultados.length > 0 && (
         <div className="card">
-          <div className="cabecalho-boletim" style={cabecalhoBoletim}>
-            <h2 style={{ textAlign: "center", margin: 0 }}>
-              JOGOS ESCOLARES DE RORAIMA - JER 2026
-            </h2>
+          <div className="cabecalho-boletim">
+            <div className="cabecalho-logos">
+              <img src="/logo-jer.png" alt="Jogos Escolares" />
+              <div className="boletim-titulo">
+                <h2>JOGOS ESCOLARES DE RORAIMA - JER 2026</h2>
+                <h3>BOLETIM OFICIAL DE RESULTADOS</h3>
+              </div>
+              <img src="/logo-idjuv.png" alt="IDJUV" />
+            </div>
 
-            <h3 style={{ textAlign: "center", margin: "8px 0 0" }}>
-              BOLETIM OFICIAL DE RESULTADOS
-            </h3>
-
-            <p style={{ textAlign: "center", margin: "8px 0 0" }}>
-              <strong>Modalidade:</strong> Atletismo
-              &nbsp; | &nbsp;
-              <strong>Período:</strong> {formatarData(dataInicio)} até {formatarData(dataFim)}
-            </p>
+            <div className="linha-rodape">
+              <span>
+                <strong>Modalidade:</strong> Atletismo
+              </span>
+              <span>•</span>
+              <span>
+                <strong>Período:</strong> {formatarData(dataInicio)} até {formatarData(dataFim)}
+              </span>
+            </div>
           </div>
 
-          <h3>Resumo do Período</h3>
+          <h3 className="resumo-titulo">Resumo do Período</h3>
 
-          <table width="100%" cellPadding="10">
+          <table className="boletim-table boletim-resumo" width="100%" cellPadding="10">
             <thead>
               <tr>
                 <th>Total de provas com resultado publicado</th>
@@ -532,16 +687,15 @@ export default function Boletins() {
 
             return (
               <div key={index} className="quebra-pagina">
-                <h3 style={{ marginTop: 30 }}>
-                  {formatarData(grupo.data)} — {grupo.prova?.nome} -{" "}
-                  {grupo.prova?.categoria} - {grupo.prova?.naipe} - {fase}
+                <h3 className="subtitulo">
+                  {formatarData(grupo.data)} — {grupo.prova?.nome} - {grupo.prova?.categoria} - {grupo.prova?.naipe} - {fase}
                 </h3>
 
                 {final && (
                   <>
                     <h4>Medalhistas</h4>
 
-                    <table width="100%" cellPadding="10">
+                    <table className="boletim-table" width="100%" cellPadding="10">
                       <thead>
                         <tr>
                           <th>Medalha</th>
@@ -623,7 +777,7 @@ function TabelaResultados({ resultados, resultadoFinal }) {
   const temQualificacao = resultados.some((r) => r.qualificacao);
 
   return (
-    <table width="100%" cellPadding="10">
+<table className="boletim-table" width="100%" cellPadding="10">
       <thead>
         <tr>
           <th>Colocação</th>
@@ -690,11 +844,4 @@ const inputData = {
   marginTop: 8,
   borderRadius: 10,
   width: 220,
-};
-
-const cabecalhoBoletim = {
-  border: "2px solid #111827",
-  borderRadius: 8,
-  padding: 14,
-  marginBottom: 18,
 };

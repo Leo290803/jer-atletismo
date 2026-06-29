@@ -1735,8 +1735,27 @@ function classificarSaltoAltura() {
     nomeProvaAtual.includes("5 X 80") ||
     nomeProvaAtual.includes("4X400") ||
     nomeProvaAtual.includes("4 X 400");
-  const ehCampoTentativas = provaAtual?.subtipo === "campo_tentativas";
-  const ehSaltoAltura = provaAtual?.subtipo === "salto_altura";
+const ehSaltoAltura =
+  provaAtual?.subtipo === "salto_altura" ||
+  nomeProvaAtual.includes("SALTO EM ALTURA");
+
+const ehCampoTentativas =
+  !ehSaltoAltura &&
+  !ehRevezamento &&
+  (
+    provaAtual?.tipo === "campo" ||
+    provaAtual?.subtipo === "campo_tentativas" ||
+    nomeProvaAtual.includes("ARREMESSO") ||
+    nomeProvaAtual.includes("LANÇAMENTO") ||
+    nomeProvaAtual.includes("LANCAMENTO") ||
+    nomeProvaAtual.includes("SALTO EM DISTÂNCIA") ||
+    nomeProvaAtual.includes("SALTO EM DISTANCIA") ||
+    nomeProvaAtual.includes("SALTO TRIPLO") ||
+    nomeProvaAtual.includes("DARDO") ||
+    nomeProvaAtual.includes("DISCO") ||
+    nomeProvaAtual.includes("MARTELO") ||
+    nomeProvaAtual.includes("PESO")
+  );
 
   const categorias = [...new Set(provas.map((p) => p.categoria).filter(Boolean))];
   const naipes = [...new Set(provas.map((p) => p.naipe).filter(Boolean))];
