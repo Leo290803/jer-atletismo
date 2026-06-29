@@ -13,7 +13,7 @@ body,
 
 body {
   margin: 0;
-  overflow: hidden;
+  overflow: auto;
   font-family: Inter, Arial, sans-serif;
   background: #f3f6f9;
   color: #102033;
