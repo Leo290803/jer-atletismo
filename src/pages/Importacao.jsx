@@ -14,7 +14,7 @@ export default function Importacao() {
   const EVENTO_PRINCIPAL = "JER 2026 - ATLETISMO";
 
   function normalizarTexto(valor) {
-    if (!valor) return "";
+    if (valor === null || valor === undefined) return "";
     return String(valor).trim().toUpperCase();
   }
 
@@ -22,6 +22,12 @@ export default function Importacao() {
     return normalizarTexto(texto)
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "");
+  }
+
+  function normalizarChave(valor) {
+    return limparAcentos(valor)
+      .replace(/[^A-Z0-9]/g, "")
+      .trim();
   }
 
   function limparProva(prova) {
@@ -33,6 +39,10 @@ export default function Importacao() {
     p = p.replace(" FEMININO", "");
     p = p.replace(" - MAS", "");
     p = p.replace(" - FEM", "");
+    p = p.replace(" S/ BARREIRA", " COM BARREIRAS");
+    p = p.replace(" S/BARREIRA", " COM BARREIRAS");
+    p = p.replace(" C/ BARREIRA", " COM BARREIRAS");
+    p = p.replace(" C/BARREIRA", " COM BARREIRAS");
     p = p.replace("→", "");
     p = p.replace("➔", "");
     p = p.replace(/[:;.]+$/g, "");
@@ -42,68 +52,124 @@ export default function Importacao() {
   }
 
   function pegarValor(linha, nomes) {
+    const mapa = {};
+
+    Object.keys(linha || {}).forEach((chave) => {
+      mapa[normalizarChave(chave)] = linha[chave];
+    });
+
     for (const nome of nomes) {
-      if (linha[nome] !== undefined && linha[nome] !== "") {
-        return linha[nome];
+      const valorDireto = linha?.[nome];
+      if (valorDireto !== undefined && valorDireto !== null && valorDireto !== "") {
+        return valorDireto;
+      }
+
+      const valorNormalizado = mapa[normalizarChave(nome)];
+      if (
+        valorNormalizado !== undefined &&
+        valorNormalizado !== null &&
+        valorNormalizado !== ""
+      ) {
+        return valorNormalizado;
       }
     }
 
     return "";
   }
 
-  function extrairAnoNascimento(dataNascimento) {
+  function excelSerialParaData(numero) {
+    const utcDays = Math.floor(numero - 25569);
+    const utcValue = utcDays * 86400;
+    const data = new Date(utcValue * 1000);
+
+    return new Date(
+      data.getUTCFullYear(),
+      data.getUTCMonth(),
+      data.getUTCDate()
+    );
+  }
+
+  function formatarDataISO(data) {
+    if (!(data instanceof Date) || Number.isNaN(data.getTime())) return "";
+
+    const ano = data.getFullYear();
+    const mes = String(data.getMonth() + 1).padStart(2, "0");
+    const dia = String(data.getDate()).padStart(2, "0");
+
+    return `${ano}-${mes}-${dia}`;
+  }
+
+  function formatarDataBR(dataISO) {
+    if (!dataISO) return "-";
+
+    const texto = String(dataISO).trim();
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
+      const [ano, mes, dia] = texto.split("-");
+      return `${dia}/${mes}/${ano}`;
+    }
+
+    return texto;
+  }
+
+  function formatarNascimentoParaBanco(dataNascimento) {
     if (!dataNascimento) return null;
 
     if (
       dataNascimento instanceof Date &&
       !Number.isNaN(dataNascimento.getTime())
     ) {
-      return dataNascimento.getFullYear();
+      return formatarDataISO(dataNascimento);
     }
 
     const valor = String(dataNascimento).trim();
-    if (!valor) return null;
+
+    if (!valor || valor === "---" || valor === "-") return null;
+
+    if (/^\d{4}-\d{1,2}-\d{1,2}/.test(valor)) {
+      const partes = valor.slice(0, 10).split("-");
+      const ano = partes[0];
+      const mes = String(partes[1]).padStart(2, "0");
+      const dia = String(partes[2]).padStart(2, "0");
+      return `${ano}-${mes}-${dia}`;
+    }
 
     if (valor.includes("/") || valor.match(/^\d{1,2}-\d{1,2}-\d{4}$/)) {
       const partes = valor.split(/[/-]/);
-      const ano = Number(partes[2]);
-      return Number.isFinite(ano) ? ano : null;
-    }
+      if (partes.length === 3) {
+        const dia = String(partes[0]).padStart(2, "0");
+        const mes = String(partes[1]).padStart(2, "0");
+        const ano = String(partes[2]).padStart(4, "0");
 
-    if (valor.match(/^\d{4}-\d{1,2}-\d{1,2}/)) {
-      const ano = Number(valor.slice(0, 4));
-      return Number.isFinite(ano) ? ano : null;
+        if (Number(ano) >= 1900 && Number(ano) <= 2100) {
+          return `${ano}-${mes}-${dia}`;
+        }
+      }
     }
 
     if (!Number.isNaN(Number(valor))) {
       const numero = Number(valor);
 
       if (numero > 20000) {
-        const jsDate = new Date((numero - 25569) * 86400 * 1000);
-        const ano = jsDate.getUTCFullYear();
-        return Number.isFinite(ano) ? ano : null;
+        return formatarDataISO(excelSerialParaData(numero));
       }
 
-      if (numero >= 1900 && numero <= 2100) return numero;
+      if (numero >= 1900 && numero <= 2100) {
+        return `${numero}-01-01`;
+      }
     }
-
-    const matchAno = valor.match(/(19|20)\d{2}/);
-    if (matchAno) return Number(matchAno[0]);
 
     return null;
   }
 
-  function formatarNascimentoParaTela(dataNascimento) {
-    if (!dataNascimento) return "";
+  function extrairAnoNascimento(dataNascimento) {
+    const dataBanco = formatarNascimentoParaBanco(dataNascimento);
 
-    if (
-      dataNascimento instanceof Date &&
-      !Number.isNaN(dataNascimento.getTime())
-    ) {
-      return dataNascimento.toLocaleDateString("pt-BR");
+    if (dataBanco && /^\d{4}-/.test(dataBanco)) {
+      return Number(dataBanco.slice(0, 4));
     }
 
-    return String(dataNascimento);
+    return null;
   }
 
   function identificarCategoria(competicao, dataNascimento) {
@@ -428,7 +494,10 @@ export default function Importacao() {
 
   function detectarMunicipio(lista) {
     const municipios = [...new Set(lista.map((l) => l.municipio).filter(Boolean))];
-    if (municipios.length > 0) return municipios[0];
+
+    if (municipios.length === 1) return municipios[0];
+    if (municipios.length > 1) return "GERAL - VÁRIOS MUNICÍPIOS";
+
     return "MUNICÍPIO NÃO IDENTIFICADO";
   }
 
@@ -440,50 +509,102 @@ export default function Importacao() {
     return `${linha.prova}|${linha.categoria}|${linha.naipe}`;
   }
 
+  function linhaEhAtleta(linha) {
+    const tipoUsuario = normalizarTexto(
+      pegarValor(linha, ["TIPO USUARIO", "TIPO USUÁRIO", "TIPO"])
+    );
+
+    const funcao = normalizarTexto(pegarValor(linha, ["FUNCAO", "FUNÇÃO"]));
+
+    if (!tipoUsuario && !funcao) return true;
+
+    return tipoUsuario === "ATLETA" || funcao === "ATLETA";
+  }
+
+  function linhaStatusValido(linha) {
+    const status = normalizarTexto(
+      pegarValor(linha, ["STATUS DA INSCRIÇÃO", "STATUS DA INSCRICAO", "VALIDAÇÃO", "VALIDACAO", "VALIDADE", "STATUS"])
+    );
+
+    return status === "" || status.includes("VÁLIDA") || status.includes("VALIDA");
+  }
+
+  function linhaEhAtletismo(linha) {
+    const modalidade = normalizarTexto(
+      pegarValor(linha, ["MODALIDADE", "MODALIDA"])
+    );
+
+    if (!modalidade) return true;
+
+    return modalidade.includes("ATLETISMO");
+  }
+
+  function lerTodasAbas(workbook) {
+    const todas = [];
+
+    workbook.SheetNames.forEach((nomeAba) => {
+      const sheet = workbook.Sheets[nomeAba];
+      const json = XLSX.utils.sheet_to_json(sheet, {
+        defval: "",
+        raw: false,
+        cellDates: true,
+      });
+
+      json.forEach((linha) => {
+        todas.push({
+          ...linha,
+          __aba: nomeAba,
+        });
+      });
+    });
+
+    return todas;
+  }
+
   function lerPlanilha(e) {
     const arquivo = e.target.files[0];
     if (!arquivo) return;
 
     setArquivoNome(arquivo.name);
+    setLinhas([]);
+    setResumo([]);
+    setMunicipioDetectado("");
 
     const leitor = new FileReader();
 
     leitor.onload = async (evt) => {
       try {
-        setMensagem("Lendo planilha e padronizando provas pelo regulamento oficial...");
+        setMensagem("Lendo planilha geral e padronizando provas...");
 
         const dados = new Uint8Array(evt.target.result);
-        const workbook = XLSX.read(dados, { type: "array", cellDates: true });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+        const workbook = XLSX.read(dados, {
+          type: "array",
+          cellDates: true,
+        });
+
+        const json = lerTodasAbas(workbook);
 
         const tratados = json
-          .filter(
-            (linha) =>
-              normalizarTexto(pegarValor(linha, ["TIPO USUARIO", "TIPO USUÁRIO"])) ===
-              "ATLETA"
-          )
-          .filter((linha) => {
-            const status = normalizarTexto(
-              pegarValor(linha, ["STATUS DA INSCRIÇÃO", "VALIDAÇÃO", "VALIDADE"])
-            );
-
-            return status === "" || status.includes("VÁLIDA") || status.includes("VALIDA");
-          })
-          .filter(
-            (linha) =>
-              normalizarTexto(pegarValor(linha, ["MODALIDADE", "MODALIDA"])) ===
-              "ATLETISMO"
-          )
+          .filter(linhaEhAtleta)
+          .filter(linhaStatusValido)
+          .filter(linhaEhAtletismo)
           .map((linha, index) => {
-            const provaOriginal = pegarValor(linha, ["PROVA"]);
-            const competicao = pegarValor(linha, ["COMPETICAO", "COMPETIÇÃO"]);
+            const provaOriginal = pegarValor(linha, ["PROVA", "MODALIDADE/PROVA"]);
+            const competicao = pegarValor(linha, [
+              "COMPETICAO",
+              "COMPETIÇÃO",
+              "CATEGORIA",
+              "__aba",
+            ]);
+
             const dataNascimento = pegarValor(linha, [
               "DATA NASCIMENTO",
               "DATA DE NASCIMENTO",
               "NASCIMENTO",
               "NASCIM",
               "DT NASCIMENTO",
+              "DT. NASCIMENTO",
+              "DATA_NASCIMENTO",
             ]);
 
             const categoria = identificarCategoria(competicao, dataNascimento);
@@ -500,15 +621,18 @@ export default function Importacao() {
             );
 
             return {
-              numero: String(pegarValor(linha, ["NÚMERO", "NUMERO", "Nº"]) || index + 1),
-              nome: normalizarTexto(pegarValor(linha, ["NOME", "ATLETA"])),
+              numero: String(
+                pegarValor(linha, ["NÚMERO", "NUMERO", "Nº", "N°", "NO"]) ||
+                  index + 1
+              ),
+              nome: normalizarTexto(pegarValor(linha, ["NOME", "ATLETA", "NOME COMPLETO"])),
               escola: normalizarTexto(
-                pegarValor(linha, ["ESCOLA", "INSTITUIÇÃO", "INSTITUICAO"])
+                pegarValor(linha, ["ESCOLA", "INSTITUIÇÃO", "INSTITUICAO", "UNIDADE ESCOLAR"])
               ),
               municipio: normalizarTexto(
-                pegarValor(linha, ["CIDADE", "MUNICIPIO", "MUNICÍPIO"])
+                pegarValor(linha, ["CIDADE", "MUNICIPIO", "MUNICÍPIO", "MUNÍCIPIO"])
               ),
-              data_nascimento: formatarNascimentoParaTela(dataNascimento),
+              data_nascimento: formatarNascimentoParaBanco(dataNascimento),
               sexo: normalizarTexto(pegarValor(linha, ["SEXO", "NAIPE"])),
               modalidade: "ATLETISMO",
               prova: provaPadronizada.nome,
@@ -523,6 +647,14 @@ export default function Importacao() {
           })
           .filter((linha) => linha.nome && linha.prova && linha.escola);
 
+        const semNascimento = tratados.filter((l) => !l.data_nascimento).length;
+        const semCategoria = tratados.filter((l) =>
+          String(l.categoria).includes("não identificada")
+        ).length;
+        const semNaipe = tratados.filter((l) =>
+          String(l.naipe).includes("não identificado")
+        ).length;
+
         const municipio = detectarMunicipio(tratados);
         const naoParametrizadas = tratados.filter((l) => !l.parametrizada).length;
 
@@ -531,7 +663,7 @@ export default function Importacao() {
         setMunicipioDetectado(municipio);
 
         setMensagem(
-          `Planilha lida: ${tratados.length} inscrição(ões). Município: ${municipio}. ${naoParametrizadas} registro(s) sem padrão oficial exato.`
+          `Planilha lida: ${tratados.length} inscrição(ões). Município: ${municipio}. Sem nascimento: ${semNascimento}. Sem categoria: ${semCategoria}. Sem naipe: ${semNaipe}. Sem padrão oficial exato: ${naoParametrizadas}.`
         );
       } catch (erro) {
         console.error(erro);
@@ -563,19 +695,6 @@ export default function Importacao() {
     return novo;
   }
 
-  async function verificarMunicipioImportado(eventoId, municipio) {
-    const { data, error } = await supabase
-      .from("importacoes")
-      .select("*")
-      .eq("evento_id", eventoId)
-      .eq("municipio", municipio)
-      .maybeSingle();
-
-    if (error) throw error;
-
-    return data;
-  }
-
   async function salvarNoSupabase() {
     try {
       if (linhas.length === 0) {
@@ -584,25 +703,15 @@ export default function Importacao() {
       }
 
       setCarregando(true);
-      setMensagem("Verificando município e salvando no evento principal...");
+      setMensagem("Salvando planilha geral no Supabase...");
 
       const evento = await buscarOuCriarEvento();
       const municipio = municipioDetectado || detectarMunicipio(linhas);
 
-      const importacaoExistente = await verificarMunicipioImportado(evento.id, municipio);
-
-      if (importacaoExistente) {
-        setMensagem(`Atenção: o município ${municipio} já foi importado neste evento.`);
-        setCarregando(false);
-        return;
-      }
-
       const nomesEscolas = [...new Set(linhas.map((l) => l.escola).filter(Boolean))];
 
-      const { data: escolasExistentes, error: erroEscolasExistentes } = await supabase
-        .from("escolas")
-        .select("*")
-        .in("nome", nomesEscolas);
+      const { data: escolasExistentes, error: erroEscolasExistentes } =
+        await supabase.from("escolas").select("*").in("nome", nomesEscolas);
 
       if (erroEscolasExistentes) throw erroEscolasExistentes;
 
@@ -616,7 +725,10 @@ export default function Importacao() {
         .filter((nome) => !mapaEscolas[nome])
         .map((nome) => {
           const linha = linhas.find((l) => l.escola === nome);
-          return { nome, municipio: linha?.municipio || municipio };
+          return {
+            nome,
+            municipio: linha?.municipio || municipio,
+          };
         });
 
       if (escolasParaCriar.length > 0) {
@@ -637,8 +749,6 @@ export default function Importacao() {
         escola_id: mapaEscolas[l.escola],
       }));
 
-      const mapaAtletas = {};
-
       const atletasUnicos = [
         ...new Map(
           linhasComEscolaId.map((l) => [
@@ -648,6 +758,7 @@ export default function Importacao() {
               nome: l.nome,
               escola_id: l.escola_id,
               municipio: l.municipio || municipio,
+              data_nascimento: l.data_nascimento || null,
               categoria: l.categoria,
               naipe: l.naipe,
             },
@@ -655,21 +766,19 @@ export default function Importacao() {
         ).values(),
       ];
 
-      const atletasParaCriar = atletasUnicos;
+      const { data: atletasCriados, error: erroAtletas } = await supabase
+        .from("atletas")
+        .insert(atletasUnicos)
+        .select("id, nome, escola_id, categoria");
 
-      if (atletasParaCriar.length > 0) {
-        const { data: atletasCriados, error: erroAtletas } = await supabase
-          .from("atletas")
-          .insert(atletasParaCriar)
-          .select("id, nome, escola_id, categoria");
+      if (erroAtletas) throw erroAtletas;
 
-        if (erroAtletas) throw erroAtletas;
+      const mapaAtletas = {};
 
-        (atletasCriados || []).forEach((a) => {
-          const chave = `${a.nome}|${a.escola_id || "SEM_ESCOLA"}|${a.categoria}`;
-          mapaAtletas[chave] = a.id;
-        });
-      }
+      (atletasCriados || []).forEach((a) => {
+        const chave = `${a.nome}|${a.escola_id || "SEM_ESCOLA"}|${a.categoria}`;
+        mapaAtletas[chave] = a.id;
+      });
 
       const provasUnicas = [
         ...new Map(
@@ -688,10 +797,8 @@ export default function Importacao() {
         ).values(),
       ];
 
-      const { data: provasExistentes, error: erroProvasExistentes } = await supabase
-        .from("provas")
-        .select("*")
-        .eq("evento_id", evento.id);
+      const { data: provasExistentes, error: erroProvasExistentes } =
+        await supabase.from("provas").select("*").eq("evento_id", evento.id);
 
       if (erroProvasExistentes) throw erroProvasExistentes;
 
@@ -751,17 +858,15 @@ export default function Importacao() {
         if (erroInscricoes) throw erroInscricoes;
       }
 
-      const { error: erroImportacao } = await supabase.from("importacoes").insert({
+      await supabase.from("importacoes").insert({
         evento_id: evento.id,
         municipio,
         arquivo_nome: arquivoNome,
         total_atletas: linhas.length,
       });
 
-      if (erroImportacao) throw erroImportacao;
-
       setMensagem(
-        `Importação finalizada: ${municipio}. ${atletasParaCriar.length} atleta(s) novo(s), ${inscricoesParaSalvar.length} inscrição(ões), ${provasParaCriar.length} prova(s) nova(s). Duplicadas ignoradas: ${duplicadasIgnoradas}.`
+        `Importação finalizada: ${atletasUnicos.length} atleta(s), ${inscricoesParaSalvar.length} inscrição(ões), ${provasParaCriar.length} prova(s) nova(s). Duplicadas ignoradas: ${duplicadasIgnoradas}.`
       );
     } catch (erro) {
       console.error(erro);
@@ -776,7 +881,8 @@ export default function Importacao() {
       <h1>Importação de Planilha</h1>
 
       <p className="muted">
-        Importe os municípios. O sistema calcula a categoria pela data de nascimento e usa o regulamento oficial para padronizar as provas.
+        Importe a planilha geral do atletismo. O sistema lê todas as abas, calcula
+        categoria pela data de nascimento e padroniza as provas.
       </p>
 
       <div className="card" style={{ marginBottom: 20 }}>
@@ -839,6 +945,7 @@ export default function Importacao() {
                   <th align="left">Nome</th>
                   <th align="left">Nascimento</th>
                   <th align="left">Escola</th>
+                  <th align="left">Município</th>
                   <th align="left">Prova original</th>
                   <th align="left">Prova padrão</th>
                   <th align="left">Categoria</th>
@@ -847,12 +954,13 @@ export default function Importacao() {
               </thead>
 
               <tbody>
-                {linhas.slice(0, 30).map((item, index) => (
+                {linhas.slice(0, 50).map((item, index) => (
                   <tr key={index}>
                     <td>{item.numero}</td>
                     <td>{item.nome}</td>
-                    <td>{item.data_nascimento || "-"}</td>
+                    <td>{formatarDataBR(item.data_nascimento)}</td>
                     <td>{item.escola}</td>
+                    <td>{item.municipio || "-"}</td>
                     <td>{item.prova_original}</td>
                     <td>{item.prova}</td>
                     <td>{item.categoria}</td>
@@ -862,9 +970,9 @@ export default function Importacao() {
               </tbody>
             </table>
 
-            {linhas.length > 30 && (
+            {linhas.length > 50 && (
               <p className="muted">
-                Mostrando os primeiros 30 registros de {linhas.length}.
+                Mostrando os primeiros 50 registros de {linhas.length}.
               </p>
             )}
           </div>

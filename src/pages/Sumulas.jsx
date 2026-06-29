@@ -16,6 +16,17 @@ const CONFIG_PADRAO = {
   ],
 };
 
+function formatarNascimento(data) {
+  if (!data) return "-";
+
+  const dataFormatada = new Date(data);
+  if (Number.isNaN(dataFormatada.getTime())) {
+    return String(data);
+  }
+
+  return dataFormatada.toLocaleDateString("pt-BR");
+}
+
 export default function Sumulas() {
   const hoje = new Date().toISOString().slice(0, 10);
 
@@ -120,6 +131,7 @@ export default function Sumulas() {
           numero,
           nome,
           municipio,
+          data_nascimento,
           categoria,
           naipe,
           escolas (
@@ -173,6 +185,7 @@ export default function Sumulas() {
         numero,
         nome,
         municipio,
+        data_nascimento,
         categoria,
         naipe,
         escolas (
@@ -456,6 +469,7 @@ export default function Sumulas() {
               numero,
               nome,
               municipio,
+              data_nascimento,
               escolas (
                 nome
               )
@@ -464,8 +478,7 @@ export default function Sumulas() {
         )
       `)
       .eq("prova_id", provaId)
-      .order("numero_serie");
-
+.order("numero_serie", { ascending: true })
     if (error) {
       setMensagem(error.message);
       return;
@@ -552,6 +565,7 @@ async function gerarSeriesDaProva() {
           nome,
           numero,
           municipio,
+          data_nascimento,
           escolas (
             id,
             nome
@@ -2333,7 +2347,7 @@ function classificarSaltoAltura() {
                       <th rowSpan="2">Nº</th>
                       <th rowSpan="2">Atleta</th>
                       <th rowSpan="2">Escola</th>
-                      {config.mostrar_municipio && <th rowSpan="2">Município</th>}
+                              <th rowSpan="2">Nascimento</th>
 
                       {config.alturas_salto_altura.map((altura) => (
                         <th key={altura} colSpan="3">
@@ -2366,7 +2380,7 @@ function classificarSaltoAltura() {
                             <td>{atleta?.numero}</td>
                             <td>{atleta?.nome}</td>
                             <td>{atleta?.escolas?.nome}</td>
-                            {config.mostrar_municipio && <td>{atleta?.municipio}</td>}
+                            <td>{formatarNascimento(atleta?.data_nascimento)}</td>
 
                             {config.alturas_salto_altura.flatMap((altura) => {
                               const valor = String(pegarValorAltura(r, altura) || "")
@@ -2468,7 +2482,6 @@ function classificarSaltoAltura() {
                 mudarCampo={mudarCampo}
                 melhorDasTresPrimeiras={melhorDasTresPrimeiras}
                 melhorDasTentativas={melhorDasTentativas}
-                mostrarMunicipio={config.mostrar_municipio}
               />
             </>
           )}
@@ -2491,7 +2504,6 @@ function classificarSaltoAltura() {
               <TabelaPista
                 serie={serie}
                 mudarCampo={mudarCampo}
-                mostrarMunicipio={config.mostrar_municipio}
               />
             </>
           )}
@@ -2829,7 +2841,7 @@ function TabelaRevezamento({ serie, mudarCampo }) {
   );
 }
 
-function TabelaPista({ serie, mudarCampo, mostrarMunicipio }) {
+function TabelaPista({ serie, mudarCampo }) {
   return (
     <table width="100%" cellPadding="10">
       <thead>
@@ -2838,7 +2850,7 @@ function TabelaPista({ serie, mudarCampo, mostrarMunicipio }) {
           <th>Nº</th>
           <th>Atleta</th>
           <th>Escola</th>
-          {mostrarMunicipio && <th>Município</th>}
+          <th>Nascimento</th>
           <th>Tempo</th>
           <th>Colocação</th>
           <th>Q</th>
@@ -2858,7 +2870,7 @@ function TabelaPista({ serie, mudarCampo, mostrarMunicipio }) {
                 <td>{atleta?.numero}</td>
                 <td>{atleta?.nome}</td>
                 <td>{atleta?.escolas?.nome}</td>
-                {mostrarMunicipio && <td>{atleta?.municipio}</td>}
+                <td>{formatarNascimento(atleta?.data_nascimento)}</td>
 
                 <td>
                   <input
@@ -2907,7 +2919,6 @@ function TabelaCampo({
   mudarCampo,
   melhorDasTresPrimeiras,
   melhorDasTentativas,
-  mostrarMunicipio,
 }) {
   return (
     <table width="100%" cellPadding="10">
@@ -2916,7 +2927,7 @@ function TabelaCampo({
           <th>Nº</th>
           <th>Atleta</th>
           <th>Escola</th>
-          {mostrarMunicipio && <th>Município</th>}
+          <th>Nascimento</th>
           <th>1ª</th>
           <th>2ª</th>
           <th>3ª</th>
@@ -2943,7 +2954,7 @@ function TabelaCampo({
                 <td>{atleta?.numero}</td>
                 <td>{atleta?.nome}</td>
                 <td>{atleta?.escolas?.nome}</td>
-                {mostrarMunicipio && <td>{atleta?.municipio}</td>}
+                <td>{formatarNascimento(atleta?.data_nascimento)}</td>
 
                 {["tentativa1", "tentativa2", "tentativa3"].map((campo) => (
                   <td key={campo}>

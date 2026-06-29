@@ -19,6 +19,7 @@ import Sumulas from "./pages/Sumulas";
 import Resultados from "./pages/Resultados";
 import Boletins from "./pages/Boletins";
 import Configuracoes from "./pages/Configuracoes";
+import NumeracaoBalizamento from "./pages/NumeracaoBalizamento";
 import Publico from "./pages/Publico";
 import MedalhasPublico from "./pages/MedalhasPublico";
 import Telao from "./pages/Telao";
@@ -77,6 +78,10 @@ function AdminLayout() {
 
           <MenuItem to="/resultados" icon={Trophy}>
             Resultados
+          </MenuItem>
+
+          <MenuItem to="/numeracao-balizamento" icon={ClipboardList}>
+            Numeração e Balizamento
           </MenuItem>
 
           <MenuItem to="/pista-ao-vivo" icon={Radio}>
@@ -139,6 +144,7 @@ function AdminLayout() {
             <Route path="/provas" element={<Provas />} />
             <Route path="/sumulas" element={<Sumulas />} />
             <Route path="/resultados" element={<Resultados />} />
+            <Route path="/numeracao-balizamento" element={<NumeracaoBalizamento />} />
             <Route path="/pista-ao-vivo" element={<PistaAoVivo />} />
             <Route path="/boletins" element={<Boletins />} />
             <Route path="/configuracoes" element={<Configuracoes />} />
