@@ -2102,8 +2102,9 @@ function classificarSaltoAltura() {
                   key={p.id}
                   style={{
                     ...cardProva,
-                    border: selecionada ? "2px solid #22c55e" : "1px solid #334155",
-                    background: selecionada ? "#164e63" : "#0f172a",
+                    border: selecionada ? "2px solid #22c55e" : "1px solid #cbd5e1",
+                    background: selecionada ? "#d9f99d" : "#f8fafc",
+                    color: "#0f172a",
                   }}
                 >
                   <h4 style={{ margin: 0 }}>{p.nome}</h4>
