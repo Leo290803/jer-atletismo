@@ -1764,7 +1764,8 @@ function classificarSaltoAltura() {
             }
 
             .sidebar,
-            .nao-imprimir {
+            .nao-imprimir,
+            .topbar {
               display: none !important;
             }
 
