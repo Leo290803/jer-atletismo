@@ -2103,7 +2103,7 @@ function classificarSaltoAltura() {
                   style={{
                     ...cardProva,
                     border: selecionada ? "2px solid #22c55e" : "1px solid #334155",
-                    background: selecionada ? "#052e16" : "#020617",
+                    background: selecionada ? "#164e63" : "#0f172a",
                   }}
                 >
                   <h4 style={{ margin: 0 }}>{p.nome}</h4>
