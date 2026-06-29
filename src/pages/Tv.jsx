@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 const CONFIG_PADRAO = {
@@ -20,30 +20,11 @@ export default function Tv() {
   const [hora, setHora] = useState("");
   const [config, setConfig] = useState(CONFIG_PADRAO);
 
-  useEffect(() => {
-    carregarTudo();
-    atualizarHora();
-
-    const timerDados = setInterval(carregarTudo, Number(config.tempoAtualizacao) || 8000);
-    const timerHora = setInterval(atualizarHora, 1000);
-
-    return () => {
-      clearInterval(timerDados);
-      clearInterval(timerHora);
-    };
-  }, [config.tempoAtualizacao]);
-
-  function atualizarHora() {
+  const atualizarHora = useCallback(() => {
     setHora(new Date().toLocaleTimeString("pt-BR"));
-  }
+  }, []);
 
-  async function carregarTudo() {
-    await carregarConfig();
-    await carregarResultados();
-    await carregarMedalhas();
-  }
-
-  async function carregarConfig() {
+  const carregarConfig = useCallback(async () => {
     const { data, error } = await supabase
       .from("tv_config")
       .select("valor")
@@ -61,9 +42,9 @@ export default function Tv() {
         ...data.valor,
       });
     }
-  }
+  }, []);
 
-  async function carregarResultados() {
+  const carregarResultados = useCallback(async () => {
     const limite = Number(config.limiteResultados) || 8;
 
     const { data, error } = await supabase
@@ -101,9 +82,9 @@ export default function Tv() {
     }
 
     setResultados(data || []);
-  }
+  }, [config.limiteResultados]);
 
-  async function carregarMedalhas() {
+  const carregarMedalhas = useCallback(async () => {
     const limite = Number(config.limiteMedalhas) || 8;
 
     const { data, error } = await supabase
@@ -166,7 +147,33 @@ export default function Tv() {
       .slice(0, limite);
 
     setMedalhas(ranking);
-  }
+  }, [config.limiteMedalhas]);
+
+  const carregarTudo = useCallback(async () => {
+    await carregarConfig();
+    await carregarResultados();
+    await carregarMedalhas();
+  }, [carregarConfig, carregarResultados, carregarMedalhas]);
+
+  useEffect(() => {
+    const timerInicial = window.setTimeout(() => {
+      void carregarTudo();
+      atualizarHora();
+    }, 0);
+
+    const timerDados = window.setInterval(() => {
+      void carregarTudo();
+    }, Number(config.tempoAtualizacao) || 8000);
+    const timerHora = window.setInterval(() => {
+      atualizarHora();
+    }, 1000);
+
+    return () => {
+      window.clearTimeout(timerInicial);
+      window.clearInterval(timerDados);
+      window.clearInterval(timerHora);
+    };
+  }, [config.tempoAtualizacao, carregarTudo, atualizarHora]);
 
   function resultadoFinal(r) {
     return r.tempo || r.melhor_marca || r.resultado_final || "-";

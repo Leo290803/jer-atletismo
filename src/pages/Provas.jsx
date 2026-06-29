@@ -6,11 +6,7 @@ export default function Provas() {
   const [busca, setBusca] = useState("");
   const [carregando, setCarregando] = useState(true);
 
-  useEffect(() => {
-    carregarProvas();
-  }, []);
-
-  async function carregarProvas() {
+  const carregarProvas = async () => {
     setCarregando(true);
 
     const { data, error } = await supabase
@@ -34,7 +30,15 @@ export default function Provas() {
 
     setProvas(data || []);
     setCarregando(false);
-  }
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void carregarProvas();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const provasFiltradas = provas.filter((p) => {
     const texto = `${p.nome} ${p.categoria} ${p.naipe} ${p.tipo}`.toLowerCase();

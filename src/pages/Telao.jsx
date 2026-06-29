@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 export default function Telao() {
@@ -6,17 +6,47 @@ export default function Telao() {
   const [medalhas, setMedalhas] = useState([]);
   const [mensagem, setMensagem] = useState("");
 
-  useEffect(() => {
-    carregarDados();
+  const gerarMedalhas = useCallback((lista) => {
+    const mapa = {};
 
-    const timer = setInterval(() => {
-      carregarDados();
-    }, 15000);
+    lista.forEach((r) => {
+      const fase = r.provas?.fase || "";
 
-    return () => clearInterval(timer);
+      if (!["FINAL", "FINAL POR TEMPO"].includes(fase)) return;
+      if (![1, 2, 3].includes(Number(r.colocacao))) return;
+
+      const escola = r.inscricoes?.atletas?.escolas?.nome || "SEM ESCOLA";
+
+      if (!mapa[escola]) {
+        mapa[escola] = {
+          escola,
+          ouro: 0,
+          prata: 0,
+          bronze: 0,
+          total: 0,
+        };
+      }
+
+      if (Number(r.colocacao) === 1) mapa[escola].ouro += 1;
+      if (Number(r.colocacao) === 2) mapa[escola].prata += 1;
+      if (Number(r.colocacao) === 3) mapa[escola].bronze += 1;
+
+      mapa[escola].total += 1;
+    });
+
+    const ranking = Object.values(mapa)
+      .sort((a, b) => {
+        if (b.ouro !== a.ouro) return b.ouro - a.ouro;
+        if (b.prata !== a.prata) return b.prata - a.prata;
+        if (b.bronze !== a.bronze) return b.bronze - a.bronze;
+        return b.total - a.total;
+      })
+      .slice(0, 5);
+
+    setMedalhas(ranking);
   }, []);
 
-  async function carregarDados() {
+  const carregarDados = useCallback(async () => {
     setMensagem("Atualizando...");
 
     const { data, error } = await supabase
@@ -60,47 +90,22 @@ export default function Telao() {
     setResultados(lista.slice(0, 10));
     gerarMedalhas(lista);
     setMensagem("");
-  }
+  }, [gerarMedalhas]);
 
-  function gerarMedalhas(lista) {
-    const mapa = {};
+  useEffect(() => {
+    const timerInicial = window.setTimeout(() => {
+      void carregarDados();
+    }, 0);
 
-    lista.forEach((r) => {
-      const fase = r.provas?.fase || "";
+    const timer = window.setInterval(() => {
+      void carregarDados();
+    }, 15000);
 
-      if (!["FINAL", "FINAL POR TEMPO"].includes(fase)) return;
-      if (![1, 2, 3].includes(Number(r.colocacao))) return;
-
-      const escola = r.inscricoes?.atletas?.escolas?.nome || "SEM ESCOLA";
-
-      if (!mapa[escola]) {
-        mapa[escola] = {
-          escola,
-          ouro: 0,
-          prata: 0,
-          bronze: 0,
-          total: 0,
-        };
-      }
-
-      if (Number(r.colocacao) === 1) mapa[escola].ouro += 1;
-      if (Number(r.colocacao) === 2) mapa[escola].prata += 1;
-      if (Number(r.colocacao) === 3) mapa[escola].bronze += 1;
-
-      mapa[escola].total += 1;
-    });
-
-    const ranking = Object.values(mapa)
-      .sort((a, b) => {
-        if (b.ouro !== a.ouro) return b.ouro - a.ouro;
-        if (b.prata !== a.prata) return b.prata - a.prata;
-        if (b.bronze !== a.bronze) return b.bronze - a.bronze;
-        return b.total - a.total;
-      })
-      .slice(0, 5);
-
-    setMedalhas(ranking);
-  }
+    return () => {
+      window.clearTimeout(timerInicial);
+      window.clearInterval(timer);
+    };
+  }, [carregarDados]);
 
   function resultadoFinal(r) {
     return r.tempo || r.melhor_marca || r.resultado_final || "-";

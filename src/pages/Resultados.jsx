@@ -7,11 +7,7 @@ export default function Resultados() {
   const [resultados, setResultados] = useState([]);
   const [mensagem, setMensagem] = useState("");
 
-  useEffect(() => {
-    carregarProvas();
-  }, []);
-
-  async function carregarProvas() {
+  const carregarProvas = async () => {
     const { data, error } = await supabase
       .from("provas")
       .select("*")
@@ -23,7 +19,15 @@ export default function Resultados() {
     }
 
     setProvas(data || []);
-  }
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void carregarProvas();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   async function carregarResultados(provaId) {
     const { data, error } = await supabase

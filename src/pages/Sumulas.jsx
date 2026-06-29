@@ -1009,15 +1009,6 @@ function embaralhar(lista) {
       .sort((a, b) => b - a);
   }
 
-  function melhorMarcaOrdenada(r, posicao) {
-    const marcas = marcasValidasCampo(r);
-    const valor = marcas[posicao - 1];
-
-    if (valor === undefined) return null;
-
-    return valor;
-  }
-
   function formatarMarca(valor) {
     if (valor === null || valor === undefined) return "";
     return Number(valor).toFixed(2).replace(".", ",");
@@ -1336,7 +1327,7 @@ function classificarSaltoAltura() {
       serie.raias.forEach((r) => {
         if (!r.inscricoes?.id || !r.inscricoes?.atleta_id) return;
 
-        let valor = null;
+        let valor;
 
         if (provaAtual?.subtipo === "campo_tentativas") {
           valor = marcaParaNumero(r.melhor_marca || melhorDasTentativas(r));

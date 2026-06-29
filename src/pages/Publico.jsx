@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 export default function Publico() {
@@ -10,11 +10,7 @@ export default function Publico() {
   const [resultados, setResultados] = useState([]);
   const [mensagem, setMensagem] = useState("");
 
-  useEffect(() => {
-    carregarResultados();
-  }, []);
-
-  async function carregarResultados() {
+  const carregarResultados = useCallback(async () => {
     setMensagem("Carregando resultados...");
 
     const { data, error } = await supabase
@@ -84,7 +80,15 @@ export default function Publico() {
 
     setResultados(somenteComResultado);
     setMensagem("");
-  }
+  }, [dataInicio, dataFim]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void carregarResultados();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [carregarResultados]);
 
   function resultadoFinal(r) {
     return r.tempo || r.melhor_marca || r.resultado_final || r.marca || "-";

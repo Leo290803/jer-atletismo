@@ -32,28 +32,39 @@ export default function Configuracoes() {
   const [mensagem, setMensagem] = useState("");
 
   useEffect(() => {
-    carregarConfiguracoes();
+    let ativo = true;
+
+    const carregar = async () => {
+      const { data, error } = await supabase
+        .from("configuracoes")
+        .select("*")
+        .eq("chave", "atletismo_geral")
+        .maybeSingle();
+
+      if (!ativo) return;
+
+      if (error) {
+        setMensagem("Erro ao carregar configurações: " + error.message);
+        return;
+      }
+
+      if (data?.valor) {
+        setConfig((old) => ({
+          ...old,
+          ...data.valor,
+        }));
+      }
+    };
+
+    const timer = window.setTimeout(() => {
+      void carregar();
+    }, 0);
+
+    return () => {
+      ativo = false;
+      window.clearTimeout(timer);
+    };
   }, []);
-
-  async function carregarConfiguracoes() {
-    const { data, error } = await supabase
-      .from("configuracoes")
-      .select("*")
-      .eq("chave", "atletismo_geral")
-      .maybeSingle();
-
-    if (error) {
-      setMensagem("Erro ao carregar configurações: " + error.message);
-      return;
-    }
-
-    if (data?.valor) {
-      setConfig((old) => ({
-        ...old,
-        ...data.valor,
-      }));
-    }
-  }
 
   function alterar(campo, valor) {
     setConfig((old) => ({

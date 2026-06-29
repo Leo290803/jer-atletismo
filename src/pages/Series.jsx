@@ -10,11 +10,7 @@ export default function Series() {
   const [mensagem, setMensagem] = useState("");
   const [seriesGeradas, setSeriesGeradas] = useState([]);
 
-  useEffect(() => {
-    carregarProvas();
-  }, []);
-
-  async function carregarProvas() {
+  const carregarProvas = async () => {
     const { data, error } = await supabase
       .from("provas")
       .select(`
@@ -35,7 +31,15 @@ export default function Series() {
     }
 
     setProvas(data || []);
-  }
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void carregarProvas();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   async function carregarSeries(provaId) {
     const { data, error } = await supabase

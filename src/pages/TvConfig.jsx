@@ -18,11 +18,7 @@ export default function TvConfig() {
   const [config, setConfig] = useState(PADRAO);
   const [mensagem, setMensagem] = useState("");
 
-  useEffect(() => {
-    carregarConfig();
-  }, []);
-
-  async function carregarConfig() {
+  const carregarConfig = async () => {
     setMensagem("Carregando configurações da TV...");
 
     const { data, error } = await supabase
@@ -44,7 +40,15 @@ export default function TvConfig() {
     }
 
     setMensagem("");
-  }
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void carregarConfig();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   function alterar(campo, valor) {
     setConfig((old) => ({
