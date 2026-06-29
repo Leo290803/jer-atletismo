@@ -286,6 +286,24 @@ button {
   font-weight: 800;
 }
 
+button.small-button,
+button.ghost-button,
+button.secondary-button {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+button.ghost-button {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+button.secondary-button {
+  background: #f8fafc;
+  color: var(--text);
+}
+
 button:not(.unstyled) {
   background: linear-gradient(
     135deg,
@@ -340,6 +358,87 @@ table {
   background: white;
   border-radius: var(--radius-md);
   overflow: hidden;
+}
+
+.table-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.field-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+button.tag-button {
+  border: 1px solid #dbe3ea;
+  background: #f8fafc;
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 999px;
+}
+
+button.tag-button.selected {
+  background: linear-gradient(135deg, var(--primary), #0f9f6e);
+  color: white;
+  border-color: transparent;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-dialog {
+  width: min(920px, 100%);
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 24px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.modal-body {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 thead {

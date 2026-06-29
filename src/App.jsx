@@ -10,6 +10,8 @@ import {
   Medal,
   Tv2,
   Radio,
+  Users,
+  BookOpen,
 } from "lucide-react";
 
 import Dashboard from "./pages/Dashboard";
@@ -20,6 +22,8 @@ import Resultados from "./pages/Resultados";
 import Boletins from "./pages/Boletins";
 import Configuracoes from "./pages/Configuracoes";
 import NumeracaoBalizamento from "./pages/NumeracaoBalizamento";
+import GestaoInscricoes from "./pages/GestaoInscricoes";
+import HistoricoAlteracoes from "./pages/HistoricoAlteracoes";
 import Publico from "./pages/Publico";
 import MedalhasPublico from "./pages/MedalhasPublico";
 import Telao from "./pages/Telao";
@@ -70,6 +74,14 @@ function AdminLayout() {
 
           <MenuItem to="/provas" icon={ClipboardList}>
             Provas
+          </MenuItem>
+
+          <MenuItem to="/secretaria-tecnica" icon={Users}>
+            Secretaria Técnica
+          </MenuItem>
+
+          <MenuItem to="/historico-alteracoes" icon={BookOpen}>
+            Histórico
           </MenuItem>
 
           <MenuItem to="/sumulas" icon={FileText}>
@@ -144,6 +156,8 @@ function AdminLayout() {
             <Route path="/provas" element={<Provas />} />
             <Route path="/sumulas" element={<Sumulas />} />
             <Route path="/resultados" element={<Resultados />} />
+            <Route path="/secretaria-tecnica" element={<GestaoInscricoes />} />
+            <Route path="/historico-alteracoes" element={<HistoricoAlteracoes />} />
             <Route path="/numeracao-balizamento" element={<NumeracaoBalizamento />} />
             <Route path="/pista-ao-vivo" element={<PistaAoVivo />} />
             <Route path="/boletins" element={<Boletins />} />
