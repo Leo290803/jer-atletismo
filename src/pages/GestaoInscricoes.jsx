@@ -3,26 +3,12 @@ import { supabase } from "../lib/supabase";
 
 const PAGE_SIZE = 20;
 
-function formatarDataBR(dataISO) {
-  if (!dataISO) return "-";
-  const data = new Date(dataISO);
-  if (Number.isNaN(data.getTime())) return dataISO;
-  const dia = String(data.getDate()).padStart(2, "0");
-  const mes = String(data.getMonth() + 1).padStart(2, "0");
-  const ano = data.getFullYear();
-  return `${dia}/${mes}/${ano}`;
-}
-
 function normalizarTexto(valor) {
   return String(valor || "")
     .trim()
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
-}
-
-function idsIguais(a, b) {
-  return String(a) === String(b);
 }
 
 function getEscolaNome(atleta) {
@@ -216,12 +202,20 @@ export default function GestaoInscricoes() {
   }, [pageIndex]);
 
   useEffect(() => {
-    void carregarProvas();
-    void carregarEscolas();
+    const id = setTimeout(() => {
+      void carregarProvas();
+      void carregarEscolas();
+    }, 0);
+
+    return () => clearTimeout(id);
   }, [carregarProvas, carregarEscolas]);
 
   useEffect(() => {
-    void carregarAtletas();
+    const id = setTimeout(() => {
+      void carregarAtletas();
+    }, 0);
+
+    return () => clearTimeout(id);
   }, [carregarAtletas]);
 
   const atletasEnriquecidos = useMemo(() => {

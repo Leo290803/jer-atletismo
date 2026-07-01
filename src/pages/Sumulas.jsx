@@ -1,6 +1,17 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
+function tabelaInexistente(error, tabela) {
+  if (!error) return false;
+  const alvo = String(tabela || "").toLowerCase();
+  const texto = `${error.message || ""} ${error.details || ""} ${error.hint || ""}`.toLowerCase();
+  return (
+    error.code === "PGRST205" ||
+    (texto.includes("not found") && texto.includes(alvo)) ||
+    (texto.includes("could not find") && texto.includes(alvo))
+  );
+}
+
 
 const CONFIG_PADRAO = {
   texto_cabecalho: "SÚMULA OFICIAL DE ATLETISMO - JER 2026",
@@ -56,12 +67,179 @@ export default function Sumulas() {
   const [buscaAtleta, setBuscaAtleta] = useState("");
   const [atletasEncontrados, setAtletasEncontrados] = useState([]);
   const [carregandoInscritos, setCarregandoInscritos] = useState(false);
+  const [sumulaDigital, setSumulaDigital] = useState(null);
+  const [sumulasDigitais, setSumulasDigitais] = useState([]);
+  const [tokenMensagem, setTokenMensagem] = useState("");
 
   
   useEffect(() => {
     carregarConfiguracoes();
     carregarProvas();
   }, []);
+
+  useEffect(() => {
+    if (!provaSelecionada) return;
+
+    const intervalId = setInterval(() => {
+      carregarSeries(provaSelecionada);
+      carregarSumulaDigital(provaSelecionada);
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [provaSelecionada]);
+
+  function gerarTokenAcesso() {
+    return (
+      window.crypto?.randomUUID?.() ||
+      `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+    );
+  }
+
+  function linkArbitro(token) {
+    return `${window.location.origin}/arbitro/sumula/${token}`;
+  }
+
+  async function sincronizarResultadosDaSumula(sumulaId, provaId) {
+    if (!sumulaId || !provaId) return { ok: false, message: "Súmula ou prova inválida." };
+
+    const { data: inscricoes, error: erroInscricoes } = await supabase
+      .from("inscricoes")
+      .select("atleta_id")
+      .eq("prova_id", provaId);
+
+    if (erroInscricoes) {
+      return { ok: false, message: "Erro ao carregar inscritos: " + erroInscricoes.message };
+    }
+
+    const atletaIds = [...new Set((inscricoes || []).map((i) => i.atleta_id).filter(Boolean))];
+    if (atletaIds.length === 0) {
+      return { ok: true, message: "Súmula criada sem atletas. Cadastre inscritos para lançar resultados." };
+    }
+
+    const payload = atletaIds.map((atletaId) => ({
+      sumula_id: sumulaId,
+      atleta_id: atletaId,
+      tentativas: ["", "", "", "", "", ""],
+    }));
+
+    const { error: erroUpsert } = await supabase
+      .from("sumula_resultados")
+      .upsert(payload, { onConflict: "sumula_id,atleta_id" });
+
+    if (erroUpsert) {
+      return { ok: false, message: "Erro ao preparar resultados da súmula: " + erroUpsert.message };
+    }
+
+    return { ok: true, message: `Súmula pronta com ${atletaIds.length} atleta(s).` };
+  }
+
+  async function carregarSumulaDigital(provaId) {
+    if (!provaId) {
+      setSumulaDigital(null);
+      setSumulasDigitais([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("sumulas_digitais")
+      .select("*")
+      .eq("prova_id", provaId)
+      .order("criada_em", { ascending: false });
+
+    if (error) {
+      if (tabelaInexistente(error, "sumulas_digitais")) {
+        setTokenMensagem("Tabela sumulas_digitais não encontrada no Supabase. Execute o script SQL de criação.");
+      } else {
+        setTokenMensagem("Não foi possível carregar a súmula digital.");
+      }
+      setSumulaDigital(null);
+      setSumulasDigitais([]);
+      return;
+    }
+
+    setSumulasDigitais(data || []);
+    setSumulaDigital((data || [])[0] || null);
+    setTokenMensagem("");
+  }
+
+  async function gerarSumulaDigital() {
+    if (!provaSelecionada) {
+      alert("Selecione uma prova primeiro.");
+      return;
+    }
+
+    const token = gerarTokenAcesso();
+
+    const { data, error } = await supabase
+      .from("sumulas_digitais")
+      .insert({
+        prova_id: provaSelecionada,
+        token_acesso: token,
+        status: "ABERTA",
+        arbitro_nome: "",
+      })
+      .select()
+      .single();
+
+    if (error) {
+      if (tabelaInexistente(error, "sumulas_digitais")) {
+        setTokenMensagem("Tabela sumulas_digitais não encontrada no Supabase. Execute o script SQL de criação.");
+        return;
+      }
+      setTokenMensagem("Erro ao criar súmula digital: " + error.message);
+      return;
+    }
+
+    const sync = await sincronizarResultadosDaSumula(data.id, provaSelecionada);
+    if (!sync.ok) {
+      setTokenMensagem("Súmula criada, mas houve falha ao carregar atletas: " + sync.message);
+    }
+
+    await carregarSumulaDigital(provaSelecionada);
+    setTokenMensagem(sync.message || "Súmula digital criada com sucesso.");
+  }
+
+  async function bloquearSumulaDigital() {
+    if (!sumulaDigital) return;
+
+    const { error } = await supabase
+      .from("sumulas_digitais")
+      .update({ status: "BLOQUEADA", bloqueada_em: new Date().toISOString() })
+      .eq("id", sumulaDigital.id);
+
+    if (error) {
+      if (tabelaInexistente(error, "sumulas_digitais")) {
+        setTokenMensagem("Tabela sumulas_digitais não encontrada no Supabase. Execute o script SQL de criação.");
+        return;
+      }
+      setTokenMensagem("Erro ao bloquear: " + error.message);
+      return;
+    }
+
+    await carregarSumulaDigital(provaSelecionada);
+    setTokenMensagem("Súmula bloqueada.");
+  }
+
+  async function reabrirSumulaDigital() {
+    if (!sumulaDigital) return;
+
+    const { error } = await supabase
+      .from("sumulas_digitais")
+      .update({ status: "ABERTA", bloqueada_em: null })
+      .eq("id", sumulaDigital.id);
+
+    if (error) {
+      if (tabelaInexistente(error, "sumulas_digitais")) {
+        setTokenMensagem("Tabela sumulas_digitais não encontrada no Supabase. Execute o script SQL de criação.");
+        return;
+      }
+      setTokenMensagem("Erro ao reabrir: " + error.message);
+      return;
+    }
+
+    await carregarSumulaDigital(provaSelecionada);
+    setTokenMensagem("Súmula reaberta para o árbitro.");
+  }
 
   async function carregarConfiguracoes() {
     const { data } = await supabase
@@ -108,6 +286,7 @@ export default function Sumulas() {
     setAtletasEncontrados([]);
     setBuscaAtleta("");
     await carregarSeries(id);
+    await carregarSumulaDigital(id);
   }
 
   async function carregarInscricoesDaProva(provaId = provaSelecionada) {
@@ -489,6 +668,28 @@ export default function Sumulas() {
       .select("*")
       .eq("prova_id", provaId);
 
+    const { data: sumulaDigitalAtiva } = await supabase
+      .from("sumulas_digitais")
+      .select("id")
+      .eq("prova_id", provaId)
+      .in("status", ["ABERTA", "EM_ANDAMENTO", "ENVIADA"])
+      .order("criada_em", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    let mapaResultadosDigitais = {};
+
+    if (sumulaDigitalAtiva?.id) {
+      const { data: resultadosDigitais } = await supabase
+        .from("sumula_resultados")
+        .select("atleta_id, tempo, marca, resultado, observacao, classificacao")
+        .eq("sumula_id", sumulaDigitalAtiva.id);
+
+      (resultadosDigitais || []).forEach((r) => {
+        mapaResultadosDigitais[r.atleta_id] = r;
+      });
+    }
+
     const mapaResultados = {};
 
     (resultadosSalvos || []).forEach((r) => {
@@ -505,24 +706,25 @@ export default function Sumulas() {
       ...serie,
       raias: (serie.raias || []).map((r) => {
         const resultado = mapaResultados[r.inscricoes?.id];
+        const resultadoDigital = mapaResultadosDigitais[r.inscricoes?.atleta_id];
 
         return {
           ...r,
-          tempo: resultado?.tempo || "",
-          colocacao: resultado?.colocacao || "",
-          status: resultado?.status || "OK",
+          tempo: resultado?.tempo || resultadoDigital?.tempo || "",
+          colocacao: resultado?.colocacao || resultadoDigital?.classificacao || "",
+          status: resultado?.status || resultadoDigital?.observacao || "OK",
           tentativa1: resultado?.tentativa1 || "",
           tentativa2: resultado?.tentativa2 || "",
           tentativa3: resultado?.tentativa3 || "",
           tentativa4: resultado?.tentativa4 || "",
           tentativa5: resultado?.tentativa5 || "",
           tentativa6: resultado?.tentativa6 || "",
-          melhor_marca: resultado?.melhor_marca || "",
-          classificacao_parcial: resultado?.classificacao_parcial || "",
+          melhor_marca: resultado?.melhor_marca || resultadoDigital?.marca || "",
+          classificacao_parcial: resultado?.classificacao_parcial || resultadoDigital?.classificacao || "",
           classificacao_parcial_final: resultado?.classificacao_parcial_final || "",
           finalista: resultado?.finalista || false,
           alturas: resultado?.alturas || [],
-          resultado_final: resultado?.resultado_final || "",
+          resultado_final: resultado?.resultado_final || resultadoDigital?.resultado || "",
           publicado: resultado?.publicado || false,
           qualificacao: resultado?.qualificacao || "",
         };
@@ -1064,6 +1266,26 @@ function embaralhar(lista) {
     return melhor;
   }
 
+  function provaEhCampoTentativas(prova) {
+    if (!prova) return false;
+
+    const nome = String(prova.nome || "").toUpperCase();
+
+    return (
+      prova.tipo === "campo" ||
+      prova.subtipo === "campo_tentativas" ||
+      nome.includes("ARREMESSO") ||
+      nome.includes("LANÇAMENTO") ||
+      nome.includes("SALTO EM DISTÂNCIA") ||
+      nome.includes("SALTO EM DISTANCIA") ||
+      nome.includes("SALTO TRIPLO") ||
+      nome.includes("DARDO") ||
+      nome.includes("DISCO") ||
+      nome.includes("MARTELO") ||
+      nome.includes("PESO")
+    );
+  }
+
   function classificarAutomaticamente() {
     const provaAtual = provas.find((p) => p.id === provaSelecionada);
 
@@ -1077,7 +1299,7 @@ function embaralhar(lista) {
       return;
     }
 
-    if (provaAtual.subtipo === "campo_tentativas") {
+    if (provaEhCampoTentativas(provaAtual)) {
       classificarCampo();
       return;
     }
@@ -1244,7 +1466,8 @@ function embaralhar(lista) {
           finalista: mapa[r.id]?.finalista || false,
           colocacao: mapa[r.id]?.colocacao || "",
           status: mapa[r.id]?.status || r.status || "OK",
-          qualificacao: "",
+          qualificacao:
+            mapa[r.id]?.finalista && mapa[r.id]?.status === "OK" ? "Q" : "",
         })),
       }))
     );
@@ -1974,30 +2197,80 @@ const ehCampoTentativas =
 
             .sumula-campo th,
             .sumula-campo td {
-              padding: 5px 5px !important;
-              line-height: 1.2 !important;
+              padding: 5px 6px !important;
+              line-height: 1.15 !important;
+              text-align: center !important;
             }
 
             .sumula-campo th:nth-child(1),
             .sumula-campo td:nth-child(1) {
-              width: 5% !important;
-              text-align: center !important;
+              width: 4% !important;
             }
 
             .sumula-campo th:nth-child(2),
             .sumula-campo td:nth-child(2) {
-              width: 18% !important;
+              width: 14% !important;
+              text-align: left !important;
             }
 
             .sumula-campo th:nth-child(3),
             .sumula-campo td:nth-child(3) {
-              width: 18% !important;
+              width: 14% !important;
+              text-align: left !important;
+            }
+
+            .sumula-campo th:nth-child(4),
+            .sumula-campo td:nth-child(4) {
+              width: 8% !important;
+              text-align: center !important;
+            }
+
+            .sumula-campo th:nth-child(5),
+            .sumula-campo td:nth-child(5),
+            .sumula-campo th:nth-child(6),
+            .sumula-campo td:nth-child(6),
+            .sumula-campo th:nth-child(7),
+            .sumula-campo td:nth-child(7),
+            .sumula-campo th:nth-child(10),
+            .sumula-campo td:nth-child(10),
+            .sumula-campo th:nth-child(11),
+            .sumula-campo td:nth-child(11),
+            .sumula-campo th:nth-child(13),
+            .sumula-campo td:nth-child(13) {
+              width: 5% !important;
+            }
+
+            .sumula-campo th:nth-child(8),
+            .sumula-campo td:nth-child(8),
+            .sumula-campo th:nth-child(9),
+            .sumula-campo td:nth-child(9),
+            .sumula-campo th:nth-child(12),
+            .sumula-campo td:nth-child(12) {
+              width: 6% !important;
+            }
+
+            .sumula-campo th:nth-child(14),
+            .sumula-campo td:nth-child(14) {
+              width: 8% !important;
+            }
+
+            .sumula-campo th:nth-child(15),
+            .sumula-campo td:nth-child(15),
+            .sumula-campo th:nth-child(16),
+            .sumula-campo td:nth-child(16) {
+              width: 5% !important;
+            }
+
+            .sumula-campo table {
+              table-layout: fixed !important;
+              font-size: 11.5px !important;
             }
 
             .sumula-campo input,
             .sumula-campo select {
               font-size: 10px !important;
               text-align: center !important;
+              padding: 2px 4px !important;
             }
 
             /* REVEZAMENTO */
@@ -2181,6 +2454,94 @@ const ehCampoTentativas =
             <button onClick={abrirGerenciarInscritos} style={botaoAmarelo}>
               {mostrarGerenciarInscritos ? "Ocultar Inscritos" : "Gerenciar Inscritos"}
             </button>
+          </div>
+
+          <div style={{ marginTop: 18, borderRadius: 18, background: "#eef2ff", padding: 18, border: "1px solid #c7d2fe" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <strong style={{ fontSize: 16 }}>Súmula Digital do Árbitro</strong>
+                <p style={{ margin: "8px 0 0", color: "#475569" }}>
+                  Gere o token e o QR para que o árbitro lance resultados sem acessar o painel administrativo.
+                </p>
+              </div>
+
+              <button onClick={gerarSumulaDigital} style={botaoVerde}>
+                {sumulaDigital ? "Recriar Súmula" : "Gerar Súmula Digital"}
+              </button>
+            </div>
+
+            {tokenMensagem && (
+              <p style={{ marginTop: 12, color: "#1d4ed8" }}>{tokenMensagem}</p>
+            )}
+
+            {sumulaDigital && (
+              <div style={{ marginTop: 16, display: "grid", gap: 14 }}>
+                <div style={{ display: "grid", gap: 6 }}>
+                  <label style={{ fontWeight: 700 }}>Link do árbitro</label>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    <input
+                      type="text"
+                      readOnly
+                      value={linkArbitro(sumulaDigital.token_acesso)}
+                      style={{ width: "100%", padding: 12, borderRadius: 12, border: "1px solid #cbd5e1" }}
+                    />
+                    <button onClick={() => { navigator.clipboard.writeText(linkArbitro(sumulaDigital.token_acesso)); setTokenMensagem("Link copiado."); }} style={botaoAzul}>
+                      Copiar link
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
+                  <div>
+                    <label style={{ display: "block", fontWeight: 700, marginBottom: 6 }}>QR Code</label>
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code?size=160x160&data=${encodeURIComponent(
+                        linkArbitro(sumulaDigital.token_acesso)
+                      )}`}
+                      alt="QR Code da súmula"
+                      style={{ borderRadius: 12, border: "1px solid #cbd5e1" }}
+                    />
+                  </div>
+
+                  <div style={{ minWidth: 260 }}>
+                    <div style={{ display: "grid", gap: 6 }}>
+                      <div style={{ fontWeight: 700 }}>Status</div>
+                      <div style={{ color: "#1e293b" }}>{sumulaDigital.status.replaceAll("_", " ")}</div>
+                    </div>
+
+                    <div style={{ display: "grid", gap: 6, marginTop: 12 }}>
+                      <button onClick={bloquearSumulaDigital} style={botaoMiniVermelho} disabled={sumulaDigital.status === "BLOQUEADA"}>
+                        Bloquear acesso
+                      </button>
+                      <button onClick={reabrirSumulaDigital} style={botaoAzul} disabled={sumulaDigital.status !== "BLOQUEADA"}>
+                        Reabrir súmula
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {sumulasDigitais.length > 0 && (
+              <div style={{ marginTop: 20, padding: 16, background: "#ffffff", borderRadius: 16, border: "1px solid #cbd5e1" }}>
+                <h4 style={{ margin: "0 0 12px", fontSize: 16 }}>Súmulas geradas para esta prova</h4>
+                <div style={{ display: "grid", gap: 12 }}>
+                  {sumulasDigitais.map((sd) => (
+                    <div key={sd.id} style={{ display: "grid", gap: 8, padding: 12, borderRadius: 14, background: "#f8fafc" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 700 }}>Token: {sd.token_acesso}</span>
+                        <span style={{ color: "#475569" }}>Status: {sd.status.replaceAll("_", " ")}</span>
+                      </div>
+                      <div style={{ display: "grid", gap: 6, color: "#334155" }}>
+                        <div>Criada em: {sd.criada_em ? new Date(sd.criada_em).toLocaleString("pt-BR") : "-"}</div>
+                        <div>Expira em: {sd.expires_at ? new Date(sd.expires_at).toLocaleString("pt-BR") : "-"}</div>
+                        <div>Link: {linkArbitro(sd.token_acesso)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {mostrarGerenciarInscritos && (

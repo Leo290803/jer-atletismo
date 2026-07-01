@@ -64,7 +64,11 @@ export default function HistoricoAlteracoes() {
   };
 
   useEffect(() => {
-    void carregarHistorico();
+    const id = setTimeout(() => {
+      void carregarHistorico();
+    }, 0);
+
+    return () => clearTimeout(id);
   }, [pageIndex]);
 
   const registrosFiltrados = useMemo(() => {

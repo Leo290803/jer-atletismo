@@ -31,6 +31,7 @@ import Tv from "./pages/Tv";
 import TvConfig from "./pages/TvConfig";
 import PistaAoVivo from "./pages/PistaAoVivo";
 import TelaoPista from "./pages/TelaoPista";
+import ArbitroSumula from "./pages/ArbitroSumula";
 
 import "./styles/theme.css";
 import "./App.css";
@@ -178,6 +179,8 @@ export default function App() {
         <Route path="/publico" element={<Publico />} />
         <Route path="/publico/medalhas" element={<MedalhasPublico />} />
         <Route path="/publico/telao" element={<Telao />} />
+        <Route path="/arbitro/sumula" element={<ArbitroSumula />} />
+        <Route path="/arbitro/sumula/:token" element={<ArbitroSumula />} />
         <Route path="/publico/telao-pista" element={<TelaoPista />} />
 
         <Route path="/*" element={<AdminLayout />} />

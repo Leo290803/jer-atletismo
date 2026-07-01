@@ -158,7 +158,10 @@ export default function NumeracaoBalizamento() {
   const [provaFiltro, setProvaFiltro] = useState("");
   const [numeroAgrupamento, setNumeroAgrupamento] = useState("escola");
   const [balizamentoMode, setBalizamentoMode] = useState("escola");
-  const [confirmado, setConfirmado] = useState(false);
+  const [confirmado, setConfirmado] = useState(() => {
+    const salvo = window.localStorage.getItem("numeracaoBalizamentoConfirmado");
+    return salvo === "true";
+  });
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState("");
@@ -230,9 +233,11 @@ export default function NumeracaoBalizamento() {
   }, []);
 
   useEffect(() => {
-    const salvo = window.localStorage.getItem("numeracaoBalizamentoConfirmado");
-    setConfirmado(salvo === "true");
-    void carregarDados();
+    const id = setTimeout(() => {
+      void carregarDados();
+    }, 0);
+
+    return () => clearTimeout(id);
   }, [carregarDados]);
 
   useEffect(() => {
@@ -843,7 +848,7 @@ export default function NumeracaoBalizamento() {
           </div>
         </div>
 
-        {balizamentoPorEscola.map((grupo, index) => (
+        {balizamentoPorEscola.map((grupo) => (
           <section key={`${grupo.municipio}-${grupo.escola}`} className="print-group">
             <div className="school-header">
               <strong>{grupo.escola}</strong> • {grupo.municipio} • {grupo.atletas.length} atleta(s)
