@@ -36,8 +36,20 @@ create table if not exists public.sumula_resultados (
   unique (sumula_id, atleta_id)
 );
 
+create table if not exists public.sumula_historico_acoes (
+  id uuid primary key default gen_random_uuid(),
+  sumula_id uuid not null references public.sumulas_digitais(id) on delete cascade,
+  token_acesso text,
+  acao text not null,
+  arbitro_nome text,
+  detalhes jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 create index if not exists idx_sumula_resultados_sumula_id on public.sumula_resultados(sumula_id);
 create index if not exists idx_sumula_resultados_classificacao on public.sumula_resultados(classificacao);
+create index if not exists idx_sumula_historico_sumula_id on public.sumula_historico_acoes(sumula_id);
+create index if not exists idx_sumula_historico_created_at on public.sumula_historico_acoes(created_at desc);
 
 create or replace function public.trg_set_updated_at()
 returns trigger
@@ -71,6 +83,7 @@ for each row execute function public.trg_set_updated_at();
 
 alter table public.sumulas_digitais enable row level security;
 alter table public.sumula_resultados enable row level security;
+alter table public.sumula_historico_acoes enable row level security;
 
 create or replace function public.is_admin()
 returns boolean
@@ -264,10 +277,50 @@ begin
 end;
 $$;
 
+create or replace function public.registrar_historico_sumula_por_token(
+  p_sumula_id uuid,
+  p_token_acesso text,
+  p_acao text,
+  p_arbitro_nome text default null,
+  p_detalhes jsonb default '{}'::jsonb
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if coalesce(trim(p_acao), '') = '' then
+    raise exception 'ACAO_INVALIDA';
+  end if;
+
+  insert into public.sumula_historico_acoes (
+    sumula_id,
+    token_acesso,
+    acao,
+    arbitro_nome,
+    detalhes
+  )
+  select
+    s.id,
+    p_token_acesso,
+    p_acao,
+    p_arbitro_nome,
+    coalesce(p_detalhes, '{}'::jsonb)
+  from public.sumulas_digitais s
+  where s.id = p_sumula_id
+    and s.token_acesso = p_token_acesso
+    and (s.expires_at is null or s.expires_at > now());
+
+  return found;
+end;
+$$;
+
 grant execute on function public.preparar_sumula_resultados_por_token(uuid, text, uuid[]) to anon, authenticated;
 grant execute on function public.gravar_sumula_resultados_por_token(uuid, text, jsonb) to anon, authenticated;
 grant execute on function public.vincular_arbitro_sumula_por_token(uuid, text, text) to anon, authenticated;
 grant execute on function public.atualizar_status_sumula_por_token(uuid, text, text, timestamptz) to anon, authenticated;
+grant execute on function public.registrar_historico_sumula_por_token(uuid, text, text, text, jsonb) to anon, authenticated;
 
 -- Politicas recomendadas:
 -- 1) leitura livre para manter paineis publicos/admin funcionando no cliente anon
@@ -363,3 +416,15 @@ create policy "sumula_resultados_delete"
 on public.sumula_resultados
 for delete
 using (public.is_admin());
+
+drop policy if exists "sumula_historico_select" on public.sumula_historico_acoes;
+create policy "sumula_historico_select"
+on public.sumula_historico_acoes
+for select
+using (true);
+
+drop policy if exists "sumula_historico_insert" on public.sumula_historico_acoes;
+create policy "sumula_historico_insert"
+on public.sumula_historico_acoes
+for insert
+with check (public.is_admin());

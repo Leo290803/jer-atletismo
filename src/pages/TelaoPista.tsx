@@ -2,54 +2,133 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 type TelaoData = {
+  tipo: string;
   titulo: string;
   subtitulo: string;
   status: string;
+  statusTelao?: string;
+  categoria?: string;
+  naipe?: string;
+  fase?: string;
   atletaAtual?: string;
   resultadoLancado?: string;
   classificacaoParcial?: string;
   serie?: string;
   ultimaAtualizacao?: string;
   podio?: Array<{ colocacao?: number; atleta?: string; resultado?: string }>;
+  atletas?: Array<{
+    serie?: string;
+    raia?: number | string;
+    ordem?: number | string;
+    nome?: string;
+    escola?: string;
+    municipio?: string;
+  }>;
   resultados?: Array<{
+    colocacao?: number | string | null;
     serie?: number | string;
     raia?: number | string;
-    numero?: number | string;
+    numero?: number | string | null;
     atleta?: string;
+    nome?: string;
     escola?: string;
+    municipio?: string;
     resultado?: string;
     classificacao?: number | string;
+    situacao?: string;
     status?: string;
   }>;
 };
 
 const DADOS_INICIAIS: TelaoData = {
+  tipo: "aguardando_prova",
   titulo: "AGUARDANDO",
   subtitulo: "",
-  status: "aguardando",
+  status: "AGUARDANDO PROVA NA PISTA",
+  statusTelao: "aguardando_prova",
+  categoria: "",
+  naipe: "",
+  fase: "",
   atletaAtual: "",
   resultadoLancado: "",
   classificacaoParcial: "",
   serie: "",
   ultimaAtualizacao: "",
   podio: [],
+  atletas: [],
   resultados: [],
 };
+
+function textoSeguro(valor: any, fallback = ""): string {
+  if (valor === null || valor === undefined || valor === "") return fallback;
+
+  if (typeof valor === "object") {
+    if (valor.numero_serie !== undefined && valor.numero_serie !== null) {
+      return `SÉRIE ${valor.numero_serie}`;
+    }
+
+    if (valor.nome !== undefined && valor.nome !== null) {
+      return String(valor.nome);
+    }
+
+    if (valor.valor !== undefined && valor.valor !== null) {
+      return String(valor.valor);
+    }
+
+    return fallback;
+  }
+
+  return String(valor);
+}
 
 function normalizarDadosTelao(registro: any): TelaoData {
   const dados = registro?.dados && typeof registro.dados === "object" ? registro.dados : {};
 
+  const atletas = Array.isArray(dados.atletas)
+    ? dados.atletas.map((a: any, idx: number) => ({
+        serie: textoSeguro(a?.serie, ""),
+        raia: textoSeguro(a?.raia, "-"),
+        ordem: textoSeguro(a?.ordem, String(idx + 1)),
+        nome: textoSeguro(a?.nome, "-"),
+        escola: textoSeguro(a?.escola, "-"),
+        municipio: textoSeguro(a?.municipio, "-"),
+      }))
+    : [];
+
+  const resultados = Array.isArray(dados.resultados)
+    ? dados.resultados.map((r: any) => ({
+        colocacao: r?.colocacao ?? r?.classificacao ?? null,
+        serie: textoSeguro(r?.serie, "-"),
+        raia: textoSeguro(r?.raia, "-"),
+        numero: textoSeguro(r?.numero, "-"),
+        atleta: textoSeguro(r?.atleta, "-"),
+        nome: textoSeguro(r?.nome, "-"),
+        escola: textoSeguro(r?.escola, "-"),
+        municipio: textoSeguro(r?.municipio, "-"),
+        resultado: textoSeguro(r?.resultado, "-"),
+        classificacao: r?.classificacao ?? null,
+        situacao: textoSeguro(r?.situacao, textoSeguro(r?.status, "OK")),
+        status: textoSeguro(r?.status, "OK"),
+      }))
+    : [];
+
   return {
-    titulo: dados.titulo || registro?.titulo || "AGUARDANDO",
-    subtitulo: dados.subtitulo || registro?.subtitulo || "",
-    status: dados.status || registro?.status || "aguardando",
-    atletaAtual: dados.atleta_atual || "",
-    resultadoLancado: dados.resultado_lancado || "",
-    classificacaoParcial: dados.classificacao_parcial || "",
-    serie: dados.serie || "",
-    ultimaAtualizacao: dados.ultima_atualizacao || registro?.atualizado_em || "",
+    tipo: textoSeguro(dados.tipo, "aguardando_prova"),
+    titulo: textoSeguro(dados.titulo, textoSeguro(registro?.titulo, "AGUARDANDO")),
+    subtitulo: textoSeguro(dados.subtitulo, textoSeguro(registro?.subtitulo, "")),
+    status: textoSeguro(dados.status, textoSeguro(registro?.status, "AGUARDANDO PROVA NA PISTA")),
+    statusTelao: textoSeguro(dados.status_telao, "aguardando_prova"),
+    categoria: textoSeguro(dados.categoria, ""),
+    naipe: textoSeguro(dados.naipe, ""),
+    fase: textoSeguro(dados.fase, ""),
+    atletaAtual: textoSeguro(dados.atleta_atual, ""),
+    resultadoLancado: textoSeguro(dados.resultado_lancado, ""),
+    classificacaoParcial: textoSeguro(dados.classificacao_parcial, ""),
+    serie: textoSeguro(dados.serie, ""),
+    ultimaAtualizacao: textoSeguro(dados.ultima_atualizacao, textoSeguro(registro?.atualizado_em, "")),
     podio: Array.isArray(dados.podio) ? dados.podio : [],
-    resultados: Array.isArray(dados.resultados) ? dados.resultados : [],
+    atletas,
+    resultados,
   };
 }
 
@@ -63,7 +142,18 @@ function formatarDataHora(data: string) {
 export default function TelaoPista() {
   const [dados, setDados] = useState<TelaoData>(DADOS_INICIAIS);
   const podio = dados.podio || [];
+  const atletasLista = dados.atletas || [];
   const resultadosLista = dados.resultados || [];
+  const resultadosOficiais = resultadosLista.map((item) => ({
+    colocacao: item.colocacao ?? item.classificacao ?? null,
+    serie: item.serie || "-",
+    raia: item.raia || "-",
+    nome: item.nome || item.atleta || "-",
+    escola: item.escola || "-",
+    municipio: item.municipio || "-",
+    resultado: item.resultado || "-",
+    situacao: item.situacao || item.status || "OK",
+  }));
   const ultimaAtualizacao = dados.ultimaAtualizacao || "";
 
   const carregar = async () => {
@@ -79,6 +169,9 @@ export default function TelaoPista() {
       const melhor =
         normalizados.find(
           (item) =>
+            item.tipo === "resultado_oficial" ||
+            item.tipo === "prova_na_pista" ||
+            (item.atletas || []).length > 0 ||
             (item.resultados || []).length > 0 ||
             !!item.atletaAtual ||
             !!item.resultadoLancado ||
@@ -130,7 +223,11 @@ export default function TelaoPista() {
           marginBottom: 20,
         }}
       >
-        {dados?.titulo || "AGUARDANDO"}
+        {dados.tipo === "prova_na_pista"
+          ? "PROVA NA PISTA"
+          : dados.tipo === "resultado_oficial"
+            ? "RESULTADO OFICIAL"
+            : "AGUARDANDO PROVA NA PISTA"}
       </h1>
 
       <h3
@@ -139,8 +236,16 @@ export default function TelaoPista() {
           marginBottom: 30,
         }}
       >
-        {dados?.subtitulo || ""}
+        {dados.titulo || ""}
       </h3>
+
+      <div style={{ fontSize: 26, marginBottom: 12, color: "#bfdbfe" }}>
+        {dados.categoria || ""} {dados.naipe ? `- ${dados.naipe}` : ""}
+      </div>
+
+      <div style={{ fontSize: 24, marginBottom: 22, color: "#cbd5e1" }}>
+        {dados.serie || ""} {dados.fase ? `- ${dados.fase}` : ""}
+      </div>
 
       <div
         style={{
@@ -150,10 +255,10 @@ export default function TelaoPista() {
           borderRadius: 10,
         }}
       >
-        {dados.status?.replaceAll("_", " ").toUpperCase()}
+        {String(dados.status || "AGUARDANDO PROVA NA PISTA").toUpperCase()}
       </div>
 
-      {(dados.atletaAtual || dados.resultadoLancado || dados.classificacaoParcial) && (
+      {dados.tipo === "prova_na_pista" && atletasLista.length > 0 && (
         <div
           style={{
             marginTop: 28,
@@ -161,44 +266,100 @@ export default function TelaoPista() {
             border: "1px solid rgba(255,255,255,0.2)",
             borderRadius: 12,
             padding: "16px 22px",
-            minWidth: 520,
+            width: "100%",
+            maxWidth: 1180,
           }}
         >
-          {dados.serie && (
-            <div style={{ fontSize: 20, marginBottom: 10, color: "#93c5fd" }}>
-              Série: {dados.serie}
-            </div>
-          )}
-          <div style={{ fontSize: 24, marginBottom: 6 }}>
-            <strong>Atleta:</strong> {dados.atletaAtual || "-"}
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 22 }}>
+              <thead>
+                <tr style={{ background: "rgba(255,255,255,0.12)" }}>
+                  <th style={{ padding: 10 }}>Série</th>
+                  <th style={{ padding: 10 }}>Raia</th>
+                  <th style={{ padding: 10 }}>Ordem</th>
+                  <th style={{ padding: 10, textAlign: "left" }}>Atleta</th>
+                  <th style={{ padding: 10, textAlign: "left" }}>Escola</th>
+                  <th style={{ padding: 10, textAlign: "left" }}>Município</th>
+                </tr>
+              </thead>
+              <tbody>
+                {atletasLista.map((a, idx) => (
+                  <tr key={`${a.nome || "atleta"}-${idx}`} style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                    <td style={{ padding: 10 }}>{a.serie || dados.serie || "-"}</td>
+                    <td style={{ padding: 10 }}>{a.raia || "-"}</td>
+                    <td style={{ padding: 10 }}>{a.ordem || idx + 1}</td>
+                    <td style={{ padding: 10, textAlign: "left" }}>{a.nome || "-"}</td>
+                    <td style={{ padding: 10, textAlign: "left" }}>{a.escola || "-"}</td>
+                    <td style={{ padding: 10, textAlign: "left" }}>{a.municipio || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <div style={{ fontSize: 24, marginBottom: 6 }}>
-            <strong>Resultado:</strong> {dados.resultadoLancado || "-"}
-          </div>
-          <div style={{ fontSize: 24 }}>
-            <strong>Classificação Parcial:</strong> {dados.classificacaoParcial || "-"}
-          </div>
-          {ultimaAtualizacao && (
-            <div style={{ marginTop: 12, fontSize: 16, color: "#cbd5e1" }}>
-              Atualizado em: {formatarDataHora(ultimaAtualizacao)}
-            </div>
-          )}
         </div>
       )}
 
-      {podio.length > 0 && (
+      {dados.tipo === "resultado_oficial" && resultadosOficiais.length > 0 && (
         <div
           style={{
             marginTop: 20,
             width: "100%",
-            maxWidth: 700,
+            maxWidth: 1180,
+            background: "rgba(16,185,129,0.12)",
+            border: "1px solid rgba(16,185,129,0.45)",
+            borderRadius: 12,
+            padding: "14px 18px",
+          }}
+        >
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 22 }}>
+              <thead>
+                <tr style={{ background: "rgba(255,255,255,0.12)" }}>
+                  <th style={{ padding: 10 }}>Class.</th>
+                  <th style={{ padding: 10 }}>Série</th>
+                  <th style={{ padding: 10 }}>Raia</th>
+                  <th style={{ padding: 10, textAlign: "left" }}>Atleta</th>
+                  <th style={{ padding: 10, textAlign: "left" }}>Escola</th>
+                  <th style={{ padding: 10, textAlign: "left" }}>Município</th>
+                  <th style={{ padding: 10 }}>Resultado</th>
+                  <th style={{ padding: 10 }}>Situação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resultadosOficiais.map((r, idx) => (
+                  <tr
+                    key={`${r.nome || "atleta"}-${idx}`}
+                    style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
+                  >
+                    <td style={{ padding: 10 }}>{r.colocacao ? `${r.colocacao}º` : "-"}</td>
+                    <td style={{ padding: 10 }}>{r.serie || "-"}</td>
+                    <td style={{ padding: 10 }}>{r.raia || "-"}</td>
+                    <td style={{ padding: 10, textAlign: "left" }}>{r.nome || "-"}</td>
+                    <td style={{ padding: 10, textAlign: "left" }}>{r.escola || "-"}</td>
+                    <td style={{ padding: 10, textAlign: "left" }}>{r.municipio || "-"}</td>
+                    <td style={{ padding: 10 }}>{r.resultado || "-"}</td>
+                    <td style={{ padding: 10 }}>{String(r.situacao || "OK").toUpperCase()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {podio.length > 0 && dados.tipo === "resultado_oficial" && (
+        <div
+          style={{
+            marginTop: 20,
+            width: "100%",
+            maxWidth: 900,
             background: "rgba(250,204,21,0.12)",
             border: "1px solid rgba(250,204,21,0.5)",
             borderRadius: 12,
             padding: "14px 18px",
           }}
         >
-          <div style={{ fontSize: 22, color: "#fde68a", marginBottom: 10 }}>Pódio parcial/final</div>
+          <div style={{ fontSize: 22, color: "#fde68a", marginBottom: 10 }}>Pódio</div>
           {podio.map((p, idx) => (
             <div key={`${p.atleta || "podio"}-${idx}`} style={{ fontSize: 20, marginBottom: 6 }}>
               {p.colocacao || idx + 1}º - {p.atleta || "-"} ({p.resultado || "-"})
@@ -207,64 +368,9 @@ export default function TelaoPista() {
         </div>
       )}
 
-      {resultadosLista.length > 0 && (
-        <div
-          style={{
-            marginTop: 22,
-            width: "100%",
-            maxWidth: 1180,
-            background: "rgba(255,255,255,0.08)",
-            border: "1px solid rgba(255,255,255,0.2)",
-            borderRadius: 12,
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              padding: "12px 16px",
-              fontSize: 22,
-              fontWeight: 700,
-              textAlign: "left",
-              background: "rgba(37,99,235,0.25)",
-              color: "#bfdbfe",
-            }}
-          >
-            Resultados por série
-          </div>
-
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 22 }}>
-              <thead>
-                <tr style={{ background: "rgba(255,255,255,0.12)" }}>
-                  <th style={{ padding: 10 }}>Série</th>
-                  <th style={{ padding: 10 }}>Raia</th>
-                  <th style={{ padding: 10 }}>Nº</th>
-                  <th style={{ padding: 10, textAlign: "left" }}>Atleta</th>
-                  <th style={{ padding: 10, textAlign: "left" }}>Escola</th>
-                  <th style={{ padding: 10 }}>Resultado</th>
-                  <th style={{ padding: 10 }}>Class.</th>
-                  <th style={{ padding: 10 }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {resultadosLista.map((r, idx) => (
-                  <tr
-                    key={`${r.atleta || "atleta"}-${idx}`}
-                    style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
-                  >
-                    <td style={{ padding: 10 }}>{r.serie || "-"}</td>
-                    <td style={{ padding: 10 }}>{r.raia || "-"}</td>
-                    <td style={{ padding: 10 }}>{r.numero || "-"}</td>
-                    <td style={{ padding: 10, textAlign: "left" }}>{r.atleta || "-"}</td>
-                    <td style={{ padding: 10, textAlign: "left" }}>{r.escola || "-"}</td>
-                    <td style={{ padding: 10 }}>{r.resultado || "-"}</td>
-                    <td style={{ padding: 10 }}>{r.classificacao || "-"}</td>
-                    <td style={{ padding: 10 }}>{String(r.status || "OK").toUpperCase()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {ultimaAtualizacao && (
+        <div style={{ marginTop: 14, fontSize: 16, color: "#cbd5e1" }}>
+          Atualizado em: {formatarDataHora(ultimaAtualizacao)}
         </div>
       )}
     </div>

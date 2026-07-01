@@ -228,6 +228,12 @@ export default function Sumulas() {
   async function reabrirSumulaDigital() {
     if (!sumulaDigital) return;
 
+    const motivo = window.prompt("Informe o motivo da reabertura da súmula:");
+    if (!motivo || !motivo.trim()) {
+      setTokenMensagem("Reabertura cancelada. Informe um motivo válido.");
+      return;
+    }
+
     const { error } = await supabase
       .from("sumulas_digitais")
       .update({ status: "ABERTA", bloqueada_em: null })
@@ -242,8 +248,27 @@ export default function Sumulas() {
       return;
     }
 
+    const { error: erroHistorico } = await supabase
+      .from("sumula_historico_acoes")
+      .insert({
+        sumula_id: sumulaDigital.id,
+        acao: "reabertura_admin",
+        arbitro_nome: null,
+        detalhes: {
+          motivo,
+          origem: "painel_sumulas",
+          data_hora: new Date().toISOString(),
+        },
+      });
+
+    if (erroHistorico && !tabelaInexistente(erroHistorico, "sumula_historico_acoes")) {
+      setTokenMensagem("Súmula reaberta, mas falhou registro de histórico: " + erroHistorico.message);
+      await carregarSumulaDigital(provaSelecionada);
+      return;
+    }
+
     await carregarSumulaDigital(provaSelecionada);
-    setTokenMensagem("Súmula reaberta para o árbitro.");
+    setTokenMensagem("Súmula reaberta para o árbitro com motivo registrado.");
   }
 
   async function carregarConfiguracoes() {

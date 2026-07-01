@@ -18,6 +18,12 @@ function erroTriggerUpdatedAt(error) {
   return texto.includes("updated_at") && texto.includes("record \"new\"");
 }
 
+function colunaNaoExiste(error, coluna) {
+  const texto = `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`.toLowerCase();
+  const alvo = String(coluna || "").toLowerCase();
+  return texto.includes("could not find") && texto.includes(alvo);
+}
+
 function tempoParaNumero(tempo) {
   if (!tempo) return 999999;
   const limpo = String(tempo).replace(",", ".").trim();
@@ -75,6 +81,65 @@ function normalizarStatus(valor) {
   return ["OK", "DQ", "DNS", "ABD", "DNF", "NM"].includes(status) ? status : "OK";
 }
 
+function construirConferenciaResultado(lista, ehProvaCampo) {
+  const base = (lista || []).map((item, idx) => {
+    const situacao = normalizarStatus(item.observacao);
+    const resultado = ehProvaCampo
+      ? (item.marca || melhorTentativaTexto(item.tentativas, 6) || "")
+      : (item.tempo || "");
+
+    const valor = ehProvaCampo ? marcaParaNumero(resultado) : tempoParaNumero(resultado);
+    const semResultado = ehProvaCampo ? valor === null : valor === 999999;
+    const valido = situacao === "OK" && !semResultado;
+
+    return {
+      ...item,
+      situacao,
+      resultado,
+      valor,
+      valido,
+      ordemOriginal: idx,
+    };
+  });
+
+  const validos = base
+    .filter((item) => item.valido)
+    .sort((a, b) => {
+      const serieA = Number(a.serie_numero || 1);
+      const serieB = Number(b.serie_numero || 1);
+      if (serieA !== serieB) return serieA - serieB;
+
+      if (ehProvaCampo) {
+        if (b.valor !== a.valor) return (b.valor || 0) - (a.valor || 0);
+      } else if (a.valor !== b.valor) {
+        return (a.valor || 999999) - (b.valor || 999999);
+      }
+
+      return a.ordemOriginal - b.ordemOriginal;
+    })
+    .map((item, idx) => ({
+      ...item,
+      colocacao: idx + 1,
+    }));
+
+  const invalidos = base
+    .filter((item) => !item.valido)
+    .sort((a, b) => a.ordemOriginal - b.ordemOriginal)
+    .map((item) => ({
+      ...item,
+      colocacao: null,
+    }));
+
+  return {
+    validos,
+    invalidos,
+    ordenados: [...validos, ...invalidos],
+    mapaColocacao: Object.fromEntries(
+      [...validos, ...invalidos].map((item) => [item.id, item.colocacao])
+    ),
+  };
+}
+
 function ordenarResultadosParaClassificacao(resultados) {
   return resultados
     .map((r) => ({
@@ -129,6 +194,12 @@ export default function ArbitroSumula() {
   const [alterado, setAlterado] = useState(false);
   const [nomeArbitro, setNomeArbitro] = useState(() => localStorage.getItem("arbitro_nome") || "");
   const [bloquearAtualizacaoStatus, setBloquearAtualizacaoStatus] = useState(false);
+  const [statusFluxo, setStatusFluxo] = useState("aguardando");
+  const [conferenciaAberta, setConferenciaAberta] = useState(false);
+  const [classificacaoConferencia, setClassificacaoConferencia] = useState([]);
+  const [serieEmConferencia, setSerieEmConferencia] = useState(null);
+  const [seriesConfirmadas, setSeriesConfirmadas] = useState({});
+  const [seriesFinalizadas, setSeriesFinalizadas] = useState({});
 
   const sumulasFiltradas = useMemo(() => {
     const nome = String(nomeArbitro || "").trim().toLowerCase();
@@ -241,12 +312,12 @@ export default function ArbitroSumula() {
     });
   }, []);
 
-  const sincronizarResultadosParaPista = useCallback(async (classificacaoParcial) => {
-    if (!sumula?.prova_id || resultados.length === 0) return;
+  const sincronizarResultadosParaPista = useCallback(async (classificacaoParcial, listaBase = resultados) => {
+    if (!sumula?.prova_id || (listaBase || []).length === 0) return;
 
     const dataResultado = new Date().toISOString().slice(0, 10);
 
-    const linhas = resultados
+    const linhas = (listaBase || [])
       .filter((r) => r.inscricao_id)
       .map((r) => {
         const melhorMarcaCampo = r.marca || melhorTentativaTexto(r.tentativas, 6) || null;
@@ -436,6 +507,7 @@ export default function ArbitroSumula() {
     }
 
     setSumula(data);
+    setStatusFluxo(data.status === "ENVIADA" ? "finalizada" : "em_preenchimento");
     const resultadosAtuais = (data.sumula_resultados || []).map(normalizarResultado);
 
     if (resultadosAtuais.length === 0) {
@@ -473,7 +545,59 @@ export default function ArbitroSumula() {
     return sumula && ["ABERTA", "EM_ANDAMENTO"].includes(sumula.status);
   }
 
+  function obterItensDaSerie(serieNumero) {
+    return resultados.filter((item) => Number(item.serie_numero || 1) === Number(serieNumero));
+  }
+
+  const mapaStatusFluxo = {
+    aguardando: "Aguardando",
+    prova_na_pista: "Prova na pista",
+    em_preenchimento: "Em preenchimento",
+    em_conferencia: "Em conferência",
+    classificacao_confirmada: "Classificação confirmada",
+    finalizada: "Súmula finalizada",
+    publicada_telao: "Publicada no telão",
+  };
+
+  const registrarHistorico = useCallback(async (acao, detalhes = {}) => {
+    if (!sumula?.id || !token) return;
+
+    const parametros = {
+      p_sumula_id: sumula.id,
+      p_token_acesso: token,
+      p_acao: acao,
+      p_arbitro_nome: nomeArbitro || sumula.arbitro_nome || null,
+      p_detalhes: detalhes,
+    };
+
+    const { error: erroRpc } = await supabase.rpc("registrar_historico_sumula_por_token", parametros);
+    if (!erroRpc) return;
+
+    const { error } = await supabase
+      .from("sumula_historico_acoes")
+      .insert({
+        sumula_id: sumula.id,
+        token_acesso: token,
+        acao,
+        arbitro_nome: nomeArbitro || sumula.arbitro_nome || null,
+        detalhes,
+      });
+
+    if (error && !tabelaInexistente(error, "sumula_historico_acoes")) {
+      console.warn("Falha ao registrar histórico da súmula", error.message || error);
+    }
+  }, [nomeArbitro, sumula, token]);
+
   function atualizarResultado(id, campo, valor) {
+    const alvo = resultados.find((item) => item.id === id);
+    if (alvo?.serie_numero) {
+      setSeriesConfirmadas((old) => ({ ...old, [alvo.serie_numero]: false }));
+    }
+
+    if (statusFluxo === "classificacao_confirmada") {
+      setStatusFluxo("em_preenchimento");
+    }
+
     setResultados((old) =>
       old.map((r) => {
         if (r.id !== id) return r;
@@ -532,7 +656,7 @@ export default function ArbitroSumula() {
   }, [resultados]);
 
   const publicarTelaoControle = useCallback(async (sumulaRecord, dados) => {
-    const payloadBase = {
+    const payloadComSumula = {
       prova_id: sumulaRecord?.prova_id,
       sumula_id: sumulaRecord?.id,
       publicado: true,
@@ -540,128 +664,153 @@ export default function ArbitroSumula() {
       atualizado_em: new Date().toISOString(),
     };
 
-    const { data: atualizados, error: erroUpdate } = await supabase
+    const payloadSemSumula = {
+      prova_id: sumulaRecord?.prova_id,
+      publicado: true,
+      dados,
+      atualizado_em: new Date().toISOString(),
+    };
+
+    const { data: atualizadosPorSumula, error: erroUpdatePorSumula } = await supabase
       .from("telao_pista_controle")
-      .update(payloadBase)
+      .update(payloadComSumula)
       .eq("sumula_id", sumulaRecord?.id)
       .select("id")
       .limit(1);
 
-    if (!erroUpdate && (atualizados || []).length > 0) {
+    if (!erroUpdatePorSumula && (atualizadosPorSumula || []).length > 0) {
       return;
+    }
+
+    const usarFallbackPorProva =
+      !!erroUpdatePorSumula && colunaNaoExiste(erroUpdatePorSumula, "sumula_id");
+
+    if (usarFallbackPorProva) {
+      const { data: atualizadosPorProva, error: erroUpdatePorProva } = await supabase
+        .from("telao_pista_controle")
+        .update(payloadSemSumula)
+        .eq("prova_id", sumulaRecord?.prova_id)
+        .select("id")
+        .limit(1);
+
+      if (!erroUpdatePorProva && (atualizadosPorProva || []).length > 0) {
+        return;
+      }
+
+      const { error: erroInsertSemSumula } = await supabase
+        .from("telao_pista_controle")
+        .insert(payloadSemSumula);
+
+      if (erroInsertSemSumula) {
+        throw new Error("Erro ao publicar no telão da pista: " + erroInsertSemSumula.message);
+      }
+
+      return;
+    }
+
+    if (erroUpdatePorSumula && !colunaNaoExiste(erroUpdatePorSumula, "sumula_id")) {
+      throw new Error("Erro ao publicar no telão da pista: " + erroUpdatePorSumula.message);
     }
 
     const { error: erroInsert } = await supabase
       .from("telao_pista_controle")
-      .insert(payloadBase);
+      .insert(payloadComSumula);
 
     if (erroInsert) {
       throw new Error("Erro ao publicar no telão da pista: " + erroInsert.message);
     }
   }, []);
 
-  const atualizarTelao = useCallback(async (sumulaRecord, listaResultados = [], classificacaoParcial = {}) => {
-    const ordenados = [...(listaResultados || [])]
-      .map((item) => ({
-        ...item,
-        classificacao: classificacaoParcial[item.id] || item.classificacao || null,
-      }))
+  function construirAtletasTelao(listaResultados = []) {
+    return [...(listaResultados || [])]
       .sort((a, b) => {
         const serieA = Number(a.serie_numero || 1);
         const serieB = Number(b.serie_numero || 1);
         if (serieA !== serieB) return serieA - serieB;
-
-        const classA = Number(a.classificacao || 999);
-        const classB = Number(b.classificacao || 999);
-        if (classA !== classB) return classA - classB;
-
         return Number(a.raia_numero || 999) - Number(b.raia_numero || 999);
-      });
+      })
+      .map((r, index) => ({
+        serie: `SÉRIE ${r.serie_numero || 1}`,
+        raia: r.raia_numero || null,
+        ordem: index + 1,
+        nome: r.atleta?.nome || "-",
+        escola: r.atleta?.escolas?.nome || "-",
+        municipio: r.atleta?.municipio || "-",
+      }));
+  }
 
-    const ultimaAtleta = ordenados.find((r) => r.tempo || r.marca || r.resultado) || ordenados[0];
-    const resultadosTelao = ordenados.map((r) => ({
-      serie: r.serie_numero || 1,
-      raia: r.raia_numero || null,
-      numero: r.atleta?.numero || null,
-      atleta: r.atleta?.nome || "-",
-      escola: r.atleta?.escolas?.nome || "-",
-      resultado: r.tempo || r.marca || r.resultado || "-",
-      classificacao: r.classificacao || null,
-      status: normalizarStatus(r.observacao),
-    }));
-
+  const publicarProvaNaPistaNoTelao = useCallback(async (sumulaRecord, listaResultados = []) => {
     const dados = {
+      tipo: "prova_na_pista",
+      status: "PROVA NA PISTA",
+      status_telao: "aguardando_largada",
       titulo: sumulaRecord?.prova?.nome || "",
-      subtitulo: `${sumulaRecord?.prova?.categoria || ""} • ${sumulaRecord?.prova?.naipe || ""} • ${sumulaRecord?.prova?.fase || "QUALIFICAÇÃO"} • ${sumulaRecord?.serie || ""}`,
-      prova: sumulaRecord?.prova?.nome || "",
       categoria: sumulaRecord?.prova?.categoria || "",
       naipe: sumulaRecord?.prova?.naipe || "",
       fase: sumulaRecord?.prova?.fase || "QUALIFICAÇÃO",
-      serie: sumulaRecord?.serie || "",
-      atleta_atual: ultimaAtleta?.atleta?.nome || "",
-      resultado_lancado:
-        ultimaAtleta?.tempo || ultimaAtleta?.marca || ultimaAtleta?.resultado || "",
-      classificacao_parcial:
-        ultimaAtleta?.classificacao || "",
-      resultados: resultadosTelao,
+      serie: sumulaRecord?.serie || `SÉRIE ${(listaResultados[0]?.serie_numero || 1)}`,
+      atletas: construirAtletasTelao(listaResultados),
       ultima_atualizacao: new Date().toISOString(),
-      status: "AO VIVO",
     };
 
     await publicarTelaoControle(sumulaRecord, dados);
   }, [publicarTelaoControle]);
 
-  async function publicarTelaoResultadoFinal(sumulaRecord, listaResultados) {
-    const classificacao = gerarClassificacaoParcial(listaResultados);
-    const ordenados = [...listaResultados]
-      .map((item) => ({ ...item, classificacao: classificacao[item.id] || null }))
-      .sort((a, b) => (a.classificacao || 999) - (b.classificacao || 999));
-
-    const campeao = ordenados[0];
-    const podio = ordenados.slice(0, 3).map((r) => ({
-      colocacao: r.classificacao,
-      atleta: r.atleta?.nome || "-",
-      resultado: r.tempo || r.marca || r.resultado || "-",
-    }));
+  const publicarResultadoOficialNoTelao = useCallback(async (sumulaRecord, conferencia) => {
+    const ordenados = conferencia?.ordenados || [];
+    const podio = ordenados
+      .filter((item) => item.colocacao)
+      .slice(0, 3)
+      .map((item) => ({
+        colocacao: item.colocacao,
+        atleta: item.atleta?.nome || "-",
+        resultado: item.resultado || "-",
+      }));
 
     const dados = {
+      tipo: "resultado_oficial",
+      status: "RESULTADO OFICIAL",
+      status_telao: "resultado_oficial",
       titulo: sumulaRecord?.prova?.nome || "",
-      subtitulo: `${sumulaRecord?.prova?.categoria || ""} • ${sumulaRecord?.prova?.naipe || ""} • ${sumulaRecord?.prova?.fase || "QUALIFICAÇÃO"}`,
-      prova: sumulaRecord?.prova?.nome || "",
       categoria: sumulaRecord?.prova?.categoria || "",
       naipe: sumulaRecord?.prova?.naipe || "",
       fase: sumulaRecord?.prova?.fase || "QUALIFICAÇÃO",
-      serie: sumulaRecord?.serie || "",
-      atleta_atual: campeao?.atleta?.nome || "",
-      resultado_lancado: campeao?.tempo || campeao?.marca || campeao?.resultado || "",
-      classificacao_parcial: campeao?.classificacao || "",
-      resultados: ordenados.map((r) => ({
-        serie: r.serie_numero || 1,
-        raia: r.raia_numero || null,
-        numero: r.atleta?.numero || null,
-        atleta: r.atleta?.nome || "-",
-        escola: r.atleta?.escolas?.nome || "-",
-        resultado: r.tempo || r.marca || r.resultado || "-",
-        classificacao: r.classificacao || null,
-        status: normalizarStatus(r.observacao),
+      serie: sumulaRecord?.serie || `SÉRIE ${(ordenados[0]?.serie_numero || 1)}`,
+      resultados: ordenados.map((item) => ({
+        colocacao: item.colocacao || null,
+        serie: item.serie_numero || 1,
+        raia: item.raia_numero || null,
+        nome: item.atleta?.nome || "-",
+        escola: item.atleta?.escolas?.nome || "-",
+        municipio: item.atleta?.municipio || "-",
+        resultado: item.resultado || "-",
+        situacao: item.situacao || "OK",
       })),
       podio,
       ultima_atualizacao: new Date().toISOString(),
-      status: "RESULTADO_FINAL",
     };
 
     await publicarTelaoControle(sumulaRecord, dados);
-  }
+  }, [publicarTelaoControle]);
 
-  const salvarSumula = useCallback(async (automatico = false) => {
+  const salvarSumula = useCallback(async (automatico = false, opcoes = {}) => {
     if (!sumula || resultados.length === 0) return false;
 
+    const {
+      mensagemInicio,
+      mensagemSucesso,
+      registrarAcao = !automatico,
+      acaoHistorico = "salvar_rascunho",
+      listaResultados = resultados,
+      classificacaoOverride = null,
+    } = opcoes;
+
     setSalvando(true);
-    setMensagem(automatico ? "Salvando rascunho..." : "Salvando...");
+    setMensagem(mensagemInicio || (automatico ? "Salvando rascunho..." : "Salvando..."));
 
-    const classificacaoParcial = gerarClassificacaoParcial(resultados);
+    const classificacaoParcial = classificacaoOverride || gerarClassificacaoParcial(listaResultados);
 
-    const resultadosParaSalvar = resultados.map((r) => ({
+    const resultadosParaSalvar = (listaResultados || []).map((r) => ({
       id: r.id,
       sumula_id: sumula.id,
       atleta_id: r.atleta_id,
@@ -696,7 +845,7 @@ export default function ArbitroSumula() {
     }
 
     try {
-      await sincronizarResultadosParaPista(classificacaoParcial);
+      await sincronizarResultadosParaPista(classificacaoParcial, listaResultados);
     } catch (erroPista) {
       setMensagem(erroPista.message || "Erro ao sincronizar resultados para a pista.");
       setSalvando(false);
@@ -730,40 +879,43 @@ export default function ArbitroSumula() {
       }
     }
 
-    try {
-      await atualizarTelao({ ...sumula, status: novoStatus }, resultados, classificacaoParcial);
-    } catch (erroTelao) {
-      setMensagem(erroTelao.message || "Resultados salvos, mas falhou publicação no telão.");
-      setSalvando(false);
-      return false;
-    }
-
     setSumula((old) => ({ ...old, status: novoStatus }));
     setResultados((old) =>
       old.map((r) => ({
         ...r,
-        classificacao: classificacaoParcial[r.id] || null,
+        classificacao:
+          Object.prototype.hasOwnProperty.call(classificacaoParcial, r.id)
+            ? classificacaoParcial[r.id] || null
+            : r.classificacao || null,
       }))
     );
 
     if (!erroTriggerUpdatedAt({ message: mensagem })) {
-      setMensagem(automatico ? "Rascunho salvo automaticamente." : "Salvo com sucesso.");
+      setMensagem(mensagemSucesso || (automatico ? "Rascunho salvo automaticamente." : "Rascunho salvo com sucesso."));
+    }
+
+    if (registrarAcao) {
+      void registrarHistorico(acaoHistorico, {
+        status_sumula: novoStatus,
+        quantidade_atletas: (listaResultados || []).length,
+      });
     }
 
     setAlterado(false);
     setUltimoSalvo(new Date());
+    setStatusFluxo("em_preenchimento");
     setSalvando(false);
     return true;
   }, [
     bloquearAtualizacaoStatus,
     ehProvaCampo,
     mensagem,
+    registrarHistorico,
     resultados,
     sincronizarResultadosParaPista,
     sumula,
     token,
     executarRpcComFallback,
-    atualizarTelao,
   ]);
 
   useEffect(() => {
@@ -774,61 +926,172 @@ export default function ArbitroSumula() {
     return () => clearTimeout(timeout);
   }, [alterado, salvando, salvarSumula]);
 
-  async function enviarParaConferencia() {
-    if (!sumula || resultados.length === 0) return;
+  async function enviarProvaNaPista(serieNumero) {
+    if (!sumula) return;
+    const itensSerie = obterItensDaSerie(serieNumero);
+    if (itensSerie.length === 0) return;
+
+    const confirmar = window.confirm(
+      "Deseja enviar esta prova para o telão da pista com a lista de atletas?"
+    );
+
+    if (!confirmar) return;
 
     setSalvando(true);
-    setMensagem("Enviando para conferência...");
+    setMensagem("Publicando prova no telão da pista...");
 
-    const salvo = await salvarSumula(false);
-    if (!salvo) {
+    try {
+      await publicarProvaNaPistaNoTelao(
+        { ...sumula, serie: `SÉRIE ${serieNumero}` },
+        itensSerie
+      );
+      setStatusFluxo("prova_na_pista");
+      setMensagem(`Série ${serieNumero} enviada para o telão. Status: AGUARDANDO LARGADA.`);
+      void registrarHistorico("prova_na_pista", {
+        serie: serieNumero,
+        quantidade_atletas: itensSerie.length,
+        prova_id: sumula.prova_id,
+      });
+    } catch (erro) {
+      setMensagem("Falha ao enviar prova para o telão: " + (erro.message || erro));
+    } finally {
       setSalvando(false);
+    }
+  }
+
+  async function abrirConferenciaResultado(serieNumero) {
+    if (!sumula) return;
+    const itensSerie = obterItensDaSerie(serieNumero);
+    if (itensSerie.length === 0) return;
+
+    const salvo = await salvarSumula(false, {
+      mensagemInicio: "Salvando para conferência...",
+      mensagemSucesso: "Rascunho salvo para conferência.",
+      registrarAcao: false,
+    });
+
+    if (!salvo) return;
+
+    const conferencia = construirConferenciaResultado(itensSerie, ehProvaCampo);
+    setClassificacaoConferencia(conferencia.ordenados);
+    setSerieEmConferencia(serieNumero);
+    setConferenciaAberta(true);
+    setSeriesConfirmadas((old) => ({ ...old, [serieNumero]: false }));
+    setStatusFluxo("em_conferencia");
+
+    void registrarHistorico("conferir_resultado", {
+      serie: serieNumero,
+      validos: conferencia.validos.length,
+      invalidos: conferencia.invalidos.length,
+    });
+  }
+
+  function voltarECorrigir() {
+    setConferenciaAberta(false);
+    setSerieEmConferencia(null);
+    setStatusFluxo("em_preenchimento");
+    void registrarHistorico("voltar_corrigir", {});
+  }
+
+  function confirmarClassificacao() {
+    if (!serieEmConferencia) return;
+    const itensSerie = obterItensDaSerie(serieEmConferencia);
+    const conferencia = construirConferenciaResultado(itensSerie, ehProvaCampo);
+    setClassificacaoConferencia(conferencia.ordenados);
+    setSeriesConfirmadas((old) => ({ ...old, [serieEmConferencia]: true }));
+    setStatusFluxo("classificacao_confirmada");
+
+    setResultados((old) =>
+      old.map((r) => ({
+        ...r,
+        classificacao:
+          Object.prototype.hasOwnProperty.call(conferencia.mapaColocacao, r.id)
+            ? conferencia.mapaColocacao[r.id] || null
+            : r.classificacao || null,
+      }))
+    );
+
+    void registrarHistorico("confirmar_classificacao", {
+      serie: serieEmConferencia,
+      quantidade_classificados: conferencia.validos.length,
+    });
+  }
+
+  async function finalizarELancarNoTelao(serieNumeroArg = null) {
+    const serieAlvo = serieNumeroArg || serieEmConferencia;
+    if (!sumula || !serieAlvo) return;
+    const itensSerie = obterItensDaSerie(serieAlvo);
+    if (itensSerie.length === 0) return;
+
+    if (!seriesConfirmadas[serieAlvo]) {
+      setMensagem(`Confirme a classificação da série ${serieAlvo} antes de finalizar.`);
       return;
     }
 
-    if (bloquearAtualizacaoStatus) {
-      setMensagem(
-        "Resultados enviados localmente. Corrija o trigger no banco para concluir status ENVIADA."
-      );
+    const confirmar = window.confirm(
+      "Após finalizar, a súmula será bloqueada e o resultado será lançado no telão. Deseja continuar?"
+    );
+
+    if (!confirmar) return;
+
+    const conferenciaFinal = construirConferenciaResultado(itensSerie, ehProvaCampo);
+    const listaFinal = itensSerie.map((r) => ({
+      ...r,
+      classificacao: conferenciaFinal.mapaColocacao[r.id] || null,
+    }));
+
+    setResultados((old) =>
+      old.map((r) => {
+        const daSerie = listaFinal.find((item) => item.id === r.id);
+        return daSerie || r;
+      })
+    );
+
+    setSalvando(true);
+    setMensagem("Finalizando súmula e lançando no telão...");
+
+    const salvo = await salvarSumula(false, {
+      mensagemInicio: "Salvando resultado oficial...",
+      mensagemSucesso: "Resultado oficial salvo.",
+      registrarAcao: false,
+      listaResultados: listaFinal,
+      classificacaoOverride: conferenciaFinal.mapaColocacao,
+    });
+
+    if (!salvo) {
       setSalvando(false);
       return;
     }
 
     const enviadaEm = new Date().toISOString();
 
-    const resultadoEnvio = await executarRpcComFallback(
-      "atualizar_status_sumula_por_token",
-      {
-        p_sumula_id: sumula.id,
-        p_token_acesso: token,
-        p_status: "ENVIADA",
-        p_enviada_em: enviadaEm,
-      },
-      () =>
-        supabase
-          .from("sumulas_digitais")
-          .update({ status: "ENVIADA", enviada_em: enviadaEm })
-          .eq("id", sumula.id)
-    );
-
-    const erro = resultadoEnvio.ok ? null : resultadoEnvio.error;
-
-    if (erro) {
-      if (erroTriggerUpdatedAt(erro)) {
-        setBloquearAtualizacaoStatus(true);
-        setMensagem(
-          "Resultados salvos, mas o envio não concluiu por trigger do banco (updated_at). Rode o SQL de correção."
-        );
-      } else {
-        setMensagem("Erro ao enviar para conferência: " + erro.message);
-      }
+    try {
+      await publicarResultadoOficialNoTelao(
+        { ...sumula, status: "EM_ANDAMENTO", serie: `SÉRIE ${serieAlvo}` },
+        conferenciaFinal
+      );
+    } catch (erroTelao) {
+      setMensagem("Súmula finalizada, mas houve erro ao publicar no telão: " + (erroTelao.message || erroTelao));
       setSalvando(false);
       return;
     }
 
-    setSumula((old) => ({ ...old, status: "ENVIADA" }));
-    await publicarTelaoResultadoFinal({ ...sumula, status: "ENVIADA" }, resultados);
-    setMensagem("Súmula enviada para conferência. Edição bloqueada.");
+    setSeriesFinalizadas((old) => ({ ...old, [serieAlvo]: true }));
+    setConferenciaAberta(false);
+    setSerieEmConferencia(null);
+    setStatusFluxo("publicada_telao");
+    setMensagem(`Série ${serieAlvo} finalizada e resultado oficial publicado no telão.`);
+
+    void registrarHistorico("finalizar_lancar_telao", {
+      serie: serieAlvo,
+      finalizada_em: enviadaEm,
+      quantidade_resultados: conferenciaFinal.ordenados.length,
+      podio: conferenciaFinal.validos.slice(0, 3).map((item) => ({
+        colocacao: item.colocacao,
+        atleta: item.atleta?.nome || "-",
+      })),
+    });
+
     setSalvando(false);
   }
 
@@ -1064,6 +1327,9 @@ export default function ArbitroSumula() {
                 <strong>Status:</strong> {sumula.status.replaceAll("_", " ")}
               </p>
               <p style={{ margin: "6px 0 0", color: "#475569" }}>
+                <strong>Fluxo:</strong> {mapaStatusFluxo[statusFluxo] || statusFluxo}
+              </p>
+              <p style={{ margin: "6px 0 0", color: "#475569" }}>
                 <strong>Árbitro:</strong> {sumula.arbitro_nome || nomeArbitro || "Não informado"}
               </p>
             </div>
@@ -1161,6 +1427,19 @@ export default function ArbitroSumula() {
                   Série {grupo.serieNumero}
                 </h3>
 
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+                  {seriesFinalizadas[grupo.serieNumero] && (
+                    <span style={{ padding: "6px 10px", borderRadius: 999, background: "#dcfce7", color: "#166534", fontWeight: 700, fontSize: 12 }}>
+                      Resultado oficial publicado
+                    </span>
+                  )}
+                  {seriesConfirmadas[grupo.serieNumero] && !seriesFinalizadas[grupo.serieNumero] && (
+                    <span style={{ padding: "6px 10px", borderRadius: 999, background: "#dbeafe", color: "#1d4ed8", fontWeight: 700, fontSize: 12 }}>
+                      Classificação confirmada
+                    </span>
+                  )}
+                </div>
+
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1220 }}>
                     <thead>
@@ -1209,7 +1488,7 @@ export default function ArbitroSumula() {
                     </thead>
                     <tbody>
                       {grupo.itens.map((r, index) => {
-                        const editable = isEditavel();
+                        const editable = isEditavel() && !seriesFinalizadas[grupo.serieNumero];
                         const parcial3 = melhorTentativaTexto(r.tentativas, 3);
                         const parcial6 = r.marca || melhorTentativaTexto(r.tentativas, 6);
                         return (
@@ -1333,41 +1612,188 @@ export default function ArbitroSumula() {
                     </tbody>
                   </table>
                 </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                    gap: 8,
+                    marginTop: 12,
+                  }}
+                >
+                  <button
+                    onClick={() => void enviarProvaNaPista(grupo.serieNumero)}
+                    disabled={!isEditavel() || salvando || grupo.itens.length === 0}
+                    style={{
+                      minHeight: 44,
+                      borderRadius: 10,
+                      border: "none",
+                      background: "#1d4ed8",
+                      color: "white",
+                      fontWeight: 700,
+                      cursor: isEditavel() && grupo.itens.length > 0 ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    Prova na pista
+                  </button>
+
+                  <button
+                    onClick={() => void salvarSumula(false, { listaResultados: grupo.itens })}
+                    disabled={!isEditavel() || salvando || grupo.itens.length === 0}
+                    style={{
+                      minHeight: 44,
+                      borderRadius: 10,
+                      border: "none",
+                      background: "#2563eb",
+                      color: "white",
+                      fontWeight: 700,
+                      cursor: isEditavel() && grupo.itens.length > 0 ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    Salvar rascunho
+                  </button>
+
+                  <button
+                    onClick={() => void abrirConferenciaResultado(grupo.serieNumero)}
+                    disabled={!isEditavel() || salvando || grupo.itens.length === 0}
+                    style={{
+                      minHeight: 44,
+                      borderRadius: 10,
+                      border: "none",
+                      background: "#0f766e",
+                      color: "white",
+                      fontWeight: 700,
+                      cursor: isEditavel() && grupo.itens.length > 0 ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    Conferir resultado
+                  </button>
+
+                  <button
+                    onClick={() => void finalizarELancarNoTelao(grupo.serieNumero)}
+                    disabled={!isEditavel() || salvando || !seriesConfirmadas[grupo.serieNumero] || seriesFinalizadas[grupo.serieNumero]}
+                    style={{
+                      minHeight: 44,
+                      borderRadius: 10,
+                      border: "none",
+                      background:
+                        seriesConfirmadas[grupo.serieNumero] && !seriesFinalizadas[grupo.serieNumero]
+                          ? "#dc2626"
+                          : "#94a3b8",
+                      color: "white",
+                      fontWeight: 700,
+                      cursor:
+                        isEditavel() && seriesConfirmadas[grupo.serieNumero] && !seriesFinalizadas[grupo.serieNumero]
+                          ? "pointer"
+                          : "not-allowed",
+                    }}
+                  >
+                    Finalizar e lançar no telão
+                  </button>
+                </div>
               </div>
             ))
           )}
         </div>
 
-        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 24 }}>
-          <button
-            onClick={() => void salvarSumula(false)}
-            disabled={!isEditavel() || salvando || resultados.length === 0}
+        {conferenciaAberta && (
+          <div
             style={{
-              padding: "14px 22px",
-              borderRadius: 14,
-              background: "#2563eb",
-              border: "none",
-              color: "white",
-              cursor: isEditavel() && resultados.length > 0 ? "pointer" : "not-allowed",
+              position: "fixed",
+              inset: 0,
+              background: "rgba(15,23,42,0.56)",
+              zIndex: 50,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 16,
             }}
           >
-            Salvar rascunho
-          </button>
+            <div
+              style={{
+                width: "min(980px, 100%)",
+                maxHeight: "88vh",
+                overflow: "auto",
+                background: "#ffffff",
+                borderRadius: 18,
+                boxShadow: "0 20px 60px rgba(15,23,42,0.26)",
+                padding: 20,
+              }}
+            >
+              <h2 style={{ marginTop: 0, marginBottom: 6 }}>Conferência do Resultado</h2>
+              <p style={{ marginTop: 0, color: "#475569" }}>
+                {serieEmConferencia ? `Série ${serieEmConferencia} - ` : ""}
+                Revise a classificação calculada automaticamente antes de finalizar.
+              </p>
 
-          <button
-            onClick={enviarParaConferencia}
-            disabled={!isEditavel() || salvando || resultados.length === 0}
-            style={{
-              padding: "14px 22px",
-              borderRadius: 14,
-              background: "#0f766e",
-              border: "none",
-              color: "white",
-              cursor: isEditavel() && resultados.length > 0 ? "pointer" : "not-allowed",
-            }}
-          >
-            Enviar para conferência
-          </button>
+              <div style={{ overflowX: "auto", marginTop: 16 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 760 }}>
+                  <thead>
+                    <tr style={{ background: "#e2e8f0" }}>
+                      <th style={{ textAlign: "left", padding: 10 }}>Class.</th>
+                      <th style={{ textAlign: "left", padding: 10 }}>Série</th>
+                      <th style={{ textAlign: "left", padding: 10 }}>Raia</th>
+                      <th style={{ textAlign: "left", padding: 10 }}>Atleta</th>
+                      <th style={{ textAlign: "left", padding: 10 }}>Escola</th>
+                      <th style={{ textAlign: "left", padding: 10 }}>Resultado</th>
+                      <th style={{ textAlign: "left", padding: 10 }}>Situação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {classificacaoConferencia.map((item) => (
+                      <tr key={`conf-${item.id}`} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                        <td style={{ padding: 10, fontWeight: 700 }}>
+                          {item.colocacao ? `${item.colocacao}º` : "-"}
+                        </td>
+                        <td style={{ padding: 10 }}>{item.serie_numero || 1}</td>
+                        <td style={{ padding: 10 }}>{item.raia_numero || "-"}</td>
+                        <td style={{ padding: 10, fontWeight: 700 }}>{item.atleta?.nome || "-"}</td>
+                        <td style={{ padding: 10 }}>{item.atleta?.escolas?.nome || "-"}</td>
+                        <td style={{ padding: 10 }}>{item.resultado || "-"}</td>
+                        <td style={{ padding: 10 }}>{item.situacao || "OK"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 18 }}>
+                <button
+                  onClick={voltarECorrigir}
+                  style={{
+                    padding: "12px 18px",
+                    borderRadius: 12,
+                    border: "1px solid #cbd5e1",
+                    background: "#f8fafc",
+                    color: "#0f172a",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                  }}
+                >
+                  Voltar e corrigir
+                </button>
+
+                <button
+                  onClick={confirmarClassificacao}
+                  style={{
+                    padding: "12px 18px",
+                    borderRadius: 12,
+                    border: "none",
+                    background: "#0f766e",
+                    color: "#ffffff",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                  }}
+                >
+                  Confirmar classificação
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div style={{ marginTop: 20, color: "#475569", fontWeight: 600 }}>
+          Ações por série: use os botões no card de cada série para publicar e finalizar sem esperar as demais.
         </div>
       </div>
     </div>
