@@ -766,19 +766,47 @@ export default function Importacao() {
         ).values(),
       ];
 
-      const { data: atletasCriados, error: erroAtletas } = await supabase
-        .from("atletas")
-        .insert(atletasUnicos)
-        .select("id, nome, escola_id, categoria");
+      const nomesAtletas = [...new Set(atletasUnicos.map((a) => a.nome).filter(Boolean))];
+      const categoriasAtletas = [
+        ...new Set(atletasUnicos.map((a) => a.categoria).filter(Boolean)),
+      ];
+      const escolasAtletas = [
+        ...new Set(atletasUnicos.map((a) => a.escola_id).filter(Boolean)),
+      ];
 
-      if (erroAtletas) throw erroAtletas;
+      const { data: atletasExistentes, error: erroAtletasExistentes } = await supabase
+        .from("atletas")
+        .select("id, nome, escola_id, categoria")
+        .in("nome", nomesAtletas)
+        .in("categoria", categoriasAtletas)
+        .in("escola_id", escolasAtletas);
+
+      if (erroAtletasExistentes) throw erroAtletasExistentes;
 
       const mapaAtletas = {};
 
-      (atletasCriados || []).forEach((a) => {
+      (atletasExistentes || []).forEach((a) => {
         const chave = `${a.nome}|${a.escola_id || "SEM_ESCOLA"}|${a.categoria}`;
         mapaAtletas[chave] = a.id;
       });
+
+      const atletasParaCriar = atletasUnicos.filter(
+        (a) => !mapaAtletas[`${a.nome}|${a.escola_id || "SEM_ESCOLA"}|${a.categoria}`]
+      );
+
+      if (atletasParaCriar.length > 0) {
+        const { data: atletasCriados, error: erroAtletas } = await supabase
+          .from("atletas")
+          .insert(atletasParaCriar)
+          .select("id, nome, escola_id, categoria");
+
+        if (erroAtletas) throw erroAtletas;
+
+        (atletasCriados || []).forEach((a) => {
+          const chave = `${a.nome}|${a.escola_id || "SEM_ESCOLA"}|${a.categoria}`;
+          mapaAtletas[chave] = a.id;
+        });
+      }
 
       const provasUnicas = [
         ...new Map(
@@ -850,10 +878,38 @@ export default function Importacao() {
 
       const inscricoesParaSalvar = [...inscricoesMap.values()];
 
-      if (inscricoesParaSalvar.length > 0) {
+      const atletaIds = [...new Set(inscricoesParaSalvar.map((i) => i.atleta_id))];
+      const provaIds = [...new Set(inscricoesParaSalvar.map((i) => i.prova_id))];
+
+      let duplicadasBancoIgnoradas = 0;
+
+      if (atletaIds.length > 0 && provaIds.length > 0) {
+        const { data: inscricoesExistentes, error: erroInscricoesExistentes } = await supabase
+          .from("inscricoes")
+          .select("atleta_id, prova_id")
+          .in("atleta_id", atletaIds)
+          .in("prova_id", provaIds);
+
+        if (erroInscricoesExistentes) throw erroInscricoesExistentes;
+
+        const chavesExistentes = new Set(
+          (inscricoesExistentes || []).map((i) => `${i.atleta_id}|${i.prova_id}`)
+        );
+
+        for (const chaveExistente of chavesExistentes) {
+          if (inscricoesMap.has(chaveExistente)) {
+            inscricoesMap.delete(chaveExistente);
+            duplicadasBancoIgnoradas += 1;
+          }
+        }
+      }
+
+      const inscricoesNovasParaSalvar = [...inscricoesMap.values()];
+
+      if (inscricoesNovasParaSalvar.length > 0) {
         const { error: erroInscricoes } = await supabase
           .from("inscricoes")
-          .insert(inscricoesParaSalvar);
+          .insert(inscricoesNovasParaSalvar);
 
         if (erroInscricoes) throw erroInscricoes;
       }
@@ -866,7 +922,7 @@ export default function Importacao() {
       });
 
       setMensagem(
-        `Importação finalizada: ${atletasUnicos.length} atleta(s), ${inscricoesParaSalvar.length} inscrição(ões), ${provasParaCriar.length} prova(s) nova(s). Duplicadas ignoradas: ${duplicadasIgnoradas}.`
+        `Importação finalizada: ${atletasParaCriar.length} atleta(s) novo(s), ${inscricoesNovasParaSalvar.length} inscrição(ões) nova(s), ${provasParaCriar.length} prova(s) nova(s). Duplicadas no arquivo: ${duplicadasIgnoradas}. Duplicadas no banco: ${duplicadasBancoIgnoradas}.`
       );
     } catch (erro) {
       console.error(erro);

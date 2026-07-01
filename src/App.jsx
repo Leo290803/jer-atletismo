@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -12,26 +13,31 @@ import {
   Radio,
   Users,
   BookOpen,
+  LogOut,
 } from "lucide-react";
+import { AuthProvider } from "./auth/AuthContext";
+import { useAuth } from "./auth/useAuth";
+import ProtectedRoute from "./components/ProtectedRoute";
 
-import Dashboard from "./pages/Dashboard";
-import Importacao from "./pages/Importacao";
-import Provas from "./pages/Provas";
-import Sumulas from "./pages/Sumulas";
-import Resultados from "./pages/Resultados";
-import Boletins from "./pages/Boletins";
-import Configuracoes from "./pages/Configuracoes";
-import NumeracaoBalizamento from "./pages/NumeracaoBalizamento";
-import GestaoInscricoes from "./pages/GestaoInscricoes";
-import HistoricoAlteracoes from "./pages/HistoricoAlteracoes";
-import Publico from "./pages/Publico";
-import MedalhasPublico from "./pages/MedalhasPublico";
-import Telao from "./pages/Telao";
-import Tv from "./pages/Tv";
-import TvConfig from "./pages/TvConfig";
-import PistaAoVivo from "./pages/PistaAoVivo";
-import TelaoPista from "./pages/TelaoPista";
-import ArbitroSumula from "./pages/ArbitroSumula";
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Importacao = lazy(() => import("./pages/Importacao"));
+const Provas = lazy(() => import("./pages/Provas"));
+const Sumulas = lazy(() => import("./pages/Sumulas"));
+const Resultados = lazy(() => import("./pages/Resultados"));
+const Boletins = lazy(() => import("./pages/Boletins"));
+const Configuracoes = lazy(() => import("./pages/Configuracoes"));
+const NumeracaoBalizamento = lazy(() => import("./pages/NumeracaoBalizamento"));
+const GestaoInscricoes = lazy(() => import("./pages/GestaoInscricoes"));
+const HistoricoAlteracoes = lazy(() => import("./pages/HistoricoAlteracoes"));
+const Publico = lazy(() => import("./pages/Publico"));
+const MedalhasPublico = lazy(() => import("./pages/MedalhasPublico"));
+const Telao = lazy(() => import("./pages/Telao"));
+const Tv = lazy(() => import("./pages/Tv"));
+const TvConfig = lazy(() => import("./pages/TvConfig"));
+const PistaAoVivo = lazy(() => import("./pages/PistaAoVivo"));
+const TelaoPista = lazy(() => import("./pages/TelaoPista"));
+const ArbitroSumula = lazy(() => import("./pages/ArbitroSumula"));
+const Login = lazy(() => import("./pages/Login"));
 
 import "./styles/theme.css";
 import "./App.css";
@@ -50,6 +56,8 @@ function MenuItem({ to, icon: Icon, children, target }) {
 }
 
 function AdminLayout() {
+  const { signOut } = useAuth();
+
   return (
     <div className="app">
       <aside className="sidebar">
@@ -134,6 +142,28 @@ function AdminLayout() {
           <MenuItem to="/tv-config" icon={Settings}>
             Config TV Entrada
           </MenuItem>
+
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            style={{
+              width: "100%",
+              marginTop: 12,
+              border: "none",
+              borderRadius: 10,
+              padding: "12px 14px",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              fontWeight: 700,
+              cursor: "pointer",
+              background: "#ef4444",
+              color: "#fff",
+            }}
+          >
+            <LogOut size={20} />
+            Sair
+          </button>
         </nav>
       </aside>
 
@@ -173,18 +203,30 @@ function AdminLayout() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/tv" element={<Tv />} />
-        <Route path="/publico" element={<Publico />} />
-        <Route path="/publico/medalhas" element={<MedalhasPublico />} />
-        <Route path="/publico/telao" element={<Telao />} />
-        <Route path="/arbitro/sumula" element={<ArbitroSumula />} />
-        <Route path="/arbitro/sumula/:token" element={<ArbitroSumula />} />
-        <Route path="/publico/telao-pista" element={<TelaoPista />} />
+    <AuthProvider>
+      <BrowserRouter>
+        <Suspense fallback={<div style={{ padding: 24 }}>Carregando página...</div>}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/tv" element={<Tv />} />
+            <Route path="/publico" element={<Publico />} />
+            <Route path="/publico/medalhas" element={<MedalhasPublico />} />
+            <Route path="/publico/telao" element={<Telao />} />
+            <Route path="/arbitro/sumula" element={<ArbitroSumula />} />
+            <Route path="/arbitro/sumula/:token" element={<ArbitroSumula />} />
+            <Route path="/publico/telao-pista" element={<TelaoPista />} />
 
-        <Route path="/*" element={<AdminLayout />} />
-      </Routes>
-    </BrowserRouter>
+            <Route
+              path="/*"
+              element={
+                <ProtectedRoute>
+                  <AdminLayout />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }

@@ -72,7 +72,209 @@ for each row execute function public.trg_set_updated_at();
 alter table public.sumulas_digitais enable row level security;
 alter table public.sumula_resultados enable row level security;
 
--- Ajuste estas politicas se voce tiver autenticacao por perfil.
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+as $$
+  select coalesce((auth.jwt() ->> 'role') in ('admin', 'organizador', 'service_role'), false);
+$$;
+
+create or replace function public.is_arbitro_claim()
+returns boolean
+language sql
+stable
+as $$
+  select coalesce((auth.jwt() ->> 'role') in ('arbitro', 'service_role'), false);
+$$;
+
+create or replace function public.preparar_sumula_resultados_por_token(
+  p_sumula_id uuid,
+  p_token_acesso text,
+  p_atleta_ids uuid[]
+)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_sumula_id uuid;
+  v_linhas integer;
+begin
+  if coalesce(trim(p_token_acesso), '') = '' then
+    raise exception 'TOKEN_INVALIDO';
+  end if;
+
+  select s.id
+    into v_sumula_id
+  from public.sumulas_digitais s
+  where s.id = p_sumula_id
+    and s.token_acesso = p_token_acesso
+    and (s.expires_at is null or s.expires_at > now())
+    and s.status in ('ABERTA', 'EM_ANDAMENTO');
+
+  if v_sumula_id is null then
+    raise exception 'SUMULA_INVALIDA_OU_BLOQUEADA';
+  end if;
+
+  insert into public.sumula_resultados (sumula_id, atleta_id, tentativas)
+  select v_sumula_id, atleta_id, array['', '', '', '', '', '']::text[]
+  from unnest(coalesce(p_atleta_ids, array[]::uuid[])) atleta_id
+  on conflict (sumula_id, atleta_id) do nothing;
+
+  get diagnostics v_linhas = row_count;
+  return coalesce(v_linhas, 0);
+end;
+$$;
+
+create or replace function public.gravar_sumula_resultados_por_token(
+  p_sumula_id uuid,
+  p_token_acesso text,
+  p_resultados jsonb
+)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_sumula_id uuid;
+  v_linhas integer := 0;
+  v_item jsonb;
+begin
+  if coalesce(trim(p_token_acesso), '') = '' then
+    raise exception 'TOKEN_INVALIDO';
+  end if;
+
+  select s.id
+    into v_sumula_id
+  from public.sumulas_digitais s
+  where s.id = p_sumula_id
+    and s.token_acesso = p_token_acesso
+    and (s.expires_at is null or s.expires_at > now())
+    and s.status in ('ABERTA', 'EM_ANDAMENTO');
+
+  if v_sumula_id is null then
+    raise exception 'SUMULA_INVALIDA_OU_BLOQUEADA';
+  end if;
+
+  for v_item in
+    select value from jsonb_array_elements(coalesce(p_resultados, '[]'::jsonb))
+  loop
+    insert into public.sumula_resultados (
+      id,
+      sumula_id,
+      atleta_id,
+      resultado,
+      tempo,
+      marca,
+      observacao,
+      classificacao,
+      tentativas,
+      updated_at
+    )
+    values (
+      coalesce(nullif(v_item ->> 'id', '')::uuid, gen_random_uuid()),
+      v_sumula_id,
+      nullif(v_item ->> 'atleta_id', '')::uuid,
+      coalesce(v_item ->> 'resultado', ''),
+      coalesce(v_item ->> 'tempo', ''),
+      nullif(v_item ->> 'marca', '')::text,
+      coalesce(v_item ->> 'observacao', ''),
+      nullif(v_item ->> 'classificacao', '')::integer,
+      coalesce(
+        array(
+          select jsonb_array_elements_text(coalesce(v_item -> 'tentativas', '[]'::jsonb))
+        ),
+        array['', '', '', '', '', '']::text[]
+      ),
+      now()
+    )
+    on conflict (sumula_id, atleta_id)
+    do update set
+      resultado = excluded.resultado,
+      tempo = excluded.tempo,
+      marca = excluded.marca,
+      observacao = excluded.observacao,
+      classificacao = excluded.classificacao,
+      tentativas = excluded.tentativas,
+      updated_at = now();
+
+    v_linhas := v_linhas + 1;
+  end loop;
+
+  return v_linhas;
+end;
+$$;
+
+create or replace function public.vincular_arbitro_sumula_por_token(
+  p_sumula_id uuid,
+  p_token_acesso text,
+  p_arbitro_nome text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.sumulas_digitais s
+    set arbitro_nome = p_arbitro_nome
+  where s.id = p_sumula_id
+    and s.token_acesso = p_token_acesso
+    and (s.expires_at is null or s.expires_at > now())
+    and s.status in ('ABERTA', 'EM_ANDAMENTO')
+    and (s.arbitro_nome is null or btrim(s.arbitro_nome) = '' or lower(btrim(s.arbitro_nome)) = lower(btrim(coalesce(p_arbitro_nome, ''))));
+
+  return found;
+end;
+$$;
+
+create or replace function public.atualizar_status_sumula_por_token(
+  p_sumula_id uuid,
+  p_token_acesso text,
+  p_status text,
+  p_enviada_em timestamptz default null
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_status not in ('ABERTA', 'EM_ANDAMENTO', 'ENVIADA', 'BLOQUEADA') then
+    raise exception 'STATUS_INVALIDO';
+  end if;
+
+  update public.sumulas_digitais s
+    set
+      status = p_status,
+      enviada_em = case when p_status = 'ENVIADA' then coalesce(p_enviada_em, now()) else s.enviada_em end
+  where s.id = p_sumula_id
+    and s.token_acesso = p_token_acesso
+    and (s.expires_at is null or s.expires_at > now())
+    and (
+      (p_status = 'EM_ANDAMENTO' and s.status in ('ABERTA', 'EM_ANDAMENTO'))
+      or (p_status = 'ENVIADA' and s.status in ('ABERTA', 'EM_ANDAMENTO'))
+      or (p_status = s.status)
+    );
+
+  return found;
+end;
+$$;
+
+grant execute on function public.preparar_sumula_resultados_por_token(uuid, text, uuid[]) to anon, authenticated;
+grant execute on function public.gravar_sumula_resultados_por_token(uuid, text, jsonb) to anon, authenticated;
+grant execute on function public.vincular_arbitro_sumula_por_token(uuid, text, text) to anon, authenticated;
+grant execute on function public.atualizar_status_sumula_por_token(uuid, text, text, timestamptz) to anon, authenticated;
+
+-- Politicas recomendadas:
+-- 1) leitura livre para manter paineis publicos/admin funcionando no cliente anon
+-- 2) escrita restrita a admin, service_role e arbitro autenticado por claim
+-- 3) para arbitro por token de URL, recomenda-se emitir JWT com role=arbitro
+--    e claim 'sumula_token' antes de gravar, ou salvar via Edge Function autenticada
+
 drop policy if exists "sumulas_digitais_select" on public.sumulas_digitais;
 create policy "sumulas_digitais_select"
 on public.sumulas_digitais
@@ -83,14 +285,20 @@ drop policy if exists "sumulas_digitais_insert" on public.sumulas_digitais;
 create policy "sumulas_digitais_insert"
 on public.sumulas_digitais
 for insert
-with check (true);
+with check (public.is_admin());
 
 drop policy if exists "sumulas_digitais_update" on public.sumulas_digitais;
 create policy "sumulas_digitais_update"
 on public.sumulas_digitais
 for update
-using (true)
-with check (true);
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists "sumulas_digitais_delete" on public.sumulas_digitais;
+create policy "sumulas_digitais_delete"
+on public.sumulas_digitais
+for delete
+using (public.is_admin());
 
 drop policy if exists "sumula_resultados_select" on public.sumula_resultados;
 create policy "sumula_resultados_select"
@@ -102,11 +310,56 @@ drop policy if exists "sumula_resultados_insert" on public.sumula_resultados;
 create policy "sumula_resultados_insert"
 on public.sumula_resultados
 for insert
-with check (true);
+with check (
+  public.is_admin()
+  or (
+    public.is_arbitro_claim()
+    and exists (
+      select 1
+      from public.sumulas_digitais s
+      where s.id = sumula_id
+        and (s.status = 'ABERTA' or s.status = 'EM_ANDAMENTO')
+        and coalesce(auth.jwt() ->> 'sumula_token', '') <> ''
+        and s.token_acesso = auth.jwt() ->> 'sumula_token'
+    )
+  )
+);
 
 drop policy if exists "sumula_resultados_update" on public.sumula_resultados;
 create policy "sumula_resultados_update"
 on public.sumula_resultados
 for update
-using (true)
-with check (true);
+using (
+  public.is_admin()
+  or (
+    public.is_arbitro_claim()
+    and exists (
+      select 1
+      from public.sumulas_digitais s
+      where s.id = sumula_id
+        and (s.status = 'ABERTA' or s.status = 'EM_ANDAMENTO')
+        and coalesce(auth.jwt() ->> 'sumula_token', '') <> ''
+        and s.token_acesso = auth.jwt() ->> 'sumula_token'
+    )
+  )
+)
+with check (
+  public.is_admin()
+  or (
+    public.is_arbitro_claim()
+    and exists (
+      select 1
+      from public.sumulas_digitais s
+      where s.id = sumula_id
+        and (s.status = 'ABERTA' or s.status = 'EM_ANDAMENTO')
+        and coalesce(auth.jwt() ->> 'sumula_token', '') <> ''
+        and s.token_acesso = auth.jwt() ->> 'sumula_token'
+    )
+  )
+);
+
+drop policy if exists "sumula_resultados_delete" on public.sumula_resultados;
+create policy "sumula_resultados_delete"
+on public.sumula_resultados
+for delete
+using (public.is_admin());

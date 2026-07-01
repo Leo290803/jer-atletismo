@@ -70,6 +70,11 @@ function melhorTentativaTexto(tentativas = [], limite = 6) {
   return String(validas[0]).replace(".", ",");
 }
 
+function normalizarStatus(valor) {
+  const status = String(valor || "OK").trim().toUpperCase();
+  return ["OK", "DQ", "DNS", "ABD", "DNF", "NM"].includes(status) ? status : "OK";
+}
+
 function ordenarResultadosParaClassificacao(resultados) {
   return resultados
     .map((r) => ({
@@ -199,7 +204,7 @@ export default function ArbitroSumula() {
     const { data, error } = await supabase
       .from("inscricoes")
       .select(
-        `atleta_id, raias (raia, serie:series (id, numero_serie))`
+        `id, atleta_id, raias (raia, serie_id, serie:series (id, numero_serie))`
       )
       .eq("prova_id", provaId)
       .in("atleta_id", atletaIds);
@@ -217,6 +222,8 @@ export default function ArbitroSumula() {
     (data || []).forEach((inscricao) => {
       const primeiraRaia = Array.isArray(inscricao.raias) ? inscricao.raias[0] : inscricao.raias;
       mapa.set(String(inscricao.atleta_id), {
+        inscricao_id: inscricao.id,
+        serie_id: primeiraRaia?.serie?.id || primeiraRaia?.serie_id || null,
         serie_numero: primeiraRaia?.serie?.numero_serie || null,
         raia_numero: primeiraRaia?.raia || null,
       });
@@ -226,10 +233,121 @@ export default function ArbitroSumula() {
       const info = mapa.get(String(r.atleta_id));
       return {
         ...r,
+        inscricao_id: info?.inscricao_id || r.inscricao_id || null,
+        serie_id: info?.serie_id || r.serie_id || null,
         serie_numero: info?.serie_numero || r.serie_numero || 1,
         raia_numero: info?.raia_numero || r.raia_numero || index + 1,
       };
     });
+  }, []);
+
+  const sincronizarResultadosParaPista = useCallback(async (classificacaoParcial) => {
+    if (!sumula?.prova_id || resultados.length === 0) return;
+
+    const dataResultado = new Date().toISOString().slice(0, 10);
+
+    const linhas = resultados
+      .filter((r) => r.inscricao_id)
+      .map((r) => {
+        const melhorMarcaCampo = r.marca || melhorTentativaTexto(r.tentativas, 6) || null;
+
+        return {
+          prova_id: sumula.prova_id,
+          serie_id: r.serie_id || null,
+          inscricao_id: r.inscricao_id,
+          data_resultado: dataResultado,
+          tempo: ehProvaCampo ? null : r.tempo || null,
+          colocacao: classificacaoParcial[r.id] || null,
+          status: normalizarStatus(r.observacao),
+          tentativa1: ehProvaCampo ? (r.tentativas?.[0] || null) : null,
+          tentativa2: ehProvaCampo ? (r.tentativas?.[1] || null) : null,
+          tentativa3: ehProvaCampo ? (r.tentativas?.[2] || null) : null,
+          tentativa4: ehProvaCampo ? (r.tentativas?.[3] || null) : null,
+          tentativa5: ehProvaCampo ? (r.tentativas?.[4] || null) : null,
+          tentativa6: ehProvaCampo ? (r.tentativas?.[5] || null) : null,
+          melhor_marca: ehProvaCampo ? melhorMarcaCampo : null,
+          classificacao_parcial: classificacaoParcial[r.id] || null,
+          classificacao_parcial_final: ehProvaCampo ? classificacaoParcial[r.id] || null : null,
+          finalista: ehProvaCampo,
+          alturas: [],
+          resultado_final: ehProvaCampo ? melhorMarcaCampo : r.tempo || null,
+          publicado: true,
+          qualificacao: r.resultado || null,
+        };
+      });
+
+    if (linhas.length === 0) return;
+
+    const inscricoesIds = [...new Set(linhas.map((l) => l.inscricao_id))];
+
+    const { data: existentes, error: erroExistentes } = await supabase
+      .from("resultados")
+      .select("id, inscricao_id")
+      .eq("prova_id", sumula.prova_id)
+      .in("inscricao_id", inscricoesIds);
+
+    if (erroExistentes) {
+      throw new Error("Erro ao verificar resultados da pista: " + erroExistentes.message);
+    }
+
+    const mapaExistentes = new Map((existentes || []).map((e) => [String(e.inscricao_id), e.id]));
+
+    const paraAtualizar = [];
+    const paraInserir = [];
+
+    linhas.forEach((linha) => {
+      const idExistente = mapaExistentes.get(String(linha.inscricao_id));
+      if (idExistente) {
+        paraAtualizar.push({ id: idExistente, ...linha });
+      } else {
+        paraInserir.push(linha);
+      }
+    });
+
+    if (paraAtualizar.length > 0) {
+      const { error } = await supabase
+        .from("resultados")
+        .upsert(paraAtualizar, { onConflict: "id" });
+
+      if (error) {
+        throw new Error("Erro ao atualizar resultados da pista: " + error.message);
+      }
+    }
+
+    if (paraInserir.length > 0) {
+      const { error } = await supabase.from("resultados").insert(paraInserir);
+      if (error) {
+        throw new Error("Erro ao inserir resultados da pista: " + error.message);
+      }
+    }
+  }, [ehProvaCampo, resultados, sumula]);
+
+  const executarRpcComFallback = useCallback(async (nomeRpc, parametros, fallbackFn) => {
+    const { error } = await supabase.rpc(nomeRpc, parametros);
+
+    if (!error) {
+      return { ok: true, via: "rpc" };
+    }
+
+    if (typeof fallbackFn !== "function") {
+      return { ok: false, via: "rpc", error };
+    }
+
+    const erroTexto = String(error.message || "").toLowerCase();
+    const rpcNaoDisponivel =
+      error.code === "PGRST202" ||
+      erroTexto.includes("function") ||
+      erroTexto.includes("rpc") ||
+      erroTexto.includes("not found");
+
+    if (!rpcNaoDisponivel) {
+      return { ok: false, via: "rpc", error };
+    }
+
+    const fallbackResult = await fallbackFn();
+    return fallbackResult?.error
+      ? { ok: false, via: "fallback", error: fallbackResult.error }
+      : { ok: true, via: "fallback" };
   }, []);
 
   const carregarResultadosIniciais = useCallback(async (sumulaId, provaId) => {
@@ -263,9 +381,20 @@ export default function ArbitroSumula() {
       tentativas: ["", "", "", "", "", ""],
     }));
 
-    const { error: erroInsert } = await supabase
-      .from("sumula_resultados")
-      .upsert(payload, { onConflict: "sumula_id,atleta_id" });
+    const resultadoPreparacao = await executarRpcComFallback(
+      "preparar_sumula_resultados_por_token",
+      {
+        p_sumula_id: sumulaId,
+        p_token_acesso: token,
+        p_atleta_ids: atletaIds,
+      },
+      () =>
+        supabase
+          .from("sumula_resultados")
+          .upsert(payload, { onConflict: "sumula_id,atleta_id" })
+    );
+
+    const erroInsert = resultadoPreparacao.ok ? null : resultadoPreparacao.error;
 
     if (erroInsert) {
       setMensagem("Erro ao preparar atletas da súmula: " + erroInsert.message);
@@ -277,7 +406,7 @@ export default function ArbitroSumula() {
     const resultadosComSerie = await anexarSerieERaia(novosResultados, provaId);
     setResultados(resultadosComSerie);
     setMensagem("Atletas carregados na súmula. Você já pode lançar os resultados.");
-  }, [anexarSerieERaia, buscarResultadosDaSumula]);
+  }, [anexarSerieERaia, buscarResultadosDaSumula, executarRpcComFallback, token]);
 
   const carregarSumula = useCallback(async () => {
     setCarregando(true);
@@ -402,7 +531,65 @@ export default function ArbitroSumula() {
       }));
   }, [resultados]);
 
-  async function atualizarTelao(sumulaRecord, ultimaAtleta) {
+  const publicarTelaoControle = useCallback(async (sumulaRecord, dados) => {
+    const payloadBase = {
+      prova_id: sumulaRecord?.prova_id,
+      sumula_id: sumulaRecord?.id,
+      publicado: true,
+      dados,
+      atualizado_em: new Date().toISOString(),
+    };
+
+    const { data: atualizados, error: erroUpdate } = await supabase
+      .from("telao_pista_controle")
+      .update(payloadBase)
+      .eq("sumula_id", sumulaRecord?.id)
+      .select("id")
+      .limit(1);
+
+    if (!erroUpdate && (atualizados || []).length > 0) {
+      return;
+    }
+
+    const { error: erroInsert } = await supabase
+      .from("telao_pista_controle")
+      .insert(payloadBase);
+
+    if (erroInsert) {
+      throw new Error("Erro ao publicar no telão da pista: " + erroInsert.message);
+    }
+  }, []);
+
+  const atualizarTelao = useCallback(async (sumulaRecord, listaResultados = [], classificacaoParcial = {}) => {
+    const ordenados = [...(listaResultados || [])]
+      .map((item) => ({
+        ...item,
+        classificacao: classificacaoParcial[item.id] || item.classificacao || null,
+      }))
+      .sort((a, b) => {
+        const serieA = Number(a.serie_numero || 1);
+        const serieB = Number(b.serie_numero || 1);
+        if (serieA !== serieB) return serieA - serieB;
+
+        const classA = Number(a.classificacao || 999);
+        const classB = Number(b.classificacao || 999);
+        if (classA !== classB) return classA - classB;
+
+        return Number(a.raia_numero || 999) - Number(b.raia_numero || 999);
+      });
+
+    const ultimaAtleta = ordenados.find((r) => r.tempo || r.marca || r.resultado) || ordenados[0];
+    const resultadosTelao = ordenados.map((r) => ({
+      serie: r.serie_numero || 1,
+      raia: r.raia_numero || null,
+      numero: r.atleta?.numero || null,
+      atleta: r.atleta?.nome || "-",
+      escola: r.atleta?.escolas?.nome || "-",
+      resultado: r.tempo || r.marca || r.resultado || "-",
+      classificacao: r.classificacao || null,
+      status: normalizarStatus(r.observacao),
+    }));
+
     const dados = {
       titulo: sumulaRecord?.prova?.nome || "",
       subtitulo: `${sumulaRecord?.prova?.categoria || ""} • ${sumulaRecord?.prova?.naipe || ""} • ${sumulaRecord?.prova?.fase || "QUALIFICAÇÃO"} • ${sumulaRecord?.serie || ""}`,
@@ -416,22 +603,54 @@ export default function ArbitroSumula() {
         ultimaAtleta?.tempo || ultimaAtleta?.marca || ultimaAtleta?.resultado || "",
       classificacao_parcial:
         ultimaAtleta?.classificacao || "",
+      resultados: resultadosTelao,
       ultima_atualizacao: new Date().toISOString(),
       status: "AO VIVO",
     };
 
-    await supabase.from("telao_pista_controle").upsert(
-      [
-        {
-          prova_id: sumulaRecord?.prova_id,
-          sumula_id: sumulaRecord?.id,
-          publicado: true,
-          dados,
-          atualizado_em: new Date().toISOString(),
-        },
-      ],
-      { onConflict: "sumula_id" }
-    );
+    await publicarTelaoControle(sumulaRecord, dados);
+  }, [publicarTelaoControle]);
+
+  async function publicarTelaoResultadoFinal(sumulaRecord, listaResultados) {
+    const classificacao = gerarClassificacaoParcial(listaResultados);
+    const ordenados = [...listaResultados]
+      .map((item) => ({ ...item, classificacao: classificacao[item.id] || null }))
+      .sort((a, b) => (a.classificacao || 999) - (b.classificacao || 999));
+
+    const campeao = ordenados[0];
+    const podio = ordenados.slice(0, 3).map((r) => ({
+      colocacao: r.classificacao,
+      atleta: r.atleta?.nome || "-",
+      resultado: r.tempo || r.marca || r.resultado || "-",
+    }));
+
+    const dados = {
+      titulo: sumulaRecord?.prova?.nome || "",
+      subtitulo: `${sumulaRecord?.prova?.categoria || ""} • ${sumulaRecord?.prova?.naipe || ""} • ${sumulaRecord?.prova?.fase || "QUALIFICAÇÃO"}`,
+      prova: sumulaRecord?.prova?.nome || "",
+      categoria: sumulaRecord?.prova?.categoria || "",
+      naipe: sumulaRecord?.prova?.naipe || "",
+      fase: sumulaRecord?.prova?.fase || "QUALIFICAÇÃO",
+      serie: sumulaRecord?.serie || "",
+      atleta_atual: campeao?.atleta?.nome || "",
+      resultado_lancado: campeao?.tempo || campeao?.marca || campeao?.resultado || "",
+      classificacao_parcial: campeao?.classificacao || "",
+      resultados: ordenados.map((r) => ({
+        serie: r.serie_numero || 1,
+        raia: r.raia_numero || null,
+        numero: r.atleta?.numero || null,
+        atleta: r.atleta?.nome || "-",
+        escola: r.atleta?.escolas?.nome || "-",
+        resultado: r.tempo || r.marca || r.resultado || "-",
+        classificacao: r.classificacao || null,
+        status: normalizarStatus(r.observacao),
+      })),
+      podio,
+      ultima_atualizacao: new Date().toISOString(),
+      status: "RESULTADO_FINAL",
+    };
+
+    await publicarTelaoControle(sumulaRecord, dados);
   }
 
   const salvarSumula = useCallback(async (automatico = false) => {
@@ -455,9 +674,20 @@ export default function ArbitroSumula() {
       updated_at: new Date().toISOString(),
     }));
 
-    const { error: erroSalvar } = await supabase
-      .from("sumula_resultados")
-      .upsert(resultadosParaSalvar, { onConflict: "id" });
+    const resultadoSalvar = await executarRpcComFallback(
+      "gravar_sumula_resultados_por_token",
+      {
+        p_sumula_id: sumula.id,
+        p_token_acesso: token,
+        p_resultados: resultadosParaSalvar,
+      },
+      () =>
+        supabase
+          .from("sumula_resultados")
+          .upsert(resultadosParaSalvar, { onConflict: "id" })
+    );
+
+    const erroSalvar = resultadoSalvar.ok ? null : resultadoSalvar.error;
 
     if (erroSalvar) {
       setMensagem("Erro ao salvar resultados: " + erroSalvar.message);
@@ -465,13 +695,28 @@ export default function ArbitroSumula() {
       return false;
     }
 
+    try {
+      await sincronizarResultadosParaPista(classificacaoParcial);
+    } catch (erroPista) {
+      setMensagem(erroPista.message || "Erro ao sincronizar resultados para a pista.");
+      setSalvando(false);
+      return false;
+    }
+
     const novoStatus = sumula.status === "ABERTA" ? "EM_ANDAMENTO" : sumula.status;
 
     if (!bloquearAtualizacaoStatus) {
-      const { error: erroStatus } = await supabase
-        .from("sumulas_digitais")
-        .update({ status: novoStatus })
-        .eq("id", sumula.id);
+      const resultadoStatus = await executarRpcComFallback(
+        "atualizar_status_sumula_por_token",
+        {
+          p_sumula_id: sumula.id,
+          p_token_acesso: token,
+          p_status: novoStatus,
+        },
+        () => supabase.from("sumulas_digitais").update({ status: novoStatus }).eq("id", sumula.id)
+      );
+
+      const erroStatus = resultadoStatus.ok ? null : resultadoStatus.error;
 
       if (erroStatus && erroTriggerUpdatedAt(erroStatus)) {
         setBloquearAtualizacaoStatus(true);
@@ -485,8 +730,13 @@ export default function ArbitroSumula() {
       }
     }
 
-    const ultimoAtleta = resultados.filter((r) => r.tempo || r.marca || r.resultado).slice(-1)[0];
-    await atualizarTelao({ ...sumula, status: novoStatus }, ultimoAtleta);
+    try {
+      await atualizarTelao({ ...sumula, status: novoStatus }, resultados, classificacaoParcial);
+    } catch (erroTelao) {
+      setMensagem(erroTelao.message || "Resultados salvos, mas falhou publicação no telão.");
+      setSalvando(false);
+      return false;
+    }
 
     setSumula((old) => ({ ...old, status: novoStatus }));
     setResultados((old) =>
@@ -504,7 +754,17 @@ export default function ArbitroSumula() {
     setUltimoSalvo(new Date());
     setSalvando(false);
     return true;
-  }, [bloquearAtualizacaoStatus, ehProvaCampo, mensagem, resultados, sumula]);
+  }, [
+    bloquearAtualizacaoStatus,
+    ehProvaCampo,
+    mensagem,
+    resultados,
+    sincronizarResultadosParaPista,
+    sumula,
+    token,
+    executarRpcComFallback,
+    atualizarTelao,
+  ]);
 
   useEffect(() => {
     if (!alterado || salvando) return;
@@ -534,10 +794,24 @@ export default function ArbitroSumula() {
       return;
     }
 
-    const { error: erro } = await supabase
-      .from("sumulas_digitais")
-      .update({ status: "ENVIADA", enviada_em: new Date().toISOString() })
-      .eq("id", sumula.id);
+    const enviadaEm = new Date().toISOString();
+
+    const resultadoEnvio = await executarRpcComFallback(
+      "atualizar_status_sumula_por_token",
+      {
+        p_sumula_id: sumula.id,
+        p_token_acesso: token,
+        p_status: "ENVIADA",
+        p_enviada_em: enviadaEm,
+      },
+      () =>
+        supabase
+          .from("sumulas_digitais")
+          .update({ status: "ENVIADA", enviada_em: enviadaEm })
+          .eq("id", sumula.id)
+    );
+
+    const erro = resultadoEnvio.ok ? null : resultadoEnvio.error;
 
     if (erro) {
       if (erroTriggerUpdatedAt(erro)) {
@@ -553,6 +827,7 @@ export default function ArbitroSumula() {
     }
 
     setSumula((old) => ({ ...old, status: "ENVIADA" }));
+    await publicarTelaoResultadoFinal({ ...sumula, status: "ENVIADA" }, resultados);
     setMensagem("Súmula enviada para conferência. Edição bloqueada.");
     setSalvando(false);
   }
@@ -573,11 +848,22 @@ export default function ArbitroSumula() {
     }
 
     if (!atual) {
-      const { error } = await supabase
-        .from("sumulas_digitais")
-        .update({ arbitro_nome: nome })
-        .eq("id", sd.id)
-        .is("arbitro_nome", null);
+      const resultadoVinculo = await executarRpcComFallback(
+        "vincular_arbitro_sumula_por_token",
+        {
+          p_sumula_id: sd.id,
+          p_token_acesso: sd.token_acesso,
+          p_arbitro_nome: nome,
+        },
+        () =>
+          supabase
+            .from("sumulas_digitais")
+            .update({ arbitro_nome: nome })
+            .eq("id", sd.id)
+            .is("arbitro_nome", null)
+      );
+
+      const error = resultadoVinculo.ok ? null : resultadoVinculo.error;
 
       if (error && !erroTriggerUpdatedAt(error)) {
         setMensagem("Não foi possível vincular a súmula ao árbitro: " + error.message);
