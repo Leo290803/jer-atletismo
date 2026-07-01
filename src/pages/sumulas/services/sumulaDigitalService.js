@@ -1,5 +1,16 @@
 import { supabase } from "../../../lib/supabase";
 
+export function tabelaInexistente(error, tabela) {
+  if (!error) return false;
+  const alvo = String(tabela || "").toLowerCase();
+  const texto = `${error.message || ""} ${error.details || ""} ${error.hint || ""}`.toLowerCase();
+  return (
+    error.code === "PGRST205" ||
+    (texto.includes("not found") && texto.includes(alvo)) ||
+    (texto.includes("could not find") && texto.includes(alvo))
+  );
+}
+
 export function gerarTokenAcesso() {
   return window.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -22,6 +33,21 @@ export async function bloquearSumulaDigital(id) {
 
 export async function reabrirSumulaDigital(id) {
   return supabase.from("sumulas_digitais").update({ status: "ABERTA", bloqueada_em: null }).eq("id", id);
+}
+
+export async function registrarHistoricoReabertura(sumulaId, motivo) {
+  return supabase
+    .from("sumula_historico_acoes")
+    .insert({
+      sumula_id: sumulaId,
+      acao: "reabertura_admin",
+      arbitro_nome: null,
+      detalhes: {
+        motivo,
+        origem: "painel_sumulas",
+        data_hora: new Date().toISOString(),
+      },
+    });
 }
 
 export async function sincronizarResultadosDaSumula(sumulaId, provaId) {

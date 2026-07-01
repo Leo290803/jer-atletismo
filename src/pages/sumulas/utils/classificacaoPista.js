@@ -1,4 +1,12 @@
-export function classificarPista(series, tempoParaNumeroFn) {
+import { tempoParaNumero as tempoParaNumeroPadrao } from "./formatadores";
+
+export function tempoParaNumero(tempo) {
+  return tempoParaNumeroPadrao(tempo);
+}
+
+export function classificarPista(series, opcoes = {}) {
+  const tempoParaNumeroFn = opcoes.tempoParaNumeroFn || tempoParaNumero;
+
   return (series || []).map((serie) => {
     const validos = [...(serie.raias || [])]
       .filter((r) => r.status === "OK" && r.tempo)

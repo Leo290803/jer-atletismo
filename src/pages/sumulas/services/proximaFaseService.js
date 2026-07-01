@@ -1,4 +1,5 @@
 import { supabase } from "../../../lib/supabase";
+import { distribuirEmSeriesBalanceadas, raiaOficialPorSeed } from "../utils/proximaFaseUtils";
 
 export async function buscarProvaFaseExistente(provaAtual, fase) {
   return supabase
@@ -45,6 +46,167 @@ export async function criarRaiasProximaFase(raiasParaCriar) {
   return supabase.from("raias").insert(raiasParaCriar);
 }
 
-export async function gerarProximaFase() {
-  throw new Error("gerarProximaFase deve ser migrado gradualmente a partir de Sumulas.jsx");
+export async function salvarQualificacoesDaFaseAtual(provaId, series = []) {
+  const linhas = [];
+
+  (series || []).forEach((serie) => {
+    (serie.raias || []).forEach((raia) => {
+      if (!raia.inscricoes?.id) return;
+
+      linhas.push({
+        prova_id: provaId,
+        serie_id: raia.serie_id || serie.id,
+        inscricao_id: raia.inscricoes.id,
+        qualificacao: raia.qualificacao || null,
+      });
+    });
+  });
+
+  if (!linhas.length) return { error: null };
+
+  const { data: existentes, error: erroExistentes } = await supabase
+    .from("resultados")
+    .select("id,inscricao_id")
+    .eq("prova_id", provaId);
+
+  if (erroExistentes) return { error: erroExistentes };
+
+  const porInscricao = {};
+  (existentes || []).forEach((item) => {
+    porInscricao[item.inscricao_id] = item;
+  });
+
+  for (const linha of linhas) {
+    const existente = porInscricao[linha.inscricao_id];
+
+    if (existente?.id) {
+      const { error } = await supabase
+        .from("resultados")
+        .update({ qualificacao: linha.qualificacao })
+        .eq("id", existente.id);
+
+      if (error) return { error };
+    } else {
+      const { error } = await supabase
+        .from("resultados")
+        .insert({
+          prova_id: linha.prova_id,
+          serie_id: linha.serie_id,
+          inscricao_id: linha.inscricao_id,
+          status: "OK",
+          qualificacao: linha.qualificacao,
+        });
+
+      if (error) return { error };
+    }
+  }
+
+  return { error: null };
+}
+
+export async function gerarProximaFaseNoBanco({
+  provaAtual,
+  fase,
+  regra,
+  classificadosOrdenados,
+  raiasProximaFase,
+  substituirExistente = false,
+}) {
+  const { data: provaExistente, error: erroBuscaFase } = await buscarProvaFaseExistente(provaAtual, fase);
+  if (erroBuscaFase) return { ok: false, error: erroBuscaFase };
+
+  let novaProva = provaExistente;
+
+  if (novaProva && !substituirExistente) {
+    return {
+      ok: false,
+      errorCode: "FASE_EXISTENTE",
+      message: `A fase ${fase} ja existe para esta prova.`,
+      provaExistente: novaProva,
+    };
+  }
+
+  if (novaProva && substituirExistente) {
+    const { error: erroApagar } = await apagarDadosProximaFase(novaProva.id);
+    if (erroApagar) return { ok: false, error: erroApagar };
+  }
+
+  if (!novaProva) {
+    const { data, error } = await criarProvaProximaFase({
+      evento_id: provaAtual.evento_id,
+      nome: provaAtual.nome,
+      categoria: provaAtual.categoria,
+      naipe: provaAtual.naipe,
+      tipo: provaAtual.tipo,
+      subtipo: provaAtual.subtipo,
+      status: "pendente",
+      fase,
+      prova_origem_id: provaAtual.id,
+      criterio_classificacao: regra.criterio,
+      total_classificados: classificadosOrdenados.length,
+    });
+
+    if (error) return { ok: false, error };
+    novaProva = data;
+  } else {
+    const { error } = await supabase
+      .from("provas")
+      .update({
+        criterio_classificacao: regra.criterio,
+        total_classificados: classificadosOrdenados.length,
+      })
+      .eq("id", novaProva.id);
+
+    if (error) return { ok: false, error };
+  }
+
+  const inscricoesParaCriar = (classificadosOrdenados || []).map((c) => ({
+    evento_id: provaAtual.evento_id,
+    prova_id: novaProva.id,
+    atleta_id: c.inscricoes.atleta_id,
+  }));
+
+  const { data: novasInscricoes, error: erroInscricoes } = await criarInscricoesProximaFase(inscricoesParaCriar);
+  if (erroInscricoes) return { ok: false, error: erroInscricoes };
+
+  const inscricaoPorAtleta = {};
+  (novasInscricoes || []).forEach((inscricao) => {
+    inscricaoPorAtleta[inscricao.atleta_id] = inscricao;
+  });
+
+  const totalSeries = Math.ceil(
+    classificadosOrdenados.length / Number(regra.raias || raiasProximaFase || 8)
+  );
+
+  const { data: novasSeries, error: erroSeries } = await criarSeriesProximaFase(novaProva.id, totalSeries);
+  if (erroSeries) return { ok: false, error: erroSeries };
+
+  const distribuicaoPorSerie = distribuirEmSeriesBalanceadas(classificadosOrdenados, totalSeries);
+  const raiasParaCriar = [];
+
+  distribuicaoPorSerie.forEach((listaSerie, serieIndex) => {
+    const serieCriada = novasSeries[serieIndex];
+
+    (listaSerie || []).forEach((classificado, posicaoNaSerie) => {
+      const inscricao = inscricaoPorAtleta[classificado.inscricoes.atleta_id];
+      if (!inscricao) return;
+
+      raiasParaCriar.push({
+        serie_id: serieCriada.id,
+        inscricao_id: inscricao.id,
+        raia: raiaOficialPorSeed(posicaoNaSerie, regra.raias || raiasProximaFase),
+        ordem: posicaoNaSerie + 1,
+      });
+    });
+  });
+
+  const { error: erroRaias } = await criarRaiasProximaFase(raiasParaCriar);
+  if (erroRaias) return { ok: false, error: erroRaias };
+
+  return {
+    ok: true,
+    novaProva,
+    totalSeries,
+    totalClassificados: classificadosOrdenados.length,
+  };
 }
