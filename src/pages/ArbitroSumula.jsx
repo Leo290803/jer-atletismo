@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { getNumeroAtleta } from "../utils/getNumeroAtleta";
 
 function tabelaInexistente(error, tabela) {
   if (!error) return false;
@@ -166,7 +167,12 @@ function ordenarResultadosParaClassificacao(resultados) {
         return tempoA - tempoB;
       }
 
-      return (a.atleta?.numero || 0) - (b.atleta?.numero || 0);
+      const numeroA = Number(getNumeroAtleta(a.atleta));
+      const numeroB = Number(getNumeroAtleta(b.atleta));
+      if (Number.isFinite(numeroA) && Number.isFinite(numeroB)) {
+        return numeroA - numeroB;
+      }
+      return getNumeroAtleta(a.atleta).localeCompare(getNumeroAtleta(b.atleta));
     });
 }
 
@@ -254,7 +260,7 @@ export default function ArbitroSumula() {
     const { data, error } = await supabase
       .from("sumula_resultados")
       .select(
-        `*, atleta:atletas (id, numero, nome, municipio, data_nascimento, escolas (nome))`
+        `*, atleta:atletas (id, numero, numero_competicao, nome, municipio, data_nascimento, escolas (nome))`
       )
       .eq("sumula_id", sumulaId);
 
@@ -486,7 +492,7 @@ export default function ArbitroSumula() {
     const { data, error } = await supabase
       .from("sumulas_digitais")
       .select(
-        `*, prova:provas (*), sumula_resultados (*, atleta:atletas (id, numero, nome, municipio, data_nascimento, escolas (nome)))`
+        `*, prova:provas (*), sumula_resultados (*, atleta:atletas (id, numero, numero_competicao, nome, municipio, data_nascimento, escolas (nome)))`
       )
       .eq("token_acesso", token)
       .maybeSingle();
@@ -650,7 +656,12 @@ export default function ArbitroSumula() {
           const raiaA = Number(a.raia_numero || 999);
           const raiaB = Number(b.raia_numero || 999);
           if (raiaA !== raiaB) return raiaA - raiaB;
-          return (a.atleta?.numero || 0) - (b.atleta?.numero || 0);
+          const numeroA = Number(getNumeroAtleta(a.atleta));
+          const numeroB = Number(getNumeroAtleta(b.atleta));
+          if (Number.isFinite(numeroA) && Number.isFinite(numeroB)) {
+            return numeroA - numeroB;
+          }
+          return getNumeroAtleta(a.atleta).localeCompare(getNumeroAtleta(b.atleta));
         }),
       }));
   }, [resultados]);
@@ -730,6 +741,8 @@ export default function ArbitroSumula() {
         return Number(a.raia_numero || 999) - Number(b.raia_numero || 999);
       })
       .map((r, index) => ({
+        numero_competicao: r.atleta?.numero_competicao || null,
+        numero: getNumeroAtleta(r.atleta),
         serie: `SÉRIE ${r.serie_numero || 1}`,
         raia: r.raia_numero || null,
         ordem: index + 1,
@@ -778,6 +791,8 @@ export default function ArbitroSumula() {
       serie: sumulaRecord?.serie || `SÉRIE ${(ordenados[0]?.serie_numero || 1)}`,
       resultados: ordenados.map((item) => ({
         colocacao: item.colocacao || null,
+        numero_competicao: item.atleta?.numero_competicao || null,
+        numero: getNumeroAtleta(item.atleta),
         serie: item.serie_numero || 1,
         raia: item.raia_numero || null,
         nome: item.atleta?.nome || "-",
@@ -1496,7 +1511,7 @@ export default function ArbitroSumula() {
                             {!ehProvaCampo && (
                               <td style={{ padding: 8, fontSize: 12 }}>{r.raia_numero || index + 1}</td>
                             )}
-                            <td style={{ padding: 8, fontSize: 12 }}>{r.atleta?.numero || "-"}</td>
+                            <td style={{ padding: 8, fontSize: 12 }}>{getNumeroAtleta(r.atleta)}</td>
                             <td style={{ padding: 8, fontSize: 12, fontWeight: 700 }}>{r.atleta?.nome || "-"}</td>
                             <td style={{ padding: 8, fontSize: 12 }}>{r.atleta?.escolas?.nome || "-"}</td>
                             <td style={{ padding: 8, fontSize: 12 }}>{formatarDataNascimento(r.atleta?.data_nascimento)}</td>

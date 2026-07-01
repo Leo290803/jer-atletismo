@@ -1,3 +1,5 @@
+import { getNumeroAtleta } from "../../../utils/getNumeroAtleta";
+
 export function TabelaRevezamento({ serie, mudarCampo, inputTabela }) {
   function chaveEscola(raia) {
     return raia.inscricoes?.atletas?.escolas?.nome || "SEM ESCOLA";
@@ -48,7 +50,7 @@ export function TabelaRevezamento({ serie, mudarCampo, inputTabela }) {
 
             return (
               <tr key={chaveLinha}>
-                <td>{atleta?.numero || ""}</td>
+                <td>{getNumeroAtleta(atleta)}</td>
                 <td>{atleta?.nome || ""}</td>
 
                 {index === 0 && (
@@ -130,7 +132,7 @@ export function TabelaPista({ serie, mudarCampo, inputTabela, formatarNascimento
             return (
               <tr key={r.id}>
                 <td>{r.raia}</td>
-                <td>{atleta?.numero}</td>
+                <td>{getNumeroAtleta(atleta)}</td>
                 <td>{atleta?.nome}</td>
                 <td>{atleta?.escolas?.nome}</td>
                 <td>{formatarNascimento(atleta?.data_nascimento)}</td>
@@ -216,7 +218,7 @@ export function TabelaCampo({
 
             return (
               <tr key={r.id}>
-                <td>{atleta?.numero}</td>
+                <td>{getNumeroAtleta(atleta)}</td>
                 <td>{atleta?.nome}</td>
                 <td>{atleta?.escolas?.nome}</td>
                 <td>{formatarNascimento(atleta?.data_nascimento)}</td>

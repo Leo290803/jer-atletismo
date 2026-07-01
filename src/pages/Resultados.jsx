@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { getNumeroAtleta } from "../utils/getNumeroAtleta";
 
 export default function Resultados() {
   const [provas, setProvas] = useState([]);
@@ -37,6 +38,7 @@ export default function Resultados() {
         inscricoes (
           atletas (
             numero,
+            numero_competicao,
             nome,
             municipio,
             escolas (
@@ -192,7 +194,7 @@ export default function Resultados() {
                       {medalha(r.colocacao)}
                     </td>
 
-                    <td>{atleta?.numero}</td>
+                    <td>{getNumeroAtleta(atleta)}</td>
 
                     <td>{atleta?.nome}</td>
 

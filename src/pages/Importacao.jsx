@@ -13,6 +13,45 @@ export default function Importacao() {
 
   const EVENTO_PRINCIPAL = "JER 2026 - ATLETISMO";
 
+  function dividirEmBlocos(lista, tamanho = 50) {
+    const blocos = [];
+
+    for (let i = 0; i < lista.length; i += tamanho) {
+      blocos.push(lista.slice(i, i + tamanho));
+    }
+
+    return blocos;
+  }
+
+  function unicos(lista) {
+    return [...new Set(lista.filter(Boolean))];
+  }
+
+  async function inserirEmBlocosComRetorno(tabela, registros, selectCampos = "*", tamanho = 500) {
+    const todos = [];
+
+    for (const bloco of dividirEmBlocos(registros, tamanho)) {
+      const { data, error } = await supabase
+        .from(tabela)
+        .insert(bloco)
+        .select(selectCampos);
+
+      if (error) throw error;
+
+      todos.push(...(data || []));
+    }
+
+    return todos;
+  }
+
+  async function inserirEmBlocosSemRetorno(tabela, registros, tamanho = 500) {
+    for (const bloco of dividirEmBlocos(registros, tamanho)) {
+      const { error } = await supabase.from(tabela).insert(bloco);
+
+      if (error) throw error;
+    }
+  }
+
   function normalizarTexto(valor) {
     if (valor === null || valor === undefined) return "";
     return String(valor).trim().toUpperCase();
@@ -60,11 +99,13 @@ export default function Importacao() {
 
     for (const nome of nomes) {
       const valorDireto = linha?.[nome];
+
       if (valorDireto !== undefined && valorDireto !== null && valorDireto !== "") {
         return valorDireto;
       }
 
       const valorNormalizado = mapa[normalizarChave(nome)];
+
       if (
         valorNormalizado !== undefined &&
         valorNormalizado !== null &&
@@ -136,6 +177,7 @@ export default function Importacao() {
 
     if (valor.includes("/") || valor.match(/^\d{1,2}-\d{1,2}-\d{4}$/)) {
       const partes = valor.split(/[/-]/);
+
       if (partes.length === 3) {
         const dia = String(partes[0]).padStart(2, "0");
         const mes = String(partes[1]).padStart(2, "0");
@@ -523,7 +565,14 @@ export default function Importacao() {
 
   function linhaStatusValido(linha) {
     const status = normalizarTexto(
-      pegarValor(linha, ["STATUS DA INSCRIÇÃO", "STATUS DA INSCRICAO", "VALIDAÇÃO", "VALIDACAO", "VALIDADE", "STATUS"])
+      pegarValor(linha, [
+        "STATUS DA INSCRIÇÃO",
+        "STATUS DA INSCRICAO",
+        "VALIDAÇÃO",
+        "VALIDACAO",
+        "VALIDADE",
+        "STATUS",
+      ])
     );
 
     return status === "" || status.includes("VÁLIDA") || status.includes("VALIDA");
@@ -544,6 +593,7 @@ export default function Importacao() {
 
     workbook.SheetNames.forEach((nomeAba) => {
       const sheet = workbook.Sheets[nomeAba];
+
       const json = XLSX.utils.sheet_to_json(sheet, {
         defval: "",
         raw: false,
@@ -577,6 +627,7 @@ export default function Importacao() {
         setMensagem("Lendo planilha geral e padronizando provas...");
 
         const dados = new Uint8Array(evt.target.result);
+
         const workbook = XLSX.read(dados, {
           type: "array",
           cellDates: true,
@@ -590,6 +641,7 @@ export default function Importacao() {
           .filter(linhaEhAtletismo)
           .map((linha, index) => {
             const provaOriginal = pegarValor(linha, ["PROVA", "MODALIDADE/PROVA"]);
+
             const competicao = pegarValor(linha, [
               "COMPETICAO",
               "COMPETIÇÃO",
@@ -608,6 +660,7 @@ export default function Importacao() {
             ]);
 
             const categoria = identificarCategoria(competicao, dataNascimento);
+
             const naipe = identificarNaipe(
               pegarValor(linha, ["SEXO", "NAIPE"]),
               provaOriginal,
@@ -625,9 +678,16 @@ export default function Importacao() {
                 pegarValor(linha, ["NÚMERO", "NUMERO", "Nº", "N°", "NO"]) ||
                   index + 1
               ),
-              nome: normalizarTexto(pegarValor(linha, ["NOME", "ATLETA", "NOME COMPLETO"])),
+              nome: normalizarTexto(
+                pegarValor(linha, ["NOME", "ATLETA", "NOME COMPLETO"])
+              ),
               escola: normalizarTexto(
-                pegarValor(linha, ["ESCOLA", "INSTITUIÇÃO", "INSTITUICAO", "UNIDADE ESCOLAR"])
+                pegarValor(linha, [
+                  "ESCOLA",
+                  "INSTITUIÇÃO",
+                  "INSTITUICAO",
+                  "UNIDADE ESCOLAR",
+                ])
               ),
               municipio: normalizarTexto(
                 pegarValor(linha, ["CIDADE", "MUNICIPIO", "MUNICÍPIO", "MUNÍCIPIO"])
@@ -648,9 +708,11 @@ export default function Importacao() {
           .filter((linha) => linha.nome && linha.prova && linha.escola);
 
         const semNascimento = tratados.filter((l) => !l.data_nascimento).length;
+
         const semCategoria = tratados.filter((l) =>
           String(l.categoria).includes("não identificada")
         ).length;
+
         const semNaipe = tratados.filter((l) =>
           String(l.naipe).includes("não identificado")
         ).length;
@@ -695,6 +757,131 @@ export default function Importacao() {
     return novo;
   }
 
+  async function buscarEscolasExistentes(nomesEscolas) {
+    const escolas = [];
+
+    for (const bloco of dividirEmBlocos(nomesEscolas, 50)) {
+      const { data, error } = await supabase
+        .from("escolas")
+        .select("*")
+        .in("nome", bloco);
+
+      if (error) {
+        console.error("ERRO AO BUSCAR ESCOLAS:", {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          quantidade: bloco.length,
+        });
+
+        throw error;
+      }
+
+      escolas.push(...(data || []));
+    }
+
+    return escolas;
+  }
+
+  async function buscarAtletasExistentes(escolaIds, categorias) {
+    const atletas = [];
+    const escolaIdsUnicos = unicos(escolaIds);
+    const categoriasUnicas = unicos(categorias);
+
+    if (escolaIdsUnicos.length === 0) return atletas;
+
+    for (const blocoEscolas of dividirEmBlocos(escolaIdsUnicos, 40)) {
+      let query = supabase
+        .from("atletas")
+        .select("id,nome,numero,numero_competicao,municipio,categoria,naipe,escola_id")
+        .in("escola_id", blocoEscolas);
+
+      if (categoriasUnicas.length > 0 && categoriasUnicas.length <= 20) {
+        query = query.in("categoria", categoriasUnicas);
+      }
+
+      let { data, error } = await query;
+
+      if (error) {
+        console.warn("Busca com numero_competicao falhou. Tentando fallback sem numero_competicao.", {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+        });
+
+        let queryFallback = supabase
+          .from("atletas")
+          .select("id,nome,numero,municipio,categoria,naipe,escola_id")
+          .in("escola_id", blocoEscolas);
+
+        if (categoriasUnicas.length > 0 && categoriasUnicas.length <= 20) {
+          queryFallback = queryFallback.in("categoria", categoriasUnicas);
+        }
+
+        const fallback = await queryFallback;
+        data = fallback.data;
+        error = fallback.error;
+      }
+
+      if (error) {
+        console.error("ERRO COMPLETO AO BUSCAR ATLETAS:", {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          blocoQuantidade: blocoEscolas.length,
+          blocoEscolas,
+        });
+
+        throw new Error(
+          error.details || error.message || "Erro ao buscar atletas existentes"
+        );
+      }
+
+      atletas.push(...(data || []));
+    }
+
+    return atletas;
+  }
+
+  async function buscarInscricoesExistentes(eventoId, provaIds, atletaIds) {
+    const inscricoes = [];
+    const provaIdsUnicos = unicos(provaIds);
+    const atletaIdsSet = new Set(unicos(atletaIds));
+
+    if (provaIdsUnicos.length === 0 || atletaIdsSet.size === 0) return inscricoes;
+
+    for (const blocoProvas of dividirEmBlocos(provaIdsUnicos, 40)) {
+      const { data, error } = await supabase
+        .from("inscricoes")
+        .select("atleta_id, prova_id")
+        .eq("evento_id", eventoId)
+        .in("prova_id", blocoProvas);
+
+      if (error) {
+        console.error("ERRO AO BUSCAR INSCRIÇÕES EXISTENTES:", {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          blocoQuantidade: blocoProvas.length,
+        });
+
+        throw error;
+      }
+
+      const filtradas = (data || []).filter((item) =>
+        atletaIdsSet.has(item.atleta_id)
+      );
+
+      inscricoes.push(...filtradas);
+    }
+
+    return inscricoes;
+  }
+
   async function salvarNoSupabase() {
     try {
       if (linhas.length === 0) {
@@ -708,12 +895,11 @@ export default function Importacao() {
       const evento = await buscarOuCriarEvento();
       const municipio = municipioDetectado || detectarMunicipio(linhas);
 
-      const nomesEscolas = [...new Set(linhas.map((l) => l.escola).filter(Boolean))];
+      const nomesEscolas = unicos(linhas.map((l) => l.escola));
 
-      const { data: escolasExistentes, error: erroEscolasExistentes } =
-        await supabase.from("escolas").select("*").in("nome", nomesEscolas);
+      setMensagem("Verificando escolas existentes...");
 
-      if (erroEscolasExistentes) throw erroEscolasExistentes;
+      const escolasExistentes = await buscarEscolasExistentes(nomesEscolas);
 
       const mapaEscolas = {};
 
@@ -725,19 +911,24 @@ export default function Importacao() {
         .filter((nome) => !mapaEscolas[nome])
         .map((nome) => {
           const linha = linhas.find((l) => l.escola === nome);
+
           return {
             nome,
             municipio: linha?.municipio || municipio,
           };
         });
 
-      if (escolasParaCriar.length > 0) {
-        const { data: novasEscolas, error: erroNovasEscolas } = await supabase
-          .from("escolas")
-          .insert(escolasParaCriar)
-          .select();
+      let novasEscolas = [];
 
-        if (erroNovasEscolas) throw erroNovasEscolas;
+      if (escolasParaCriar.length > 0) {
+        setMensagem(`Criando ${escolasParaCriar.length} escola(s)...`);
+
+        novasEscolas = await inserirEmBlocosComRetorno(
+          "escolas",
+          escolasParaCriar,
+          "*",
+          300
+        );
 
         novasEscolas.forEach((e) => {
           mapaEscolas[e.nome] = e.id;
@@ -766,41 +957,50 @@ export default function Importacao() {
         ).values(),
       ];
 
-      const nomesAtletas = [...new Set(atletasUnicos.map((a) => a.nome).filter(Boolean))];
-      const categoriasAtletas = [
-        ...new Set(atletasUnicos.map((a) => a.categoria).filter(Boolean)),
-      ];
-      const escolasAtletas = [
-        ...new Set(atletasUnicos.map((a) => a.escola_id).filter(Boolean)),
-      ];
+      const categoriasAtletas = unicos(atletasUnicos.map((a) => a.categoria));
+      const escolasAtletas = unicos(atletasUnicos.map((a) => a.escola_id));
 
-      const { data: atletasExistentes, error: erroAtletasExistentes } = await supabase
-        .from("atletas")
-        .select("id, nome, escola_id, categoria")
-        .in("nome", nomesAtletas)
-        .in("categoria", categoriasAtletas)
-        .in("escola_id", escolasAtletas);
+      setMensagem("Verificando atletas existentes...");
 
-      if (erroAtletasExistentes) throw erroAtletasExistentes;
+      const atletasExistentes = await buscarAtletasExistentes(
+        escolasAtletas,
+        categoriasAtletas
+      );
+
+      const chavesAtletasDaImportacao = new Set(
+        atletasUnicos.map(
+          (a) => `${a.nome}|${a.escola_id || "SEM_ESCOLA"}|${a.categoria}`
+        )
+      );
 
       const mapaAtletas = {};
 
-      (atletasExistentes || []).forEach((a) => {
-        const chave = `${a.nome}|${a.escola_id || "SEM_ESCOLA"}|${a.categoria}`;
-        mapaAtletas[chave] = a.id;
-      });
+      (atletasExistentes || [])
+        .filter((a) =>
+          chavesAtletasDaImportacao.has(
+            `${a.nome}|${a.escola_id || "SEM_ESCOLA"}|${a.categoria}`
+          )
+        )
+        .forEach((a) => {
+          const chave = `${a.nome}|${a.escola_id || "SEM_ESCOLA"}|${a.categoria}`;
+          mapaAtletas[chave] = a.id;
+        });
 
       const atletasParaCriar = atletasUnicos.filter(
         (a) => !mapaAtletas[`${a.nome}|${a.escola_id || "SEM_ESCOLA"}|${a.categoria}`]
       );
 
-      if (atletasParaCriar.length > 0) {
-        const { data: atletasCriados, error: erroAtletas } = await supabase
-          .from("atletas")
-          .insert(atletasParaCriar)
-          .select("id, nome, escola_id, categoria");
+      let atletasCriados = [];
 
-        if (erroAtletas) throw erroAtletas;
+      if (atletasParaCriar.length > 0) {
+        setMensagem(`Criando ${atletasParaCriar.length} atleta(s)...`);
+
+        atletasCriados = await inserirEmBlocosComRetorno(
+          "atletas",
+          atletasParaCriar,
+          "id,nome,escola_id,categoria",
+          500
+        );
 
         (atletasCriados || []).forEach((a) => {
           const chave = `${a.nome}|${a.escola_id || "SEM_ESCOLA"}|${a.categoria}`;
@@ -825,6 +1025,8 @@ export default function Importacao() {
         ).values(),
       ];
 
+      setMensagem("Verificando provas existentes...");
+
       const { data: provasExistentes, error: erroProvasExistentes } =
         await supabase.from("provas").select("*").eq("evento_id", evento.id);
 
@@ -840,13 +1042,17 @@ export default function Importacao() {
         (p) => !mapaProvas[`${p.nome}|${p.categoria}|${p.naipe}`]
       );
 
-      if (provasParaCriar.length > 0) {
-        const { data: novasProvas, error: erroNovasProvas } = await supabase
-          .from("provas")
-          .insert(provasParaCriar)
-          .select();
+      let novasProvas = [];
 
-        if (erroNovasProvas) throw erroNovasProvas;
+      if (provasParaCriar.length > 0) {
+        setMensagem(`Criando ${provasParaCriar.length} prova(s)...`);
+
+        novasProvas = await inserirEmBlocosComRetorno(
+          "provas",
+          provasParaCriar,
+          "*",
+          300
+        );
 
         novasProvas.forEach((p) => {
           mapaProvas[`${p.nome}|${p.categoria}|${p.naipe}`] = p.id;
@@ -878,19 +1084,19 @@ export default function Importacao() {
 
       const inscricoesParaSalvar = [...inscricoesMap.values()];
 
-      const atletaIds = [...new Set(inscricoesParaSalvar.map((i) => i.atleta_id))];
-      const provaIds = [...new Set(inscricoesParaSalvar.map((i) => i.prova_id))];
+      const atletaIds = unicos(inscricoesParaSalvar.map((i) => i.atleta_id));
+      const provaIds = unicos(inscricoesParaSalvar.map((i) => i.prova_id));
 
       let duplicadasBancoIgnoradas = 0;
 
       if (atletaIds.length > 0 && provaIds.length > 0) {
-        const { data: inscricoesExistentes, error: erroInscricoesExistentes } = await supabase
-          .from("inscricoes")
-          .select("atleta_id, prova_id")
-          .in("atleta_id", atletaIds)
-          .in("prova_id", provaIds);
+        setMensagem("Verificando inscrições já existentes...");
 
-        if (erroInscricoesExistentes) throw erroInscricoesExistentes;
+        const inscricoesExistentes = await buscarInscricoesExistentes(
+          evento.id,
+          provaIds,
+          atletaIds
+        );
 
         const chavesExistentes = new Set(
           (inscricoesExistentes || []).map((i) => `${i.atleta_id}|${i.prova_id}`)
@@ -907,11 +1113,13 @@ export default function Importacao() {
       const inscricoesNovasParaSalvar = [...inscricoesMap.values()];
 
       if (inscricoesNovasParaSalvar.length > 0) {
-        const { error: erroInscricoes } = await supabase
-          .from("inscricoes")
-          .insert(inscricoesNovasParaSalvar);
+        setMensagem(`Criando ${inscricoesNovasParaSalvar.length} inscrição(ões)...`);
 
-        if (erroInscricoes) throw erroInscricoes;
+        await inserirEmBlocosSemRetorno(
+          "inscricoes",
+          inscricoesNovasParaSalvar,
+          700
+        );
       }
 
       await supabase.from("importacoes").insert({
@@ -925,8 +1133,18 @@ export default function Importacao() {
         `Importação finalizada: ${atletasParaCriar.length} atleta(s) novo(s), ${inscricoesNovasParaSalvar.length} inscrição(ões) nova(s), ${provasParaCriar.length} prova(s) nova(s). Duplicadas no arquivo: ${duplicadasIgnoradas}. Duplicadas no banco: ${duplicadasBancoIgnoradas}.`
       );
     } catch (erro) {
-      console.error(erro);
-      setMensagem("Erro na importação: " + (erro.message || JSON.stringify(erro)));
+      console.error("ERRO COMPLETO AO SALVAR IMPORTACAO:", {
+        message: erro?.message,
+        code: erro?.code,
+        details: erro?.details,
+        hint: erro?.hint,
+        raw: erro,
+      });
+
+      setMensagem(
+        "Erro na importação: " +
+          (erro?.details || erro?.message || JSON.stringify(erro))
+      );
     } finally {
       setCarregando(false);
     }
@@ -937,8 +1155,8 @@ export default function Importacao() {
       <h1>Importação de Planilha</h1>
 
       <p className="muted">
-        Importe a planilha geral do atletismo. O sistema lê todas as abas, calcula
-        categoria pela data de nascimento e padroniza as provas.
+        Importe a planilha geral do atletismo. O sistema lê todas as abas,
+        calcula categoria pela data de nascimento e padroniza as provas.
       </p>
 
       <div className="card" style={{ marginBottom: 20 }}>
@@ -947,7 +1165,11 @@ export default function Importacao() {
         <button
           onClick={salvarNoSupabase}
           disabled={carregando || linhas.length === 0}
-          style={botaoSalvar}
+          style={{
+            ...botaoSalvar,
+            opacity: carregando || linhas.length === 0 ? 0.65 : 1,
+            cursor: carregando || linhas.length === 0 ? "not-allowed" : "pointer",
+          }}
         >
           {carregando ? "Salvando..." : "Salvar Importação"}
         </button>

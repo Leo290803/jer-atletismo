@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
+import { getNumeroAtleta } from "../utils/getNumeroAtleta";
 
 export default function Boletins() {
   const hoje = new Date().toISOString().slice(0, 10);
@@ -30,6 +31,7 @@ export default function Boletins() {
         inscricoes (
           atletas (
             numero,
+            numero_competicao,
             nome,
             municipio,
             escolas (
@@ -333,7 +335,7 @@ export default function Boletins() {
               return `
                 <tr>
                   <td>${r.colocacao ? `${r.colocacao}º` : `${i + 1}º`}</td>
-                  <td>${atleta?.numero || ""}</td>
+                  <td>${getNumeroAtleta(atleta)}</td>
                   <td>${atleta?.nome || ""}</td>
                   <td>${atleta?.escolas?.nome || ""}</td>
                   <td>${atleta?.municipio || ""}</td>
@@ -718,7 +720,7 @@ export default function Boletins() {
                               <tr key={r.id}>
                                 <td>{medalha(r.colocacao)}</td>
                                 <td>{r.colocacao}º</td>
-                                <td>{atleta?.numero}</td>
+                                <td>{getNumeroAtleta(atleta)}</td>
                                 <td>{atleta?.nome}</td>
                                 <td>{atleta?.escolas?.nome}</td>
                                 <td>{atleta?.municipio}</td>
@@ -798,7 +800,7 @@ function TabelaResultados({ resultados, resultadoFinal }) {
           return (
             <tr key={r.id}>
               <td>{r.colocacao ? `${r.colocacao}º` : `${i + 1}º`}</td>
-              <td>{atleta?.numero}</td>
+              <td>{getNumeroAtleta(atleta)}</td>
               <td>{atleta?.nome}</td>
               <td>{atleta?.escolas?.nome}</td>
               <td>{atleta?.municipio}</td>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { getNumeroAtleta } from "../utils/getNumeroAtleta";
 import {
   TabelaCampo,
   TabelaPista,
@@ -338,6 +339,7 @@ export default function Sumulas() {
         atletas (
           id,
           numero,
+          numero_competicao,
           nome,
           municipio,
           data_nascimento,
@@ -392,6 +394,7 @@ export default function Sumulas() {
       .select(`
         id,
         numero,
+        numero_competicao,
         nome,
         municipio,
         data_nascimento,
@@ -603,6 +606,7 @@ export default function Sumulas() {
           .select(`
             id,
             numero,
+            numero_competicao,
             nome,
             municipio,
             categoria,
@@ -676,6 +680,7 @@ export default function Sumulas() {
             atletas (
               id,
               numero,
+              numero_competicao,
               nome,
               municipio,
               data_nascimento,
@@ -687,7 +692,8 @@ export default function Sumulas() {
         )
       `)
       .eq("prova_id", provaId)
-.order("numero_serie", { ascending: true })
+      .order("numero_serie", { ascending: true });
+
     if (error) {
       setMensagem(error.message);
       return;
@@ -796,6 +802,7 @@ async function gerarSeriesDaProva() {
           id,
           nome,
           numero,
+          numero_competicao,
           municipio,
           data_nascimento,
           escolas (
@@ -2787,7 +2794,7 @@ const ehCampoTentativas =
 
                         return (
                           <tr key={r.id}>
-                            <td>{atleta?.numero}</td>
+                            <td>{getNumeroAtleta(atleta)}</td>
                             <td>{atleta?.nome}</td>
                             <td>{atleta?.escolas?.nome}</td>
                             <td>{formatarNascimento(atleta?.data_nascimento)}</td>
@@ -3002,7 +3009,7 @@ function GerenciarInscritos({
                     <div>
                       <strong>{atleta?.nome}</strong>
                       <div style={{ fontSize: 12, opacity: 0.8 }}>
-                        Nº {atleta?.numero || "-"} • {atleta?.escolas?.nome || "Sem escola"} • {atleta?.municipio || "-"}
+                        Nº {getNumeroAtleta(atleta)} • {atleta?.escolas?.nome || "Sem escola"} • {atleta?.municipio || "-"}
                       </div>
                     </div>
 
@@ -3095,7 +3102,7 @@ function GerenciarInscritos({
                   <div>
                     <strong>{atleta.nome}</strong>
                     <div style={{ fontSize: 12, opacity: 0.8 }}>
-                      Nº {atleta.numero || "-"} • {atleta.escolas?.nome || "Sem escola"} • {atleta.municipio || "-"}
+                      Nº {getNumeroAtleta(atleta)} • {atleta.escolas?.nome || "Sem escola"} • {atleta.municipio || "-"}
                     </div>
                   </div>
 
