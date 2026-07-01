@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { getNumeroAtleta } from "../utils/getNumeroAtleta";
+import EtapaSelecaoProva from "./sumulas/components/EtapaSelecaoProva";
+import EtapaLancamento from "./sumulas/components/EtapaLancamento";
+import EtapaProximaFase from "./sumulas/components/EtapaProximaFase";
+import SumulaImpressao from "./sumulas/components/SumulaImpressao";
 import {
-  TabelaCampo,
-  TabelaPista,
-  TabelaRevezamento,
-} from "./sumulas/components/TabelasSumula";
+  formatarNascimento,
+  tempoParaNumero,
+  marcaParaNumero,
+  formatarMarca,
+} from "./sumulas/utils/formatadores";
+import "./sumulas/styles/printSumulas.css";
 
 function tabelaInexistente(error, tabela) {
   if (!error) return false;
@@ -33,17 +38,6 @@ const CONFIG_PADRAO = {
   ],
 };
 
-function formatarNascimento(data) {
-  if (!data) return "-";
-
-  const dataFormatada = new Date(data);
-  if (Number.isNaN(dataFormatada.getTime())) {
-    return String(data);
-  }
-
-  return dataFormatada.toLocaleDateString("pt-BR");
-}
-
 export default function Sumulas() {
   const hoje = new Date().toISOString().slice(0, 10);
 
@@ -67,6 +61,9 @@ export default function Sumulas() {
   const [raiasProximaFase, setRaiasProximaFase] = useState(8);
   const [qAutomaticos, setQAutomaticos] = useState(2);
   const [qTempos, setQTempos] = useState(2);
+  const [mostrarAvancadoProximaFase, setMostrarAvancadoProximaFase] = useState(false);
+  const [previewProximaFase, setPreviewProximaFase] = useState([]);
+  const [regraPreviewProximaFase, setRegraPreviewProximaFase] = useState(null);
 
   const [mostrarGerenciarInscritos, setMostrarGerenciarInscritos] = useState(false);
   const [inscricoesProva, setInscricoesProva] = useState([]);
@@ -93,6 +90,20 @@ export default function Sumulas() {
 
     return () => clearInterval(intervalId);
   }, [provaSelecionada]);
+
+  useEffect(() => {
+    if (mostrarAvancadoProximaFase) return;
+
+    const regra = calcularRegraAutomaticaProximaFase();
+
+    queueMicrotask(() => {
+      setCriterioClassificacao(regra.criterio);
+      setQAutomaticos(regra.qPorSerie);
+      setQTempos(regra.qPorTempo);
+      setQuantidadeClassificados(regra.totalClassificados);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [series.length, raiasProximaFase, mostrarAvancadoProximaFase]);
 
   function gerarTokenAcesso() {
     return (
@@ -1194,33 +1205,6 @@ function embaralhar(lista) {
     mudarAltura(serieId, raiaId, altura, novoValor);
   }
 
-  function tempoParaNumero(tempo) {
-    if (!tempo) return 999999;
-
-    const limpo = String(tempo).replace(",", ".").trim();
-
-    if (limpo.includes(":")) {
-      const partes = limpo.split(":").map(Number);
-      if (partes.length === 2) return partes[0] * 60 + partes[1];
-      if (partes.length === 3) return partes[0] * 3600 + partes[1] * 60 + partes[2];
-    }
-
-    return Number(limpo) || 999999;
-  }
-
-  function marcaParaNumero(valor) {
-    if (!valor) return null;
-
-    const texto = String(valor).trim().toUpperCase();
-
-    if (["X", "-", "DNS", "DQ", "ABD", "DNF", "NM"].includes(texto)) return null;
-
-    const numero = Number(texto.replace(",", "."));
-
-    if (Number.isNaN(numero)) return null;
-
-    return numero;
-  }
 
   function melhorDasTentativas(r) {
     const marcas = [
@@ -1260,11 +1244,6 @@ function embaralhar(lista) {
     ]
       .filter((v) => v !== null)
       .sort((a, b) => b - a);
-  }
-
-  function formatarMarca(valor) {
-    if (valor === null || valor === undefined) return "";
-    return Number(valor).toFixed(2).replace(".", ",");
   }
 
   function compararCampoOficial(a, b) {
@@ -1593,6 +1572,189 @@ function classificarSaltoAltura() {
   setMensagem("Classificação oficial do salto em altura aplicada.");
 }
 
+
+  function contarSeriesComAtletas() {
+    return (series || []).filter((serie) => (serie.raias || []).length > 0).length;
+  }
+
+  function totalAtletasNasSeries() {
+    return (series || []).reduce(
+      (total, serie) => total + (serie.raias || []).filter((r) => r.inscricoes?.id).length,
+      0
+    );
+  }
+
+  function calcularRegraAutomaticaProximaFase() {
+    const totalSeries = contarSeriesComAtletas();
+    const totalRaias = Math.max(1, Number(raiasProximaFase) || 8);
+    const totalAtletas = totalAtletasNasSeries();
+    const totalClassificados = Math.min(totalRaias, Math.max(totalAtletas, 0) || totalRaias);
+
+    if (totalSeries <= 0) {
+      return {
+        criterio: "q_q",
+        qPorSerie: 0,
+        qPorTempo: totalClassificados,
+        totalClassificados,
+        raias: totalRaias,
+        totalSeries,
+        descricao: "Gere ou carregue as séries para o sistema sugerir a regra.",
+        aviso: "Nenhuma série carregada.",
+      };
+    }
+
+    if (totalSeries === 1) {
+      return {
+        criterio: "melhores_gerais",
+        qPorSerie: 0,
+        qPorTempo: 0,
+        totalClassificados,
+        raias: totalRaias,
+        totalSeries,
+        descricao: `Melhores resultados gerais até ${totalClassificados} atleta(s).`,
+        aviso: "",
+      };
+    }
+
+    if (totalSeries > totalClassificados) {
+      return {
+        criterio: "melhores_gerais",
+        qPorSerie: 0,
+        qPorTempo: 0,
+        totalClassificados,
+        raias: totalRaias,
+        totalSeries,
+        descricao: `${totalSeries} séries para ${totalClassificados} vaga(s). Critério sugerido: melhores resultados gerais.`,
+        aviso: "Há mais séries do que vagas. Não é possível garantir 1 classificado por série.",
+      };
+    }
+
+    let qPorSerie;
+
+    if (totalSeries === 2) {
+      qPorSerie = Math.max(1, Math.min(3, Math.floor((totalClassificados - 2) / 2)));
+    } else if (totalSeries === 3) {
+      qPorSerie = Math.max(1, Math.floor((totalClassificados - 2) / 3));
+    } else {
+      qPorSerie = 1;
+    }
+
+    const classificadosDiretos = qPorSerie * totalSeries;
+    const qPorTempo = Math.max(0, totalClassificados - classificadosDiretos);
+
+    return {
+      criterio: "q_q",
+      qPorSerie,
+      qPorTempo,
+      totalClassificados,
+      raias: totalRaias,
+      totalSeries,
+      descricao: `${qPorSerie} classificado(s) por série + ${qPorTempo} melhor(es) tempo(s)/marca(s).`,
+      aviso: "",
+    };
+  }
+
+  function obterRegraProximaFaseAtual() {
+    if (mostrarAvancadoProximaFase) {
+      return {
+        criterio: criterioClassificacao,
+        qPorSerie: Number(qAutomaticos) || 0,
+        qPorTempo: Number(qTempos) || 0,
+        totalClassificados: Number(quantidadeClassificados) || Number(raiasProximaFase) || 8,
+        raias: Number(raiasProximaFase) || 8,
+        totalSeries: contarSeriesComAtletas(),
+        descricao:
+          criterioClassificacao === "melhores_gerais"
+            ? `Melhores resultados gerais até ${Number(quantidadeClassificados) || Number(raiasProximaFase) || 8} atleta(s).`
+            : `${Number(qAutomaticos) || 0} classificado(s) por série + ${Number(qTempos) || 0} melhor(es) tempo(s)/marca(s).`,
+        aviso: "",
+      };
+    }
+
+    return calcularRegraAutomaticaProximaFase();
+  }
+
+  function validarResultadosParaProximaFase(ranking) {
+    if (!provaSelecionada) return "Selecione uma prova primeiro.";
+    if (!series.length) return "Gere ou carregue as séries da prova antes de gerar a próxima fase.";
+    if (!ranking.length) return "Nenhum resultado válido encontrado. Lance os tempos/marcas antes de gerar a próxima fase.";
+
+    const algumResultado = series.some((serie) =>
+      (serie.raias || []).some(
+        (r) =>
+          r.tempo ||
+          r.melhor_marca ||
+          r.resultado_final ||
+          r.tentativa1 ||
+          r.tentativa2 ||
+          r.tentativa3 ||
+          r.tentativa4 ||
+          r.tentativa5 ||
+          r.tentativa6
+      )
+    );
+
+    if (!algumResultado) {
+      return "Preencha os tempos/marcas da fase atual antes de gerar a próxima fase.";
+    }
+
+    const algumaClassificacao = series.some((serie) =>
+      (serie.raias || []).some(
+        (r) =>
+          r.colocacao ||
+          r.classificacao_parcial ||
+          r.classificacao_parcial_final ||
+          r.qualificacao
+      )
+    );
+
+    if (!algumaClassificacao) {
+      return "Clique em Classificar e confira as colocações antes de gerar a próxima fase.";
+    }
+
+    return "";
+  }
+
+  function montarPreviewProximaFase() {
+    const provaAtual = provas.find((p) => p.id === provaSelecionada);
+
+    if (!provaAtual) {
+      alert("Selecione uma prova.");
+      return [];
+    }
+
+    const ranking = obterRankingParaProximaFase();
+    const erroValidacao = validarResultadosParaProximaFase(ranking);
+
+    if (erroValidacao) {
+      alert(erroValidacao);
+      setMensagem(erroValidacao);
+      setPreviewProximaFase([]);
+      setRegraPreviewProximaFase(null);
+      return [];
+    }
+
+    const regra = obterRegraProximaFaseAtual();
+    const classificados = selecionarClassificados(ranking, regra);
+
+    if (classificados.length === 0) {
+      alert("Nenhum classificado encontrado.");
+      setPreviewProximaFase([]);
+      setRegraPreviewProximaFase(null);
+      return [];
+    }
+
+    const classificadosOrdenados = ordenarClassificadosParaRaias(classificados, provaAtual);
+
+    setPreviewProximaFase(classificadosOrdenados);
+    setRegraPreviewProximaFase(regra);
+    setMensagem(
+      `Prévia gerada: ${classificadosOrdenados.length} atleta(s) para ${tipoProximaFase}. Confira antes de confirmar.`
+    );
+
+    return classificadosOrdenados;
+  }
+
   function obterRankingParaProximaFase() {
     const provaAtual = provas.find((p) => p.id === provaSelecionada);
     const todos = [];
@@ -1629,17 +1791,19 @@ function classificarSaltoAltura() {
     return todos.sort((a, b) => b.valorClassificacao - a.valorClassificacao);
   }
 
-  function selecionarClassificados(ranking) {
-    const qtdTotal = Number(quantidadeClassificados) || 0;
-    const qtdQ = Number(qAutomaticos) || 0;
-    const qtdq = Number(qTempos) || 0;
+  function selecionarClassificados(ranking, regraOverride = null) {
+    const regra = regraOverride || obterRegraProximaFaseAtual();
+    const qtdTotal = Number(regra.totalClassificados ?? quantidadeClassificados) || 0;
+    const qtdQ = Number(regra.qPorSerie ?? qAutomaticos) || 0;
+    const qtdq = Number(regra.qPorTempo ?? qTempos) || 0;
+    const criterio = regra.criterio || criterioClassificacao;
 
     if (!ranking || ranking.length === 0) return [];
 
     const provaAtual = provas.find((p) => p.id === provaSelecionada);
     const ehPista = provaAtual?.tipo === "corrida" || provaAtual?.subtipo === "pista";
 
-    if (criterioClassificacao === "melhores_gerais") {
+    if (criterio === "melhores_gerais" || qtdQ <= 0) {
       return ranking.slice(0, qtdTotal).map((r) => ({
         ...r,
         qualificacao: "q",
@@ -1671,7 +1835,7 @@ function classificarSaltoAltura() {
       });
 
       ordenadosDaSerie.forEach((r, index) => {
-        if (index < qtdQ) {
+        if (index < qtdQ && classificados.length < qtdTotal) {
           classificados.push({
             ...r,
             qualificacao: "Q",
@@ -1688,13 +1852,34 @@ function classificarSaltoAltura() {
           ? a.valorClassificacao - b.valorClassificacao
           : b.valorClassificacao - a.valorClassificacao
       )
-      .slice(0, qtdq)
+      .slice(0, Math.max(0, qtdq))
       .forEach((r) => {
-        classificados.push({
-          ...r,
-          qualificacao: "q",
-        });
+        if (classificados.length < qtdTotal) {
+          classificados.push({
+            ...r,
+            qualificacao: "q",
+          });
+        }
       });
+
+    if (classificados.length < qtdTotal) {
+      const jaSelecionados = new Set(classificados.map((r) => r.id));
+
+      ranking
+        .filter((r) => !jaSelecionados.has(r.id))
+        .sort((a, b) =>
+          ehPista
+            ? a.valorClassificacao - b.valorClassificacao
+            : b.valorClassificacao - a.valorClassificacao
+        )
+        .slice(0, qtdTotal - classificados.length)
+        .forEach((r) => {
+          classificados.push({
+            ...r,
+            qualificacao: "q",
+          });
+        });
+    }
 
     return classificados.slice(0, qtdTotal || classificados.length);
   }
@@ -1782,24 +1967,32 @@ function classificarSaltoAltura() {
         return;
       }
 
-      const ranking = obterRankingParaProximaFase();
-      const classificados = selecionarClassificados(ranking);
+      let classificadosOrdenados = previewProximaFase;
+      let regra = regraPreviewProximaFase || obterRegraProximaFaseAtual();
 
-      if (classificados.length === 0) {
-        alert("Nenhum classificado encontrado.");
+      if (!classificadosOrdenados || classificadosOrdenados.length === 0) {
+        classificadosOrdenados = montarPreviewProximaFase();
+        regra = regraPreviewProximaFase || obterRegraProximaFaseAtual();
+
+        if (!classificadosOrdenados || classificadosOrdenados.length === 0) {
+          return;
+        }
+
+        setMensagem("Confira a prévia e clique novamente em Confirmar e Gerar Próxima Fase.");
         return;
       }
 
-      aplicarQualificacao(classificados);
-
-      const classificadosOrdenados = ordenarClassificadosParaRaias(
-        classificados,
-        provaAtual
-      );
-
       const fase = tipoProximaFase.toUpperCase();
 
-      const { data: provaExistente } = await supabase
+      const confirmar = window.confirm(
+        `Confirmar geração da fase ${fase} com ${classificadosOrdenados.length} atleta(s)?`
+      );
+
+      if (!confirmar) return;
+
+      aplicarQualificacao(classificadosOrdenados);
+
+      const { data: provaExistente, error: erroBuscaFase } = await supabase
         .from("provas")
         .select("*")
         .eq("evento_id", provaAtual.evento_id)
@@ -1809,7 +2002,33 @@ function classificarSaltoAltura() {
         .eq("fase", fase)
         .maybeSingle();
 
+      if (erroBuscaFase) throw erroBuscaFase;
+
       let novaProva = provaExistente;
+
+      if (novaProva) {
+        const confirmarSubstituicao = window.confirm(
+          `A fase ${fase} já existe para esta prova. Deseja substituir as inscrições, séries, raias e resultados dessa fase?`
+        );
+
+        if (!confirmarSubstituicao) return;
+
+        const { data: seriesDaFase } = await supabase
+          .from("series")
+          .select("id")
+          .eq("prova_id", novaProva.id);
+
+        const idsSeriesDaFase = (seriesDaFase || []).map((s) => s.id).filter(Boolean);
+
+        await supabase.from("resultados").delete().eq("prova_id", novaProva.id);
+
+        if (idsSeriesDaFase.length > 0) {
+          await supabase.from("raias").delete().in("serie_id", idsSeriesDaFase);
+        }
+
+        await supabase.from("series").delete().eq("prova_id", novaProva.id);
+        await supabase.from("inscricoes").delete().eq("prova_id", novaProva.id);
+      }
 
       if (!novaProva) {
         const { data, error } = await supabase
@@ -1824,7 +2043,7 @@ function classificarSaltoAltura() {
             status: "pendente",
             fase,
             prova_origem_id: provaAtual.id,
-            criterio_classificacao: criterioClassificacao,
+            criterio_classificacao: regra.criterio,
             total_classificados: classificadosOrdenados.length,
           })
           .select()
@@ -1832,10 +2051,15 @@ function classificarSaltoAltura() {
 
         if (error) throw error;
         novaProva = data;
+      } else {
+        await supabase
+          .from("provas")
+          .update({
+            criterio_classificacao: regra.criterio,
+            total_classificados: classificadosOrdenados.length,
+          })
+          .eq("id", novaProva.id);
       }
-
-      await supabase.from("inscricoes").delete().eq("prova_id", novaProva.id);
-      await supabase.from("series").delete().eq("prova_id", novaProva.id);
 
       const inscricoesParaCriar = classificadosOrdenados.map((c) => ({
         evento_id: provaAtual.evento_id,
@@ -1856,7 +2080,7 @@ function classificarSaltoAltura() {
         inscricaoPorAtleta[inscricao.atleta_id] = inscricao;
       });
 
-      const totalSeries = Math.ceil(classificadosOrdenados.length / raiasProximaFase);
+      const totalSeries = Math.ceil(classificadosOrdenados.length / Number(regra.raias || raiasProximaFase || 8));
       const novasSeries = [];
 
       for (let i = 1; i <= totalSeries; i++) {
@@ -1891,7 +2115,7 @@ function classificarSaltoAltura() {
           raiasParaCriar.push({
             serie_id: serieCriada.id,
             inscricao_id: inscricao.id,
-            raia: raiaOficialPorSeed(posicaoNaSerie, raiasProximaFase),
+            raia: raiaOficialPorSeed(posicaoNaSerie, regra.raias || raiasProximaFase),
             ordem: posicaoNaSerie + 1,
           });
         });
@@ -1901,13 +2125,16 @@ function classificarSaltoAltura() {
 
       if (erroRaias) throw erroRaias;
 
+      setPreviewProximaFase([]);
+      setRegraPreviewProximaFase(null);
+
       await carregarProvas();
 
       setMensagem(
-        `${fase} gerada com sucesso com sorteio oficial de raias. Clique em Publicar no Boletim para salvar Q/q.`
+        `${fase} gerada com sucesso com ${classificadosOrdenados.length} atleta(s), ${totalSeries} série(s) e sorteio oficial de raias.`
       );
     } catch (err) {
-      setMensagem("Erro ao gerar próxima fase: " + err.message);
+      setMensagem("Erro ao gerar próxima fase: " + (err.message || JSON.stringify(err)));
     }
   }
 
@@ -2036,685 +2263,94 @@ const ehCampoTentativas =
     );
   });
 
+
+
+  const regraSugeridaProximaFase = obterRegraProximaFaseAtual();
+  const totalSeriesDetectadas = regraSugeridaProximaFase.totalSeries || 0;
+  const faseBotao = String(tipoProximaFase || "FINAL").toUpperCase();
+
   return (
     <div>
-      <style>
-        {`
-          @media print {
-            @page {
-              size: A4 landscape;
-              margin: 6mm;
-            }
-
-            html, body {
-              zoom: 1.05 !important;
-            }
-
-            * {
-              box-sizing: border-box !important;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            }
-
-            .sidebar,
-            .nao-imprimir,
-            .topbar {
-              display: none !important;
-            }
-
-            html,
-            body {
-              background: white !important;
-              color: black !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              width: 100% !important;
-              height: auto !important;
-              overflow: visible !important;
-            }
-
-            .app,
-            .content {
-              display: block !important;
-              width: 100% !important;
-              max-width: none !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              background: white !important;
-              overflow: visible !important;
-            }
-
-            .card,
-            .sumula-print {
-              background: white !important;
-              color: black !important;
-              border: none !important;
-              box-shadow: none !important;
-              width: 100% !important;
-              max-width: none !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              transform: none !important;
-            }
-
-            .sumula-print h2 {
-              font-size: 17px !important;
-              line-height: 1.05 !important;
-              margin: 0 0 4px 0 !important;
-              text-align: center !important;
-              font-weight: 800 !important;
-            }
-
-            .sumula-print h3 {
-              font-size: 13px !important;
-              line-height: 1.05 !important;
-              margin: 5px 0 5px 0 !important;
-              font-weight: 800 !important;
-            }
-
-            .sumula-print p {
-              font-size: 10.8px !important;
-              line-height: 1.1 !important;
-              margin: 0 0 5px 0 !important;
-            }
-
-            table {
-              width: 100% !important;
-              border-collapse: collapse !important;
-              background: white !important;
-              color: black !important;
-            }
-
-            th,
-            td {
-              border: 1px solid black !important;
-              color: black !important;
-              vertical-align: middle !important;
-              white-space: normal !important;
-              word-break: normal !important;
-              overflow-wrap: anywhere !important;
-            }
-
-            input,
-            select {
-              border: none !important;
-              background: transparent !important;
-              color: black !important;
-              width: 100% !important;
-              padding: 0 !important;
-              margin: 0 !important;
-              font-family: Arial, sans-serif !important;
-            }
-
-            input::placeholder {
-              color: transparent !important;
-            }
-
-            h1,
-            h2,
-            h3,
-            p {
-              color: black !important;
-            }
-
-            .quebra-pagina {
-              break-after: page;
-              page-break-after: always;
-              break-inside: avoid;
-              page-break-inside: avoid;
-            }
-
-            .quebra-pagina:last-child {
-              break-after: auto;
-              page-break-after: auto;
-            }
-
-            /* PISTA / CORRIDAS */
-            .sumula-pista table {
-              table-layout: fixed !important;
-              font-size: 13.5px !important;
-            }
-
-            .sumula-pista th,
-            .sumula-pista td {
-              padding: 7px 7px !important;
-              line-height: 1.3 !important;
-            }
-
-            .sumula-pista th:nth-child(1),
-            .sumula-pista td:nth-child(1) {
-              width: 5% !important;
-              text-align: center !important;
-            }
-
-            .sumula-pista th:nth-child(2),
-            .sumula-pista td:nth-child(2) {
-              width: 7% !important;
-              text-align: center !important;
-            }
-
-            .sumula-pista th:nth-child(3),
-            .sumula-pista td:nth-child(3) {
-              width: 30% !important;
-            }
-
-            .sumula-pista th:nth-child(4),
-            .sumula-pista td:nth-child(4) {
-              width: 29% !important;
-            }
-
-            .sumula-pista th:nth-child(5),
-            .sumula-pista td:nth-child(5) {
-              width: 12% !important;
-            }
-
-            .sumula-pista th:nth-child(6),
-            .sumula-pista td:nth-child(6) {
-              width: 9% !important;
-              text-align: center !important;
-            }
-
-            .sumula-pista th:nth-child(7),
-            .sumula-pista td:nth-child(7) {
-              width: 8% !important;
-              text-align: center !important;
-            }
-
-            .sumula-pista input,
-            .sumula-pista select {
-              font-size: 12.2px !important;
-              text-align: center !important;
-            }
-
-            /* CAMPO: arremesso, lançamentos, distância e triplo */
-            .sumula-campo table {
-              table-layout: fixed !important;
-              font-size: 11.5px !important;
-            }
-
-            .sumula-campo th,
-            .sumula-campo td {
-              padding: 5px 6px !important;
-              line-height: 1.15 !important;
-              text-align: center !important;
-            }
-
-            .sumula-campo th:nth-child(1),
-            .sumula-campo td:nth-child(1) {
-              width: 4% !important;
-            }
-
-            .sumula-campo th:nth-child(2),
-            .sumula-campo td:nth-child(2) {
-              width: 14% !important;
-              text-align: left !important;
-            }
-
-            .sumula-campo th:nth-child(3),
-            .sumula-campo td:nth-child(3) {
-              width: 14% !important;
-              text-align: left !important;
-            }
-
-            .sumula-campo th:nth-child(4),
-            .sumula-campo td:nth-child(4) {
-              width: 8% !important;
-              text-align: center !important;
-            }
-
-            .sumula-campo th:nth-child(5),
-            .sumula-campo td:nth-child(5),
-            .sumula-campo th:nth-child(6),
-            .sumula-campo td:nth-child(6),
-            .sumula-campo th:nth-child(7),
-            .sumula-campo td:nth-child(7),
-            .sumula-campo th:nth-child(10),
-            .sumula-campo td:nth-child(10),
-            .sumula-campo th:nth-child(11),
-            .sumula-campo td:nth-child(11),
-            .sumula-campo th:nth-child(13),
-            .sumula-campo td:nth-child(13) {
-              width: 5% !important;
-            }
-
-            .sumula-campo th:nth-child(8),
-            .sumula-campo td:nth-child(8),
-            .sumula-campo th:nth-child(9),
-            .sumula-campo td:nth-child(9),
-            .sumula-campo th:nth-child(12),
-            .sumula-campo td:nth-child(12) {
-              width: 6% !important;
-            }
-
-            .sumula-campo th:nth-child(14),
-            .sumula-campo td:nth-child(14) {
-              width: 8% !important;
-            }
-
-            .sumula-campo th:nth-child(15),
-            .sumula-campo td:nth-child(15),
-            .sumula-campo th:nth-child(16),
-            .sumula-campo td:nth-child(16) {
-              width: 5% !important;
-            }
-
-            .sumula-campo table {
-              table-layout: fixed !important;
-              font-size: 11.5px !important;
-            }
-
-            .sumula-campo input,
-            .sumula-campo select {
-              font-size: 10px !important;
-              text-align: center !important;
-              padding: 2px 4px !important;
-            }
-
-            /* REVEZAMENTO */
-            .sumula-revezamento table {
-              table-layout: fixed !important;
-              font-size: 13px !important;
-            }
-
-            .sumula-revezamento th,
-            .sumula-revezamento td {
-              padding: 7px 6px !important;
-              line-height: 1.25 !important;
-            }
-
-            .sumula-revezamento th:nth-child(1),
-            .sumula-revezamento td:nth-child(1) {
-              width: 6% !important;
-              text-align: center !important;
-              font-weight: bold !important;
-            }
-
-            .sumula-revezamento th:nth-child(2),
-            .sumula-revezamento td:nth-child(2) {
-              width: 28% !important;
-            }
-
-            .sumula-revezamento th:nth-child(3),
-            .sumula-revezamento td:nth-child(3) {
-              width: 30% !important;
-            }
-
-            .sumula-revezamento th:nth-child(4),
-            .sumula-revezamento td:nth-child(4) {
-              width: 12% !important;
-              text-align: center !important;
-              font-weight: bold !important;
-            }
-
-            .sumula-revezamento th:nth-child(5),
-            .sumula-revezamento td:nth-child(5) {
-              width: 8% !important;
-              text-align: center !important;
-              font-weight: bold !important;
-            }
-
-            .sumula-revezamento th:nth-child(6),
-            .sumula-revezamento td:nth-child(6) {
-              width: 16% !important;
-              text-align: center !important;
-              font-weight: bold !important;
-            }
-
-            .sumula-revezamento input,
-            .sumula-revezamento select {
-              font-size: 12px !important;
-              text-align: center !important;
-              font-weight: bold !important;
-            }
-
-            /* SALTO EM ALTURA */
-            .sumula-salto-altura table {
-              table-layout: fixed !important;
-              font-size: 8.5px !important;
-            }
-
-            .sumula-salto-altura th,
-            .sumula-salto-altura td {
-              padding: 3px 2px !important;
-              line-height: 1.05 !important;
-              text-align: center !important;
-            }
-
-            .sumula-salto-altura th:nth-child(1),
-            .sumula-salto-altura td:nth-child(1) {
-              width: 5% !important;
-            }
-
-            .sumula-salto-altura th:nth-child(2),
-            .sumula-salto-altura td:nth-child(2) {
-              width: 18% !important;
-              text-align: left !important;
-            }
-
-            .sumula-salto-altura th:nth-child(3),
-            .sumula-salto-altura td:nth-child(3) {
-              width: 17% !important;
-              text-align: left !important;
-            }
-
-            .sumula-salto-altura th:nth-child(4),
-            .sumula-salto-altura td:nth-child(4) {
-              width: 9% !important;
-              text-align: left !important;
-            }
-
-            .sumula-salto-altura input,
-            .sumula-salto-altura select {
-              font-size: 7.2px !important;
-              text-align: center !important;
-            }
-          }
-        `}
-      </style>
-
       <div className="nao-imprimir">
         <h1>Súmulas</h1>
         <p className="muted">Controle completo da prova em uma única tela.</p>
 
-        <Etapa numero="1" titulo="Escolher prova, gerar séries e data">
-          <label>Pesquisar prova</label>
+        <EtapaSelecaoProva
+          buscaProva={buscaProva}
+          setBuscaProva={setBuscaProva}
+          filtroCategoria={filtroCategoria}
+          setFiltroCategoria={setFiltroCategoria}
+          filtroNaipe={filtroNaipe}
+          setFiltroNaipe={setFiltroNaipe}
+          filtroFase={filtroFase}
+          setFiltroFase={setFiltroFase}
+          filtroTipo={filtroTipo}
+          setFiltroTipo={setFiltroTipo}
+          categorias={categorias}
+          naipes={naipes}
+          fases={fases}
+          tipos={tipos}
+          limparFiltros={limparFiltros}
+          provasFiltradas={provasFiltradas}
+          provaSelecionada={provaSelecionada}
+          selecionarProva={selecionarProva}
+          gerarSeriesDaProva={gerarSeriesDaProva}
+          carregarSeries={carregarSeries}
+          abrirGerenciarInscritos={abrirGerenciarInscritos}
+          mostrarGerenciarInscritos={mostrarGerenciarInscritos}
+          sumulaDigital={sumulaDigital}
+          sumulasDigitais={sumulasDigitais}
+          tokenMensagem={tokenMensagem}
+          linkArbitro={linkArbitro}
+          gerarSumulaDigital={gerarSumulaDigital}
+          bloquearSumulaDigital={bloquearSumulaDigital}
+          reabrirSumulaDigital={reabrirSumulaDigital}
+          setTokenMensagem={setTokenMensagem}
+          inscricoesProva={inscricoesProva}
+          buscaAtleta={buscaAtleta}
+          setBuscaAtleta={setBuscaAtleta}
+          atletasEncontrados={atletasEncontrados}
+          buscarAtletas={buscarAtletas}
+          adicionarAtletaNaProva={adicionarAtletaNaProva}
+          removerInscricaoDaProva={removerInscricaoDaProva}
+          substituirInscricaoDaProva={substituirInscricaoDaProva}
+          criarAtletaESubstituir={criarAtletaESubstituir}
+          carregandoInscritos={carregandoInscritos}
+          dataProva={dataProva}
+          setDataProva={setDataProva}
+        />
 
-          <input
-            value={buscaProva}
-            onChange={(e) => setBuscaProva(e.target.value)}
-            placeholder="Digite o nome da prova, categoria, naipe ou fase..."
-            style={inputPesquisa}
-          />
+        <EtapaLancamento
+          salvarResultados={salvarResultados}
+          classificarAutomaticamente={classificarAutomaticamente}
+          imprimir={imprimir}
+        />
 
-          <div style={gridFiltros}>
-            <Filtro label="Categoria" value={filtroCategoria} setValue={setFiltroCategoria} itens={categorias} />
-            <Filtro label="Naipe" value={filtroNaipe} setValue={setFiltroNaipe} itens={naipes} />
-            <Filtro label="Fase" value={filtroFase} setValue={setFiltroFase} itens={fases} />
-            <Filtro label="Tipo" value={filtroTipo} setValue={setFiltroTipo} itens={tipos} />
-          </div>
-
-          <button onClick={limparFiltros} style={botaoCinza}>
-            Limpar Fsiltros
-          </button>
-
-          <p style={{ marginTop: 12 }}>
-            Provas enconassasatradas: <strong>{provasFiltradas.length}</strong>
-          </p>
-
-          <div style={listaProvas}>
-            {provasFiltradas.map((p) => {
-              const selecionada = provaSelecionada === p.id;
-
-              return (
-                <div
-                  key={p.id}
-                  style={{
-                    ...cardProva,
-                    border: selecionada ? "2px solid #22c55e" : "1px solid #cbd5e1",
-                    background: selecionada ? "#d9f99d" : "#f8fafc",
-                    color: "#0f172a",
-                  }}
-                >
-                  <h4 style={{ margin: 0 }}>{p.nome}</h4>
-
-                  <p style={{ margin: "8px 0" }}>
-                    {p.categoria} • {p.naipe} • {p.fase || "QUALIFICAÇÃO"}
-                  </p>
-
-                  <p style={{ margin: "8px 0", opacity: 0.8 }}>
-                    Tipo: {p.subtipo || p.tipo || "-"}
-                  </p>
-
-                  <button
-                    onClick={() => selecionarProva(p.id)}
-                    style={selecionada ? botaoVerde : botaoAzul}
-                  >
-                    {selecionada ? "Selecionada" : "Selecionar"}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-
-          <div style={{ marginTop: 15 }}>
-            <button onClick={gerarSeriesDaProva} style={botaoRoxo}>
-              Gerar Séries desta Prova
-            </button>
-
-            <button
-              onClick={() => carregarSeries(provaSelecionada)}
-              style={botaoAzul}
-            >
-              Recarregar Séries
-            </button>
-
-            <button onClick={abrirGerenciarInscritos} style={botaoAmarelo}>
-              {mostrarGerenciarInscritos ? "Ocultar Inscritos" : "Gerenciar Inscritos"}
-            </button>
-          </div>
-
-          <div style={{ marginTop: 18, borderRadius: 18, background: "#eef2ff", padding: 18, border: "1px solid #c7d2fe" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-              <div>
-                <strong style={{ fontSize: 16 }}>Súmula Digital do Árbitro</strong>
-                <p style={{ margin: "8px 0 0", color: "#475569" }}>
-                  Gere o token e o QR para que o árbitro lance resultados sem acessar o painel administrativo.
-                </p>
-              </div>
-
-              <button onClick={gerarSumulaDigital} style={botaoVerde}>
-                {sumulaDigital ? "Recriar Súmula" : "Gerar Súmula Digital"}
-              </button>
-            </div>
-
-            {tokenMensagem && (
-              <p style={{ marginTop: 12, color: "#1d4ed8" }}>{tokenMensagem}</p>
-            )}
-
-            {sumulaDigital && (
-              <div style={{ marginTop: 16, display: "grid", gap: 14 }}>
-                <div style={{ display: "grid", gap: 6 }}>
-                  <label style={{ fontWeight: 700 }}>Link do árbitro</label>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                    <input
-                      type="text"
-                      readOnly
-                      value={linkArbitro(sumulaDigital.token_acesso)}
-                      style={{ width: "100%", padding: 12, borderRadius: 12, border: "1px solid #cbd5e1" }}
-                    />
-                    <button onClick={() => { navigator.clipboard.writeText(linkArbitro(sumulaDigital.token_acesso)); setTokenMensagem("Link copiado."); }} style={botaoAzul}>
-                      Copiar link
-                    </button>
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
-                  <div>
-                    <label style={{ display: "block", fontWeight: 700, marginBottom: 6 }}>QR Code</label>
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code?size=160x160&data=${encodeURIComponent(
-                        linkArbitro(sumulaDigital.token_acesso)
-                      )}`}
-                      alt="QR Code da súmula"
-                      style={{ borderRadius: 12, border: "1px solid #cbd5e1" }}
-                    />
-                  </div>
-
-                  <div style={{ minWidth: 260 }}>
-                    <div style={{ display: "grid", gap: 6 }}>
-                      <div style={{ fontWeight: 700 }}>Status</div>
-                      <div style={{ color: "#1e293b" }}>{sumulaDigital.status.replaceAll("_", " ")}</div>
-                    </div>
-
-                    <div style={{ display: "grid", gap: 6, marginTop: 12 }}>
-                      <button onClick={bloquearSumulaDigital} style={botaoMiniVermelho} disabled={sumulaDigital.status === "BLOQUEADA"}>
-                        Bloquear acesso
-                      </button>
-                      <button onClick={reabrirSumulaDigital} style={botaoAzul} disabled={sumulaDigital.status !== "BLOQUEADA"}>
-                        Reabrir súmula
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {sumulasDigitais.length > 0 && (
-              <div style={{ marginTop: 20, padding: 16, background: "#ffffff", borderRadius: 16, border: "1px solid #cbd5e1" }}>
-                <h4 style={{ margin: "0 0 12px", fontSize: 16 }}>Súmulas geradas para esta prova</h4>
-                <div style={{ display: "grid", gap: 12 }}>
-                  {sumulasDigitais.map((sd) => (
-                    <div key={sd.id} style={{ display: "grid", gap: 8, padding: 12, borderRadius: 14, background: "#f8fafc" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                        <span style={{ fontWeight: 700 }}>Token: {sd.token_acesso}</span>
-                        <span style={{ color: "#475569" }}>Status: {sd.status.replaceAll("_", " ")}</span>
-                      </div>
-                      <div style={{ display: "grid", gap: 6, color: "#334155" }}>
-                        <div>Criada em: {sd.criada_em ? new Date(sd.criada_em).toLocaleString("pt-BR") : "-"}</div>
-                        <div>Expira em: {sd.expires_at ? new Date(sd.expires_at).toLocaleString("pt-BR") : "-"}</div>
-                        <div>Link: {linkArbitro(sd.token_acesso)}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {mostrarGerenciarInscritos && (
-            <GerenciarInscritos
-              inscricoes={inscricoesProva}
-              buscaAtleta={buscaAtleta}
-              setBuscaAtleta={setBuscaAtleta}
-              atletasEncontrados={atletasEncontrados}
-              buscarAtletas={buscarAtletas}
-              adicionarAtletaNaProva={adicionarAtletaNaProva}
-              removerInscricaoDaProva={removerInscricaoDaProva}
-              substituirInscricaoDaProva={substituirInscricaoDaProva}
-              criarAtletaESubstituir={criarAtletaESubstituir}
-              carregando={carregandoInscritos}
-            />
-          )}
-
-          <div style={{ marginTop: 15 }}>
-            <label>Data da prova</label>
-
-            <input
-              type="date"
-              value={dataProva}
-              onChange={(e) => setDataProva(e.target.value)}
-              style={inputData}
-            />
-          </div>
-        </Etapa>
-
-        <Etapa numero="2" titulo="Lançar, classificar e publicar">
-          <button onClick={() => salvarResultados(false)} style={botaoCinza}>
-            Salvar Rascunho
-          </button>
-
-          <button onClick={classificarAutomaticamente} style={botaoAmarelo}>
-            Classificar
-          </button>
-
-          <button onClick={() => salvarResultados(true)} style={botaoVerde}>
-            Publicar no Boletim
-          </button>
-
-          <button onClick={imprimir} style={botaoAzul}>
-            Imprimir Súmula
-          </button>
-        </Etapa>
-
-        <Etapa numero="3" titulo="Próxima fase">
-          <button
-            onClick={() => setMostrarProximaFase(!mostrarProximaFase)}
-            style={botaoRoxo}
-          >
-            {mostrarProximaFase ? "Ocultar opções" : "Mostrar opções de próxima fase"}
-          </button>
-
-          {mostrarProximaFase && (
-            <div style={{ marginTop: 15 }}>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                <div>
-                  <label>Próxima fase</label>
-                  <select
-                    value={tipoProximaFase}
-                    onChange={(e) => setTipoProximaFase(e.target.value)}
-                    style={selectPequeno}
-                  >
-                    <option value="QUARTAS DE FINAL">Quartas de final</option>
-                    <option value="SEMIFINAL">Semifinal</option>
-                    <option value="FINAL">Final</option>
-                    <option value="FINAL POR TEMPO">Final por tempo</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label>Critério</label>
-                  <select
-                    value={criterioClassificacao}
-                    onChange={(e) => setCriterioClassificacao(e.target.value)}
-                    style={selectPequeno}
-                  >
-                    <option value="q_q">Q por série + q por tempo/marca</option>
-                    <option value="melhores_gerais">Melhores tempos/marcas gerais</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label>Classificados por série (Q)</label>
-                  <input
-                    type="number"
-                    value={qAutomaticos}
-                    onChange={(e) => setQAutomaticos(Number(e.target.value))}
-                    min="0"
-                    style={inputPequeno}
-                  />
-                </div>
-
-                <div>
-                  <label>Melhores tempos/marcas (q)</label>
-                  <input
-                    type="number"
-                    value={qTempos}
-                    onChange={(e) => setQTempos(Number(e.target.value))}
-                    min="0"
-                    style={inputPequeno}
-                  />
-                </div>
-
-                <div>
-                  <label>Total classificados</label>
-                  <input
-                    type="number"
-                    value={quantidadeClassificados}
-                    onChange={(e) => setQuantidadeClassificados(Number(e.target.value))}
-                    min="1"
-                    style={inputPequeno}
-                  />
-                </div>
-
-                <div>
-                  <label>Raias</label>
-                  <input
-                    type="number"
-                    value={raiasProximaFase}
-                    onChange={(e) => setRaiasProximaFase(Number(e.target.value))}
-                    min="1"
-                    max="10"
-                    style={inputPequeno}
-                  />
-                </div>
-              </div>
-
-              <button onClick={gerarProximaFase} style={botaoRoxo}>
-                Gerar Próxima Fase
-              </button>
-            </div>
-          )}
-        </Etapa>
+        <EtapaProximaFase
+          mostrarProximaFase={mostrarProximaFase}
+          setMostrarProximaFase={setMostrarProximaFase}
+          tipoProximaFase={tipoProximaFase}
+          setTipoProximaFase={setTipoProximaFase}
+          raiasProximaFase={raiasProximaFase}
+          setRaiasProximaFase={setRaiasProximaFase}
+          regraSugeridaProximaFase={regraSugeridaProximaFase}
+          totalSeriesDetectadas={totalSeriesDetectadas}
+          faseBotao={faseBotao}
+          montarPreviewProximaFase={montarPreviewProximaFase}
+          gerarProximaFase={gerarProximaFase}
+          previewProximaFase={previewProximaFase}
+          mostrarAvancadoProximaFase={mostrarAvancadoProximaFase}
+          setMostrarAvancadoProximaFase={setMostrarAvancadoProximaFase}
+          criterioClassificacao={criterioClassificacao}
+          setCriterioClassificacao={setCriterioClassificacao}
+          qAutomaticos={qAutomaticos}
+          setQAutomaticos={setQAutomaticos}
+          qTempos={qTempos}
+          setQTempos={setQTempos}
+          quantidadeClassificados={quantidadeClassificados}
+          setQuantidadeClassificados={setQuantidadeClassificados}
+          setRegraPreviewProximaFase={setRegraPreviewProximaFase}
+        />
 
         {mensagem && (
           <div className="card" style={{ marginBottom: 20 }}>
@@ -2723,598 +2359,23 @@ const ehCampoTentativas =
         )}
       </div>
 
-      {series.map((serie) => (
-        <div
-          className={`card quebra-pagina sumula-print ${
-            ehSaltoAltura
-              ? "sumula-salto-altura"
-              : ehCampoTentativas
-              ? "sumula-campo"
-              : ehRevezamento
-              ? "sumula-revezamento"
-              : "sumula-pista"
-          }`}
-          key={serie.id}
-          style={{ marginBottom: 20 }}
-        >
-          <h2 style={{ textAlign: "center" }}>{config.texto_cabecalho}</h2>
-
-          {provaAtual && (
-            <p style={{ textAlign: "center" }}>
-              <strong>Prova:</strong> {provaAtual.nome}
-              &nbsp; | &nbsp;
-              <strong>Categoria:</strong> {provaAtual.categoria}
-              &nbsp; | &nbsp;
-              <strong>Naipe:</strong> {provaAtual.naipe}
-              &nbsp; | &nbsp;
-              <strong>Fase:</strong> {provaAtual.fase || "QUALIFICAÇÃO"}
-              &nbsp; | &nbsp;
-              <strong>Data:</strong> {dataProva}
-            </p>
-          )}
-
-          {ehSaltoAltura && (
-            <>
-              <h3>Salto em Altura</h3>
-
-              <div style={{ overflowX: "auto" }}>
-                <table width="100%" cellPadding="10">
-                  <thead>
-                    <tr>
-                      <th rowSpan="2">Nº</th>
-                      <th rowSpan="2">Atleta</th>
-                      <th rowSpan="2">Escola</th>
-                              <th rowSpan="2">Nascimento</th>
-
-                      {config.alturas_salto_altura.map((altura) => (
-                        <th key={altura} colSpan="3">
-                          {altura}
-                        </th>
-                      ))}
-
-                      <th rowSpan="2">Resultado</th>
-                      <th rowSpan="2">Colocação</th>
-                      <th rowSpan="2">Q</th>
-                    </tr>
-
-                    <tr>
-                      {config.alturas_salto_altura.flatMap((altura) => [
-                        <th key={`${altura}-t1`}></th>,
-                        <th key={`${altura}-t2`}></th>,
-                        <th key={`${altura}-t3`}></th>,
-                      ])}
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {serie.raias
-                      .sort((a, b) => (a.ordem || 0) - (b.ordem || 0))
-                      .map((r) => {
-                        const atleta = r.inscricoes?.atletas;
-
-                        return (
-                          <tr key={r.id}>
-                            <td>{getNumeroAtleta(atleta)}</td>
-                            <td>{atleta?.nome}</td>
-                            <td>{atleta?.escolas?.nome}</td>
-                            <td>{formatarNascimento(atleta?.data_nascimento)}</td>
-
-                            {config.alturas_salto_altura.flatMap((altura) => {
-                              const valor = String(pegarValorAltura(r, altura) || "")
-                                .toUpperCase()
-                                .padEnd(3, " ");
-
-                              return [
-                                <td key={`${r.id}-${altura}-1`}>
-                                  <input
-                                    value={valor[0].trim()}
-                                    onChange={(e) =>
-                                      mudarTentativaAltura(
-                                        serie.id,
-                                        r.id,
-                                        altura,
-                                        0,
-                                        e.target.value
-                                      )
-                                    }
-                                    placeholder=""
-                                    style={inputMiniAltura}
-                                  />
-                                </td>,
-
-                                <td key={`${r.id}-${altura}-2`}>
-                                  <input
-                                    value={valor[1].trim()}
-                                    onChange={(e) =>
-                                      mudarTentativaAltura(
-                                        serie.id,
-                                        r.id,
-                                        altura,
-                                        1,
-                                        e.target.value
-                                      )
-                                    }
-                                    placeholder=""
-                                    style={inputMiniAltura}
-                                  />
-                                </td>,
-
-                                <td key={`${r.id}-${altura}-3`}>
-                                  <input
-                                    value={valor[2].trim()}
-                                    onChange={(e) =>
-                                      mudarTentativaAltura(
-                                        serie.id,
-                                        r.id,
-                                        altura,
-                                        2,
-                                        e.target.value
-                                      )
-                                    }
-                                    placeholder=""
-                                    style={inputMiniAltura}
-                                  />
-                                </td>,
-                              ];
-                            })}
-
-                            <td>
-                              <input
-                                value={r.resultado_final || calcularResultadoAltura(r)}
-                                onChange={(e) =>
-                                  mudarCampo(serie.id, r.id, "resultado_final", e.target.value)
-                                }
-                                style={inputMini}
-                              />
-                            </td>
-
-                            <td>
-                              <input
-                                value={r.colocacao}
-                                onChange={(e) =>
-                                  mudarCampo(serie.id, r.id, "colocacao", e.target.value)
-                                }
-                                style={inputMini}
-                              />
-                            </td>
-
-                            <td style={{ fontWeight: "bold", textAlign: "center" }}>
-                              {r.qualificacao || ""}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-
-          {ehCampoTentativas && !ehSaltoAltura && !ehRevezamento && (
-            <>
-              <h3>Classificação / Qualificação</h3>
-
-              <TabelaCampo
-                serie={serie}
-                mudarCampo={mudarCampo}
-                melhorDasTresPrimeiras={melhorDasTresPrimeiras}
-                melhorDasTentativas={melhorDasTentativas}
-                inputTabela={inputTabela}
-                formatarNascimento={formatarNascimento}
-              />
-            </>
-          )}
-
-          {ehRevezamento && !ehSaltoAltura && (
-            <>
-              <h3>Revezamento - Série {serie.numero_serie}</h3>
-
-              <TabelaRevezamento
-                serie={serie}
-                mudarCampo={mudarCampo}
-                inputTabela={inputTabela}
-              />
-            </>
-          )}
-
-          {!ehCampoTentativas && !ehSaltoAltura && !ehRevezamento && (
-            <>
-              <h3>Série {serie.numero_serie}</h3>
-
-              <TabelaPista
-                serie={serie}
-                mudarCampo={mudarCampo}
-                inputTabela={inputTabela}
-                formatarNascimento={formatarNascimento}
-              />
-            </>
-          )}
-
-          {config.mostrar_assinaturas && (
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 50, gap: 40 }}>
-              <div style={{ textAlign: "center", flex: 1 }}>
-                <div style={{ borderTop: "1px solid black", paddingTop: 8 }}>
-                  Árbitro da Prova
-                </div>
-              </div>
-
-              <div style={{ textAlign: "center", flex: 1 }}>
-                <div style={{ borderTop: "1px solid black", paddingTop: 8 }}>
-                  Coordenação de Atletismo
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      ))}
+      <SumulaImpressao
+        series={series}
+        ehSaltoAltura={ehSaltoAltura}
+        ehCampoTentativas={ehCampoTentativas}
+        ehRevezamento={ehRevezamento}
+        config={config}
+        provaAtual={provaAtual}
+        dataProva={dataProva}
+        pegarValorAltura={pegarValorAltura}
+        mudarTentativaAltura={mudarTentativaAltura}
+        mudarCampo={mudarCampo}
+        calcularResultadoAltura={calcularResultadoAltura}
+        melhorDasTresPrimeiras={melhorDasTresPrimeiras}
+        melhorDasTentativas={melhorDasTentativas}
+        formatarNascimento={formatarNascimento}
+      />
     </div>
   );
 }
 
-function GerenciarInscritos({
-  inscricoes,
-  buscaAtleta,
-  setBuscaAtleta,
-  atletasEncontrados,
-  buscarAtletas,
-  adicionarAtletaNaProva,
-  removerInscricaoDaProva,
-  substituirInscricaoDaProva,
-  criarAtletaESubstituir,
-  carregando,
-}) {
-  const [inscricaoParaSubstituir, setInscricaoParaSubstituir] = useState(null);
-  const [nomeNovoAtleta, setNomeNovoAtleta] = useState("");
-  const [numeroNovoAtleta, setNumeroNovoAtleta] = useState("");
-
-  function limparSubstituicao() {
-    setInscricaoParaSubstituir(null);
-    setNomeNovoAtleta("");
-    setNumeroNovoAtleta("");
-  }
-
-  async function confirmarCriacaoSubstituto() {
-    await criarAtletaESubstituir(inscricaoParaSubstituir, {
-      nome: nomeNovoAtleta,
-      numero: numeroNovoAtleta,
-    });
-
-    setNomeNovoAtleta("");
-    setNumeroNovoAtleta("");
-  }
-
-  return (
-    <div style={boxGerenciar}>
-      <h3 style={{ marginTop: 0 }}>Gerenciar inscritos da prova</h3>
-
-      <p style={{ opacity: 0.85 }}>
-        Use esta área antes de gerar as séries. Se a prova já tiver séries, depois da troca clique em Gerar Séries desta Prova novamente.
-      </p>
-
-      <div style={gridGerenciar}>
-        <div>
-          <h4>Inscritos atuais ({inscricoes.length})</h4>
-
-          {carregando ? (
-            <p>Carregando inscritos...</p>
-          ) : inscricoes.length === 0 ? (
-            <p>Nenhum atleta inscrito nesta prova.</p>
-          ) : (
-            <div style={listaInscritos}>
-              {inscricoes.map((inscricao) => {
-                const atleta = inscricao.atletas;
-
-                return (
-                  <div key={inscricao.id} style={linhaInscrito}>
-                    <div>
-                      <strong>{atleta?.nome}</strong>
-                      <div style={{ fontSize: 12, opacity: 0.8 }}>
-                        Nº {getNumeroAtleta(atleta)} • {atleta?.escolas?.nome || "Sem escola"} • {atleta?.municipio || "-"}
-                      </div>
-                    </div>
-
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <button
-                        onClick={() => setInscricaoParaSubstituir(inscricao)}
-                        style={botaoMiniAzul}
-                      >
-                        Substituir
-                      </button>
-
-                      <button
-                        onClick={() => removerInscricaoDaProva(inscricao)}
-                        style={botaoMiniVermelho}
-                      >
-                        Remover
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <h4>{inscricaoParaSubstituir ? "Escolher substituto" : "Adicionar novo atleta"}</h4>
-
-          {inscricaoParaSubstituir && (
-            <div style={avisoSubstituicao}>
-              Substituindo: <strong>{inscricaoParaSubstituir.atletas?.nome}</strong>
-              <button
-                onClick={limparSubstituicao}
-                style={botaoMiniCinza}
-              >
-                Cancelar
-              </button>
-            </div>
-          )}
-
-          {inscricaoParaSubstituir && (
-            <div style={boxCriarSubstituto}>
-              <h4 style={{ marginTop: 0 }}>Substituto não está cadastrado?</h4>
-
-              <p style={{ fontSize: 13, opacity: 0.85 }}>
-                Cadastre rapidamente o novo atleta usando a mesma escola e município do atleta substituído.
-              </p>
-
-              <label>Nome do novo atleta</label>
-              <input
-                value={nomeNovoAtleta}
-                onChange={(e) => setNomeNovoAtleta(e.target.value)}
-                placeholder="Digite o nome completo"
-                style={{ ...inputPesquisa, marginTop: 6 }}
-              />
-
-              <label>Número do atleta (opcional)</label>
-              <input
-                value={numeroNovoAtleta}
-                onChange={(e) => setNumeroNovoAtleta(e.target.value)}
-                placeholder="Ex: 102"
-                style={{ ...inputPesquisa, marginTop: 6 }}
-              />
-
-              <button onClick={confirmarCriacaoSubstituto} style={botaoMiniVerde}>
-                Criar atleta e substituir
-              </button>
-            </div>
-          )}
-
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <input
-              value={buscaAtleta}
-              onChange={(e) => setBuscaAtleta(e.target.value)}
-              placeholder="Pesquisar atleta pelo nome..."
-              style={{ ...inputPesquisa, margin: 0 }}
-            />
-
-            <button onClick={buscarAtletas} style={botaoAzul}>
-              Buscar
-            </button>
-          </div>
-
-          <div style={listaInscritos}>
-            {atletasEncontrados.length === 0 ? (
-              <p>Pesquise um atleta para adicionar ou substituir.</p>
-            ) : (
-              atletasEncontrados.map((atleta) => (
-                <div key={atleta.id} style={linhaInscrito}>
-                  <div>
-                    <strong>{atleta.nome}</strong>
-                    <div style={{ fontSize: 12, opacity: 0.8 }}>
-                      Nº {getNumeroAtleta(atleta)} • {atleta.escolas?.nome || "Sem escola"} • {atleta.municipio || "-"}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() =>
-                      inscricaoParaSubstituir
-                        ? substituirInscricaoDaProva(inscricaoParaSubstituir, atleta)
-                        : adicionarAtletaNaProva(atleta)
-                    }
-                    style={botaoMiniVerde}
-                  >
-                    {inscricaoParaSubstituir ? "Usar como substituto" : "Adicionar"}
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Filtro({ label, value, setValue, itens }) {
-  return (
-    <div>
-      <label>{label}</label>
-      <select
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        style={selectFiltro}
-      >
-        <option value="">Todos</option>
-        {itens.map((item) => (
-          <option key={item} value={item}>{item}</option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-function Etapa({ numero, titulo, children }) {
-  return (
-    <div className="card" style={{ marginBottom: 18 }}>
-      <h3 style={{ marginTop: 0 }}>
-        Etapa {numero} — {titulo}
-      </h3>
-
-      {children}
-    </div>
-  );
-}
-
-
-const boxCriarSubstituto = {
-  background: "#111827",
-  border: "1px dashed #22c55e",
-  borderRadius: 12,
-  padding: 12,
-  marginBottom: 14,
-};
-
-const boxGerenciar = {
-  background: "#020617",
-  border: "1px solid #334155",
-  borderRadius: 14,
-  padding: 16,
-  marginTop: 15,
-  marginBottom: 15,
-};
-
-const gridGerenciar = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-  gap: 16,
-};
-
-const listaInscritos = {
-  maxHeight: 360,
-  overflowY: "auto",
-  paddingRight: 6,
-};
-
-const linhaInscrito = {
-  background: "#0f172a",
-  border: "1px solid #334155",
-  borderRadius: 10,
-  padding: 10,
-  marginBottom: 8,
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 10,
-};
-
-const avisoSubstituicao = {
-  background: "#facc15",
-  color: "#020617",
-  padding: 10,
-  borderRadius: 10,
-  marginBottom: 10,
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 10,
-};
-
-const botaoMiniBase = {
-  border: "none",
-  borderRadius: 8,
-  padding: "8px 10px",
-  fontWeight: "bold",
-  cursor: "pointer",
-};
-
-const botaoMiniVerde = { ...botaoMiniBase, background: "#22c55e", color: "#020617" };
-const botaoMiniAzul = { ...botaoMiniBase, background: "#38bdf8", color: "#020617" };
-const botaoMiniCinza = { ...botaoMiniBase, background: "#94a3b8", color: "#020617" };
-const botaoMiniVermelho = { ...botaoMiniBase, background: "#ef4444", color: "white" };
-
-const baseBotao = {
-  padding: "12px 18px",
-  border: "none",
-  borderRadius: 10,
-  color: "#020617",
-  fontWeight: "bold",
-  marginRight: 10,
-  marginBottom: 10,
-  cursor: "pointer",
-};
-
-const botaoCinza = { ...baseBotao, background: "#94a3b8" };
-const botaoVerde = { ...baseBotao, background: "#22c55e" };
-const botaoAmarelo = { ...baseBotao, background: "#facc15" };
-const botaoAzul = { ...baseBotao, background: "#38bdf8" };
-const botaoRoxo = { ...baseBotao, background: "#a78bfa", marginTop: 10 };
-
-const inputPesquisa = {
-  width: "100%",
-  padding: 12,
-  marginTop: 8,
-  marginBottom: 12,
-  borderRadius: 10,
-};
-
-const gridFiltros = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: 12,
-  marginBottom: 12,
-};
-
-const selectFiltro = {
-  display: "block",
-  width: "100%",
-  padding: 10,
-  borderRadius: 8,
-  marginTop: 6,
-};
-
-const listaProvas = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-  gap: 12,
-  marginTop: 12,
-  maxHeight: 360,
-  overflowY: "auto",
-  paddingRight: 6,
-};
-
-const cardProva = {
-  padding: 14,
-  borderRadius: 12,
-};
-
-const inputData = {
-  display: "block",
-  marginTop: 6,
-  padding: 10,
-  borderRadius: 8,
-  width: 220,
-};
-
-const selectPequeno = {
-  display: "block",
-  padding: 10,
-  borderRadius: 8,
-  marginTop: 6,
-};
-
-const inputPequeno = {
-  display: "block",
-  width: 120,
-  padding: 10,
-  borderRadius: 8,
-  marginTop: 6,
-};
-
-const inputTabela = {
-  width: 80,
-  padding: 6,
-};
-
-const inputMini = {
-  width: 55,
-  padding: 5,
-  textAlign: "center",
-};
-
-
-const inputMiniAltura = {
-  width: 18,
-  padding: 2,
-  textAlign: "center",
-};
