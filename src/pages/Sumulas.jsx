@@ -29,6 +29,7 @@ export default function Sumulas() {
   const [filtroNaipe, setFiltroNaipe] = useState("");
   const [filtroFase, setFiltroFase] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
+  const [datasCombinada, setDatasCombinada] = useState({ dia1: "", dia2: "" });
 
   const seriesState = useSeries({
     provaSelecionada,
@@ -123,6 +124,47 @@ export default function Sumulas() {
   const combinadaInfo = ehCombinada
     ? buscarCombinadaPorCategoriaNaipe(provaAtual?.categoria, provaAtual?.naipe)
     : null;
+
+  useEffect(() => {
+    if (!provaSelecionada || !ehCombinada) {
+      setDatasCombinada({ dia1: "", dia2: "" });
+      return;
+    }
+
+    const chave = "sumula-combinada-datas-" + provaSelecionada;
+
+    try {
+      const salvo = window.localStorage.getItem(chave);
+      if (salvo) {
+        const datas = JSON.parse(salvo);
+        setDatasCombinada({ dia1: datas.dia1 || dataProva || "", dia2: datas.dia2 || "" });
+        return;
+      }
+    } catch {
+      // Se o navegador bloquear o localStorage, a tela continua usando as datas em memoria.
+    }
+
+    setDatasCombinada({ dia1: dataProva || "", dia2: "" });
+  }, [provaSelecionada, ehCombinada, dataProva]);
+
+  function atualizarDataCombinada(campo, valor) {
+    setDatasCombinada((atual) => {
+      const novasDatas = { ...atual, [campo]: valor };
+
+      if (provaSelecionada && ehCombinada) {
+        try {
+          window.localStorage.setItem(
+            "sumula-combinada-datas-" + provaSelecionada,
+            JSON.stringify(novasDatas)
+          );
+        } catch {
+          // Mantem a alteracao em tela mesmo se o navegador nao permitir salvar localmente.
+        }
+      }
+
+      return novasDatas;
+    });
+  }
 
   const ehRevezamento =
     provaAtual?.tipo === "revezamento" ||
@@ -230,6 +272,32 @@ export default function Sumulas() {
           imprimir={imprimir}
         />
 
+        {ehCombinada && combinadaInfo && (
+          <div className="card combinada-datas-card" style={{ marginBottom: 20 }}>
+            <h3>Datas da combinada</h3>
+
+            <div className="combinada-datas-grid">
+              <label>
+                Dia 1
+                <input
+                  type="date"
+                  value={datasCombinada.dia1 || ""}
+                  onChange={(e) => atualizarDataCombinada("dia1", e.target.value)}
+                />
+              </label>
+
+              <label>
+                Dia 2
+                <input
+                  type="date"
+                  value={datasCombinada.dia2 || ""}
+                  onChange={(e) => atualizarDataCombinada("dia2", e.target.value)}
+                />
+              </label>
+            </div>
+          </div>
+        )}
+
         <EtapaProximaFase
           mostrarProximaFase={proximaFase.mostrarProximaFase}
           setMostrarProximaFase={proximaFase.setMostrarProximaFase}
@@ -273,6 +341,7 @@ export default function Sumulas() {
         config={config}
         provaAtual={provaAtual}
         dataProva={dataProva}
+        datasCombinada={datasCombinada}
         pegarValorAltura={pegarValorAltura}
         mudarTentativaAltura={mudarTentativaAltura}
         mudarCampo={mudarCampo}

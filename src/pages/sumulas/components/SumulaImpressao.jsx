@@ -33,6 +33,7 @@ export default function SumulaImpressao({
   config,
   provaAtual,
   dataProva,
+  datasCombinada,
   pegarValorAltura,
   mudarTentativaAltura,
   mudarCampo,
@@ -81,6 +82,7 @@ export default function SumulaImpressao({
               <TabelaCombinada
                 serie={serie}
                 combinadaInfo={combinadaInfo}
+                datasCombinada={datasCombinada}
                 mudarCampo={mudarCampo}
                 inputTabela={inputMini}
                 formatarNascimento={formatarNascimento}

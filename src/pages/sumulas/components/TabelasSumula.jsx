@@ -319,62 +319,230 @@ export function TabelaCampo({
 }
 
 
-export function TabelaCombinada({ serie, combinadaInfo, mudarCampo, inputTabela, formatarNascimento }) {
+const TIPO_PONTOS_COMBINADA = "combinada_pontos";
+
+function obterPontosCombinada(raia, ordem) {
+  const dados = Array.isArray(raia?.alturas) ? raia.alturas : [];
+  const item = dados.find(
+    (registro) => registro?.tipo === TIPO_PONTOS_COMBINADA && Number(registro?.ordem) === Number(ordem)
+  );
+
+  return item?.pontos || "";
+}
+
+function numeroPontos(valor) {
+  const numero = Number(String(valor || "").replace(",", "."));
+  return Number.isFinite(numero) ? numero : 0;
+}
+
+function labelResultadoSubprova(subprova) {
+  return subprova?.tipo === "corrida" ? "Tempo" : "Marca";
+}
+
+function formatarDataCombinada(valor) {
+  if (!valor) return "Data a definir";
+
+  const [ano, mes, dia] = String(valor).split("-");
+  if (!ano || !mes || !dia) return valor;
+
+  return dia + "/" + mes + "/" + ano;
+}
+
+export function TabelaCombinada({
+  serie,
+  combinadaInfo,
+  datasCombinada = {},
+  mudarCampo,
+  inputTabela,
+  formatarNascimento,
+}) {
   const subprovas = combinadaInfo?.subprovas || [];
-  const linhas = [...(serie.raias || [])].sort((a, b) => (a.ordem || a.raia || 0) - (b.ordem || b.raia || 0));
+  const dias = [1, 2]
+    .map((dia) => ({ dia, subprovas: subprovas.filter((subprova) => subprova.dia === dia) }))
+    .filter((grupo) => grupo.subprovas.length > 0);
+  const linhas = [...(serie.raias || [])].sort(
+    (a, b) => (a.ordem || a.raia || 0) - (b.ordem || b.raia || 0)
+  );
+
+  function calcularTotalPontos(raia, pontosAlterados = {}) {
+    return subprovas.reduce((total, subprova) => {
+      const chave = String(subprova.ordem);
+      const pontos = Object.prototype.hasOwnProperty.call(pontosAlterados, chave)
+        ? pontosAlterados[chave]
+        : obterPontosCombinada(raia, subprova.ordem);
+
+      return total + numeroPontos(pontos);
+    }, 0);
+  }
+
+  function mudarPontos(raia, ordem, valor) {
+    const dadosAtuais = Array.isArray(raia.alturas) ? raia.alturas : [];
+    const outrosDados = dadosAtuais.filter(
+      (registro) =>
+        !(registro?.tipo === TIPO_PONTOS_COMBINADA && Number(registro?.ordem) === Number(ordem))
+    );
+    const valorLimpo = String(valor || "").trim();
+    const novosDados = valorLimpo
+      ? [...outrosDados, { tipo: TIPO_PONTOS_COMBINADA, ordem, pontos: valorLimpo }]
+      : outrosDados;
+    const total = calcularTotalPontos(raia, { [String(ordem)]: valorLimpo });
+
+    mudarCampo(serie.id, raia.id, "alturas", novosDados);
+    mudarCampo(serie.id, raia.id, "resultado_final", total > 0 ? String(total) : "");
+  }
 
   return (
     <div className="sumula-combinada-wrap">
       {combinadaInfo && (
         <div className="combinada-resumo">
-          <strong>{combinadaInfo.nome}</strong>
-          <span>Dia 1: {subprovas.filter((p) => p.dia === 1).map((p) => p.nome).join(" | ")}</span>
-          <span>Dia 2: {subprovas.filter((p) => p.dia === 2).map((p) => p.nome).join(" | ")}</span>
+          <div>
+            <strong>{combinadaInfo.nome}</strong>
+            <span>
+              {combinadaInfo.categoria} - {combinadaInfo.naipe} - {combinadaInfo.totalProvas} provas
+            </span>
+          </div>
+
+          {dias.map((grupo) => (
+            <span key={grupo.dia}>
+              Dia {grupo.dia}: {grupo.subprovas.map((p) => p.nome).join(" | ")}
+            </span>
+          ))}
         </div>
       )}
 
-      <table width="100%" cellPadding="8" className="tabela-combinada">
-        <thead>
-          <tr>
-            <th rowSpan="2">No</th>
-            <th rowSpan="2">Atleta</th>
-            <th rowSpan="2">Escola</th>
-            <th rowSpan="2">Nascimento</th>
-            {subprovas.map((subprova) => (
-              <th key={subprova.ordem} colSpan="2">
-                {subprova.ordem}. {subprova.nome}
-              </th>
-            ))}
-            <th rowSpan="2">Total</th>
-            <th rowSpan="2">Colocacao</th>
-          </tr>
-          <tr>
-            {subprovas.flatMap((subprova) => [
-              <th key={subprova.ordem + "-res"}>Marca/Tempo</th>,
-              <th key={subprova.ordem + "-pts"}>Pts</th>,
-            ])}
-          </tr>
-        </thead>
-        <tbody>
-          {linhas.map((r) => {
-            const atleta = r.inscricoes?.atletas;
-            return (
-              <tr key={r.id}>
-                <td>{getNumeroAtleta(atleta)}</td>
-                <td>{atleta?.nome}</td>
-                <td>{atleta?.escolas?.nome}</td>
-                <td>{formatarNascimento(atleta?.data_nascimento)}</td>
-                {subprovas.flatMap((subprova) => [
-                  <td key={subprova.ordem + "-res-" + r.id}><input value={r["tentativa" + subprova.ordem] || ""} onChange={(e) => mudarCampo(serie.id, r.id, "tentativa" + subprova.ordem, e.target.value)} style={inputTabela} /></td>,
-                  <td key={subprova.ordem + "-pts-" + r.id}><input defaultValue="" style={inputTabela} /></td>,
-                ])}
-                <td><input value={r.resultado_final || r.melhor_marca || ""} onChange={(e) => mudarCampo(serie.id, r.id, "resultado_final", e.target.value)} style={inputTabela} /></td>
-                <td><input value={r.colocacao || ""} onChange={(e) => mudarCampo(serie.id, r.id, "colocacao", e.target.value)} style={inputTabela} /></td>
+      {dias.map((grupo) => (
+        <section className="combinada-dia" key={grupo.dia}>
+          <div className="combinada-dia-cabecalho">
+            <div>
+              <strong>Dia {grupo.dia}</strong>
+              <span>{formatarDataCombinada(datasCombinada["dia" + grupo.dia])}</span>
+            </div>
+
+            <span>{grupo.subprovas.map((subprova) => subprova.nome).join(" / ")}</span>
+          </div>
+
+          <table width="100%" cellPadding="8" className="tabela-combinada-dia">
+            <thead>
+              <tr>
+                <th rowSpan="2">No</th>
+                <th rowSpan="2">Atleta</th>
+                <th rowSpan="2">Escola</th>
+                <th rowSpan="2">Nascimento</th>
+                {grupo.subprovas.map((subprova) => (
+                  <th key={subprova.ordem} colSpan="2">
+                    {subprova.ordem}. {subprova.nome}
+                    {subprova.implemento ? " - " + subprova.implemento : ""}
+                  </th>
+                ))}
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+              <tr>
+                {grupo.subprovas.flatMap((subprova) => [
+                  <th key={subprova.ordem + "-marca"}>{labelResultadoSubprova(subprova)}</th>,
+                  <th key={subprova.ordem + "-pts"}>Pts</th>,
+                ])}
+              </tr>
+            </thead>
+
+            <tbody>
+              {linhas.map((raia) => {
+                const atleta = raia.inscricoes?.atletas;
+
+                return (
+                  <tr key={raia.id}>
+                    <td>{getNumeroAtleta(atleta)}</td>
+                    <td>{atleta?.nome}</td>
+                    <td>{atleta?.escolas?.nome}</td>
+                    <td>{formatarNascimento(atleta?.data_nascimento)}</td>
+
+                    {grupo.subprovas.flatMap((subprova) => [
+                      <td key={subprova.ordem + "-resultado-" + raia.id}>
+                        <input
+                          value={raia["tentativa" + subprova.ordem] || ""}
+                          onChange={(e) =>
+                            mudarCampo(serie.id, raia.id, "tentativa" + subprova.ordem, e.target.value)
+                          }
+                          style={inputTabela}
+                        />
+                      </td>,
+                      <td key={subprova.ordem + "-pontos-" + raia.id}>
+                        <input
+                          value={obterPontosCombinada(raia, subprova.ordem)}
+                          onChange={(e) => mudarPontos(raia, subprova.ordem, e.target.value)}
+                          style={inputTabela}
+                        />
+                      </td>,
+                    ])}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </section>
+      ))}
+
+      <section className="combinada-final">
+        <div className="combinada-dia-cabecalho">
+          <div>
+            <strong>Resultado Final da Combinada</strong>
+            <span>Soma dos pontos e classificacao geral</span>
+          </div>
+        </div>
+
+        <table width="100%" cellPadding="8" className="tabela-combinada-final">
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>Atleta</th>
+              <th>Escola</th>
+              <th>Total de pontos</th>
+              <th>Colocacao</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {linhas.map((raia) => {
+              const atleta = raia.inscricoes?.atletas;
+              const totalPontos = raia.resultado_final || calcularTotalPontos(raia) || "";
+
+              return (
+                <tr key={raia.id + "-final"}>
+                  <td>{getNumeroAtleta(atleta)}</td>
+                  <td>{atleta?.nome}</td>
+                  <td>{atleta?.escolas?.nome}</td>
+                  <td>
+                    <input
+                      value={totalPontos}
+                      onChange={(e) => mudarCampo(serie.id, raia.id, "resultado_final", e.target.value)}
+                      style={inputTabela}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      value={raia.colocacao || ""}
+                      onChange={(e) => mudarCampo(serie.id, raia.id, "colocacao", e.target.value)}
+                      style={inputTabela}
+                    />
+                  </td>
+                  <td>
+                    <select
+                      value={raia.status || "OK"}
+                      onChange={(e) => mudarCampo(serie.id, raia.id, "status", e.target.value)}
+                    >
+                      <option value="OK">OK</option>
+                      <option value="DQ">DQ</option>
+                      <option value="DNS">DNS</option>
+                      <option value="ABD">ABD</option>
+                      <option value="DNF">DNF</option>
+                      <option value="NM">NM</option>
+                    </select>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </section>
     </div>
   );
 }
