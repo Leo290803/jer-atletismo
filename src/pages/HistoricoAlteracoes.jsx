@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 const PAGE_SIZE = 20;
@@ -27,7 +27,7 @@ export default function HistoricoAlteracoes() {
     atleta: "",
   });
 
-  const carregarHistorico = async () => {
+  const carregarHistorico = useCallback(async () => {
     setLoading(true);
     setMensagem("");
 
@@ -61,7 +61,7 @@ export default function HistoricoAlteracoes() {
     setRegistros(data || []);
     setTotalRows(count || 0);
     setLoading(false);
-  };
+  }, [pageIndex]);
 
   useEffect(() => {
     const id = setTimeout(() => {
@@ -69,7 +69,7 @@ export default function HistoricoAlteracoes() {
     }, 0);
 
     return () => clearTimeout(id);
-  }, [pageIndex]);
+  }, [carregarHistorico]);
 
   const registrosFiltrados = useMemo(() => {
     return registros.filter((registro) => {

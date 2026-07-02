@@ -42,8 +42,8 @@ export function useProximaFase({
   );
 
   const regraAutomatica = useMemo(
-    () => calcularRegraAutomaticaProximaFase(series, raiasProximaFase),
-    [series, raiasProximaFase]
+    () => calcularRegraAutomaticaProximaFase(series, raiasProximaFase, tipoProximaFase),
+    [series, raiasProximaFase, tipoProximaFase]
   );
 
   useEffect(() => {
@@ -77,6 +77,32 @@ export function useProximaFase({
     return regraAutomatica;
   }
 
+  function montarMensagemPreviaIncompleta(regra, classificados, ranking) {
+    const totalEsperado = Number(regra?.totalClassificados || 0);
+    const totalEncontrado = classificados.length;
+    const qPorSerie = Number(regra?.qPorSerie || 0);
+    const seriesSemQ = (series || [])
+      .filter((serie) => (serie.raias || []).length > 0)
+      .filter((serie) => {
+        if (qPorSerie <= 0) return false;
+        const validosDaSerie = (ranking || []).filter(
+          (item) => Number(item.serieNumero) === Number(serie.numero_serie)
+        );
+        return validosDaSerie.length < qPorSerie;
+      })
+      .map((serie) => serie.numero_serie)
+      .filter(Boolean);
+
+    const partes = [
+      `A previa encontrou ${totalEncontrado} de ${totalEsperado} classificado(s). Preencha e classifique todas as series antes de gerar a proxima fase.`,
+    ];
+
+    if (seriesSemQ.length > 0) {
+      partes.push(`Series sem resultado valido suficiente para Q: ${seriesSemQ.join(", ")}.`);
+    }
+
+    return partes.join(" ");
+  }
   function calcularPreviaProximaFase() {
     if (!provaAtual) {
       window.alert("Selecione uma prova.");
@@ -107,6 +133,15 @@ export function useProximaFase({
 
     if (classificados.length === 0) {
       window.alert("Nenhum classificado encontrado.");
+      setPreviaClassificados([]);
+      setRegraPreviewProximaFase(null);
+      return [];
+    }
+
+    if (classificados.length < Number(regra.totalClassificados || 0)) {
+      const mensagemIncompleta = montarMensagemPreviaIncompleta(regra, classificados, ranking);
+      window.alert(mensagemIncompleta);
+      setMensagem?.(mensagemIncompleta);
       setPreviaClassificados([]);
       setRegraPreviewProximaFase(null);
       return [];

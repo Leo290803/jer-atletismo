@@ -338,20 +338,23 @@ drop policy if exists "sumulas_digitais_insert" on public.sumulas_digitais;
 create policy "sumulas_digitais_insert"
 on public.sumulas_digitais
 for insert
-with check (public.is_admin());
+to authenticated
+with check (true);
 
 drop policy if exists "sumulas_digitais_update" on public.sumulas_digitais;
 create policy "sumulas_digitais_update"
 on public.sumulas_digitais
 for update
-using (public.is_admin())
-with check (public.is_admin());
+to authenticated
+using (true)
+with check (true);
 
 drop policy if exists "sumulas_digitais_delete" on public.sumulas_digitais;
 create policy "sumulas_digitais_delete"
 on public.sumulas_digitais
 for delete
-using (public.is_admin());
+to authenticated
+using (true);
 
 drop policy if exists "sumula_resultados_select" on public.sumula_resultados;
 create policy "sumula_resultados_select"
@@ -363,59 +366,23 @@ drop policy if exists "sumula_resultados_insert" on public.sumula_resultados;
 create policy "sumula_resultados_insert"
 on public.sumula_resultados
 for insert
-with check (
-  public.is_admin()
-  or (
-    public.is_arbitro_claim()
-    and exists (
-      select 1
-      from public.sumulas_digitais s
-      where s.id = sumula_id
-        and (s.status = 'ABERTA' or s.status = 'EM_ANDAMENTO')
-        and coalesce(auth.jwt() ->> 'sumula_token', '') <> ''
-        and s.token_acesso = auth.jwt() ->> 'sumula_token'
-    )
-  )
-);
+to authenticated
+with check (true);
 
 drop policy if exists "sumula_resultados_update" on public.sumula_resultados;
 create policy "sumula_resultados_update"
 on public.sumula_resultados
 for update
-using (
-  public.is_admin()
-  or (
-    public.is_arbitro_claim()
-    and exists (
-      select 1
-      from public.sumulas_digitais s
-      where s.id = sumula_id
-        and (s.status = 'ABERTA' or s.status = 'EM_ANDAMENTO')
-        and coalesce(auth.jwt() ->> 'sumula_token', '') <> ''
-        and s.token_acesso = auth.jwt() ->> 'sumula_token'
-    )
-  )
-)
-with check (
-  public.is_admin()
-  or (
-    public.is_arbitro_claim()
-    and exists (
-      select 1
-      from public.sumulas_digitais s
-      where s.id = sumula_id
-        and (s.status = 'ABERTA' or s.status = 'EM_ANDAMENTO')
-        and coalesce(auth.jwt() ->> 'sumula_token', '') <> ''
-        and s.token_acesso = auth.jwt() ->> 'sumula_token'
-    )
-  )
-);
+to authenticated
+using (true)
+with check (true);
 
 drop policy if exists "sumula_resultados_delete" on public.sumula_resultados;
 create policy "sumula_resultados_delete"
 on public.sumula_resultados
 for delete
-using (public.is_admin());
+to authenticated
+using (true);
 
 drop policy if exists "sumula_historico_select" on public.sumula_historico_acoes;
 create policy "sumula_historico_select"
@@ -427,4 +394,5 @@ drop policy if exists "sumula_historico_insert" on public.sumula_historico_acoes
 create policy "sumula_historico_insert"
 on public.sumula_historico_acoes
 for insert
-with check (public.is_admin());
+to authenticated
+with check (true);

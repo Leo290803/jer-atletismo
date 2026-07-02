@@ -7,19 +7,24 @@ const inputPesquisa = {
   marginTop: 8,
   marginBottom: 12,
   borderRadius: 10,
+  border: "1px solid #cbd5e1",
+  color: "#0f172a",
+  background: "#ffffff",
 };
 
 const boxCriarSubstituto = {
-  background: "#111827",
+  background: "#ecfdf5",
   border: "1px dashed #22c55e",
+  color: "#14532d",
   borderRadius: 12,
   padding: 12,
   marginBottom: 14,
 };
 
 const boxGerenciar = {
-  background: "#020617",
-  border: "1px solid #334155",
+  background: "#f8fafc",
+  border: "1px solid #cbd5e1",
+  color: "#0f172a",
   borderRadius: 14,
   padding: 16,
   marginTop: 15,
@@ -39,8 +44,9 @@ const listaInscritos = {
 };
 
 const linhaInscrito = {
-  background: "#0f172a",
-  border: "1px solid #334155",
+  background: "#ffffff",
+  border: "1px solid #dbe3ee",
+  color: "#0f172a",
   borderRadius: 10,
   padding: 10,
   marginBottom: 8,

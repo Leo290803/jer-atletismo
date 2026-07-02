@@ -51,6 +51,7 @@ export function useSeries({
   const hoje = new Date().toISOString().slice(0, 10);
   const [series, setSeries] = useState([]);
   const [dataProva, setDataProva] = useState(hoje);
+  const [hasAlteracoesLocais, setHasAlteracoesLocais] = useState(false);
 
   async function carregarSeries(provaId = provaSelecionada) {
     if (!provaId) {
@@ -121,6 +122,7 @@ export function useSeries({
     }));
 
     setSeries(seriesTratadas);
+    setHasAlteracoesLocais(false);
     setMensagem?.(
       seriesTratadas.length
         ? "Series carregadas."
@@ -177,6 +179,7 @@ export function useSeries({
   }
 
   function mudarCampo(serieId, raiaId, campo, valor) {
+    setHasAlteracoesLocais(true);
     setSeries((old) =>
       old.map((serie) => {
         if (serie.id !== serieId) return serie;
@@ -189,6 +192,7 @@ export function useSeries({
   }
 
   function mudarAltura(serieId, raiaId, altura, valor) {
+    setHasAlteracoesLocais(true);
     setSeries((old) =>
       old.map((serie) => {
         if (serie.id !== serieId) return serie;
@@ -244,12 +248,14 @@ export function useSeries({
     }
 
     if (provaAtual.subtipo === "salto_altura") {
+      setHasAlteracoesLocais(true);
       setSeries((old) => classificarSaltoAltura(old, config));
       setMensagem?.("Classificacao oficial do salto em altura aplicada.");
       return;
     }
 
     if (provaEhCampoTentativas(provaAtual)) {
+      setHasAlteracoesLocais(true);
       setSeries((old) => classificarCampo(old, config));
       setMensagem?.(
         "Classificacao de campo aplicada: parcial apos 3a tentativa, parcial apos 5a tentativa, resultado final e desempates oficiais."
@@ -257,6 +263,7 @@ export function useSeries({
       return;
     }
 
+    setHasAlteracoesLocais(true);
     setSeries((old) => classificarPista(old));
     setMensagem?.("Classificacao por serie aplicada.");
   }
@@ -307,11 +314,13 @@ export function useSeries({
       return;
     }
 
+    setHasAlteracoesLocais(false);
     setMensagem?.(publicar ? "Resultados publicados no boletim com sucesso." : "Rascunho salvo.");
   }
 
   return {
     series,
+    hasAlteracoesLocais,
     setSeries,
     dataProva,
     setDataProva,

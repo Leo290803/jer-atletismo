@@ -51,12 +51,14 @@ export default function Sumulas() {
     calcularResultadoAltura,
     melhorDasTresPrimeiras,
     melhorDasTentativas,
+    hasAlteracoesLocais,
   } = seriesState;
 
   const sumulaDigital = useSumulaDigital({
     provaSelecionada,
     setMensagem,
   });
+  const { carregarSumulaDigital } = sumulaDigital;
 
   const inscritos = useGerenciarInscritos({
     provaSelecionada,
@@ -81,18 +83,20 @@ export default function Sumulas() {
     if (!provaSelecionada) return;
 
     const intervalId = setInterval(() => {
-      carregarSeries(provaSelecionada);
-      sumulaDigital.carregarSumulaDigital();
+      if (!hasAlteracoesLocais) {
+        carregarSeries(provaSelecionada);
+      }
+      carregarSumulaDigital(provaSelecionada);
     }, 5000);
 
     return () => clearInterval(intervalId);
-  }, [provaSelecionada, carregarSeries, sumulaDigital]);
+  }, [provaSelecionada, carregarSeries, carregarSumulaDigital, hasAlteracoesLocais]);
 
   async function selecionarProva(id) {
     setProvaSelecionada(id);
     inscritos.setBuscaAtleta("");
     await carregarSeries(id);
-    await sumulaDigital.carregarSumulaDigital();
+    await carregarSumulaDigital(id);
   }
 
   function limparFiltros() {

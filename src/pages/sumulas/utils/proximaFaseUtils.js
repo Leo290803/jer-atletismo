@@ -19,11 +19,19 @@ export function formatarValorClassificacao(item) {
   return item.tempo || item.melhor_marca || item.resultado_final || item.valorClassificacao || "-";
 }
 
-export function calcularRegraAutomaticaProximaFase(series = [], raiasProximaFase = 8) {
+function multiplicadorSeriesDaFase(fase) {
+  const faseNormalizada = String(fase || "FINAL").toUpperCase();
+  if (faseNormalizada.includes("QUARTAS")) return 4;
+  if (faseNormalizada.includes("SEMIFINAL")) return 2;
+  return 1;
+}
+
+export function calcularRegraAutomaticaProximaFase(series = [], raiasProximaFase = 8, faseProxima = "FINAL") {
   const totalSeries = contarSeriesComAtletas(series);
   const totalRaias = Math.max(1, Number(raiasProximaFase) || 8);
   const totalAtletas = totalAtletasNasSeries(series);
-  const totalClassificados = Math.min(totalRaias, Math.max(totalAtletas, 0) || totalRaias);
+  const totalVagasDaFase = totalRaias * multiplicadorSeriesDaFase(faseProxima);
+  const totalClassificados = Math.min(totalVagasDaFase, Math.max(totalAtletas, 0) || totalVagasDaFase);
 
   if (totalSeries <= 0) {
     return {
@@ -68,7 +76,7 @@ export function calcularRegraAutomaticaProximaFase(series = [], raiasProximaFase
   let qPorTempo = 0;
   let criterio = "q_q";
 
-  if (totalRaias === 8) {
+  if (multiplicadorSeriesDaFase(faseProxima) === 1 && totalRaias === 8) {
     const regras8 = {
       2: { qPorSerie: 3, qPorTempo: 2 },
       3: { qPorSerie: 2, qPorTempo: 2 },
@@ -85,7 +93,12 @@ export function calcularRegraAutomaticaProximaFase(series = [], raiasProximaFase
       qPorTempo = regraTabela.qPorTempo;
     }
   } else {
-    qPorSerie = Math.max(1, Math.floor(totalClassificados / totalSeries));
+    const vagasPorSerie = Math.floor(totalClassificados / totalSeries);
+    const faseComMultiplasSeries = multiplicadorSeriesDaFase(faseProxima) > 1;
+
+    qPorSerie = faseComMultiplasSeries
+      ? Math.max(1, vagasPorSerie - 1)
+      : Math.max(1, vagasPorSerie);
     qPorTempo = Math.max(0, totalClassificados - qPorSerie * totalSeries);
   }
 
@@ -111,7 +124,7 @@ export function calcularRegraAutomaticaProximaFase(series = [], raiasProximaFase
     descricao:
       criterio === "melhores_gerais"
         ? `Melhores resultados gerais ate ${totalClassificados} atleta(s).`
-        : `${qPorSerie} classificado(s) por serie + ${qPorTempo} melhor(es) tempo(s)/marca(s).`,
+        : `${qPorSerie} Q por serie + ${qPorTempo} q por tempo/marca.`,
     aviso: "",
   };
 }

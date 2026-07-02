@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   bloquearSumulaDigital as bloquearService,
   carregarSumulaDigital as carregarService,
@@ -16,14 +16,14 @@ export function useSumulaDigital({ provaSelecionada, setMensagem }) {
   const [sumulasDigitais, setSumulasDigitais] = useState([]);
   const [tokenMensagem, setTokenMensagem] = useState("");
 
-  async function carregarSumulaDigital() {
-    if (!provaSelecionada) {
+  const carregarSumulaDigital = useCallback(async (provaId = provaSelecionada) => {
+    if (!provaId) {
       setSumulaDigital(null);
       setSumulasDigitais([]);
       return;
     }
 
-    const { data, error } = await carregarService(provaSelecionada);
+    const { data, error } = await carregarService(provaId);
 
     if (error) {
       if (tabelaInexistente(error, "sumulas_digitais")) {
@@ -39,7 +39,7 @@ export function useSumulaDigital({ provaSelecionada, setMensagem }) {
     setSumulasDigitais(data || []);
     setSumulaDigital((data || [])[0] || null);
     setTokenMensagem("");
-  }
+  }, [provaSelecionada]);
 
   async function gerarSumulaDigital() {
     if (!provaSelecionada) {
