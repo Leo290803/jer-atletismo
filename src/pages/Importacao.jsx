@@ -1119,15 +1119,39 @@ export default function Importacao() {
         );
       }
 
-      await supabase.from("importacoes").insert({
-        evento_id: evento.id,
-        municipio,
-        arquivo_nome: arquivoNome,
-        total_atletas: linhas.length,
-      });
+      let avisoImportacao = "";
+      let importacaoJaRegistrada = false;
+
+      if (arquivoNome) {
+        const { data: importacaoExistente } = await supabase
+          .from("importacoes")
+          .select("id")
+          .eq("arquivo_nome", arquivoNome)
+          .maybeSingle();
+
+        importacaoJaRegistrada = !!importacaoExistente;
+      }
+
+      if (importacaoJaRegistrada) {
+        avisoImportacao = " Registro de historico ja existia e foi ignorado.";
+      } else {
+        const { error: erroImportacao } = await supabase.from("importacoes").insert({
+          evento_id: evento.id,
+          municipio,
+          arquivo_nome: arquivoNome,
+          total_atletas: linhas.length,
+        });
+
+        avisoImportacao =
+          erroImportacao && (erroImportacao.code === "23505" || erroImportacao.status === 409)
+            ? " Registro de historico ja existia e foi ignorado."
+            : erroImportacao
+            ? " Historico nao registrado: " + erroImportacao.message
+            : "";
+      }
 
       setMensagem(
-        `Importação finalizada: ${atletasParaCriar.length} atleta(s) novo(s), ${inscricoesNovasParaSalvar.length} inscrição(ões) nova(s), ${provasParaCriar.length} prova(s) nova(s). Duplicadas no arquivo: ${duplicadasIgnoradas}. Duplicadas no banco: ${duplicadasBancoIgnoradas}.`
+        `Importação finalizada: ${atletasParaCriar.length} atleta(s) novo(s), ${inscricoesNovasParaSalvar.length} inscrição(ões) nova(s), ${provasParaCriar.length} prova(s) nova(s). Duplicadas no arquivo: ${duplicadasIgnoradas}. Duplicadas no banco: ${duplicadasBancoIgnoradas}.${avisoImportacao}`
       );
     } catch (erro) {
       console.error("ERRO COMPLETO AO SALVAR IMPORTACAO:", {
