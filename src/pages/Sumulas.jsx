@@ -8,6 +8,7 @@ import { useProximaFase } from "./sumulas/hooks/useProximaFase";
 import { useSeries } from "./sumulas/hooks/useSeries";
 import { useSumulaDigital } from "./sumulas/hooks/useSumulaDigital";
 import { useSumulas } from "./sumulas/hooks/useSumulas";
+import { buscarCombinadaPorCategoriaNaipe, ehProvaCombinada } from "../data/provasCombinadas";
 import { formatarNascimento } from "./sumulas/utils/formatadores";
 import "./sumulas/styles/printSumulas.css";
 
@@ -118,6 +119,11 @@ export default function Sumulas() {
 
   const nomeProvaAtual = String(provaAtual?.nome || "").toUpperCase();
 
+  const ehCombinada = provaAtual?.tipo === "combinada" || ehProvaCombinada(provaAtual?.nome);
+  const combinadaInfo = ehCombinada
+    ? buscarCombinadaPorCategoriaNaipe(provaAtual?.categoria, provaAtual?.naipe)
+    : null;
+
   const ehRevezamento =
     provaAtual?.tipo === "revezamento" ||
     provaAtual?.subtipo === "revezamento" ||
@@ -134,6 +140,7 @@ export default function Sumulas() {
     nomeProvaAtual.includes("SALTO EM ALTURA");
 
   const ehCampoTentativas =
+    !ehCombinada &&
     !ehSaltoAltura &&
     !ehRevezamento &&
     (provaAtual?.tipo === "campo" ||
@@ -261,6 +268,8 @@ export default function Sumulas() {
         ehSaltoAltura={ehSaltoAltura}
         ehCampoTentativas={ehCampoTentativas}
         ehRevezamento={ehRevezamento}
+        ehCombinada={ehCombinada}
+        combinadaInfo={combinadaInfo}
         config={config}
         provaAtual={provaAtual}
         dataProva={dataProva}

@@ -1,6 +1,7 @@
 import { getNumeroAtleta } from "../../../utils/getNumeroAtleta";
 import {
   TabelaCampo,
+  TabelaCombinada,
   TabelaPista,
   TabelaRevezamento,
 } from "./TabelasSumula";
@@ -27,6 +28,8 @@ export default function SumulaImpressao({
   ehSaltoAltura,
   ehCampoTentativas,
   ehRevezamento,
+  ehCombinada,
+  combinadaInfo,
   config,
   provaAtual,
   dataProva,
@@ -43,7 +46,9 @@ export default function SumulaImpressao({
       {series.map((serie) => (
         <div
           className={`card quebra-pagina sumula-print ${
-            ehSaltoAltura
+            ehCombinada
+              ? "sumula-combinada"
+              : ehSaltoAltura
               ? "sumula-salto-altura"
               : ehCampoTentativas
               ? "sumula-campo"
@@ -70,7 +75,20 @@ export default function SumulaImpressao({
             </p>
           )}
 
-          {ehSaltoAltura && (
+          {ehCombinada && (
+            <>
+              <h3>Combinadas - Serie {serie.numero_serie}</h3>
+              <TabelaCombinada
+                serie={serie}
+                combinadaInfo={combinadaInfo}
+                mudarCampo={mudarCampo}
+                inputTabela={inputMini}
+                formatarNascimento={formatarNascimento}
+              />
+            </>
+          )}
+
+          {!ehCombinada && ehSaltoAltura && (
             <>
               <h3>Salto em Altura</h3>
 
@@ -185,7 +203,7 @@ export default function SumulaImpressao({
             </>
           )}
 
-          {ehCampoTentativas && !ehSaltoAltura && !ehRevezamento && (
+          {!ehCombinada && ehCampoTentativas && !ehSaltoAltura && !ehRevezamento && (
             <>
               <h3>Classificacao / Qualificacao</h3>
 
@@ -200,7 +218,7 @@ export default function SumulaImpressao({
             </>
           )}
 
-          {ehRevezamento && !ehSaltoAltura && (
+          {!ehCombinada && ehRevezamento && !ehSaltoAltura && (
             <>
               <h3>Revezamento - Serie {serie.numero_serie}</h3>
 
@@ -208,7 +226,7 @@ export default function SumulaImpressao({
             </>
           )}
 
-          {!ehCampoTentativas && !ehSaltoAltura && !ehRevezamento && (
+          {!ehCombinada && !ehCampoTentativas && !ehSaltoAltura && !ehRevezamento && (
             <>
               <h3>Serie {serie.numero_serie}</h3>
 

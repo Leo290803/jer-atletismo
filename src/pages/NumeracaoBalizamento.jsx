@@ -576,6 +576,103 @@ export default function NumeracaoBalizamento() {
     setProvaFiltro("");
   }
 
+  async function importarExcelNumeracao(evento) {
+    const arquivo = evento.target.files?.[0];
+    evento.target.value = "";
+
+    if (!arquivo) return;
+
+    if (confirmado) {
+      setMensagem("Conferencia confirmada. Desbloqueie antes de importar numeracao.");
+      return;
+    }
+
+    try {
+      setCarregando(true);
+      setMensagem("Lendo Excel de numeracao...");
+
+      const buffer = await arquivo.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
+      const linhasExcel = workbook.SheetNames.flatMap((nomeAba) =>
+        XLSX.utils.sheet_to_json(workbook.Sheets[nomeAba], { defval: "", raw: false })
+      );
+
+      const mapaAtletas = new Map();
+      atletas.forEach((atleta) => {
+        mapaAtletas.set(
+          chaveAtletaNumeracao(atleta.nome, nomeDaEscola(atleta), atleta.categoria),
+          atleta
+        );
+      });
+
+      const atualizacoes = [];
+      let semProvaNaPlanilha = 0;
+      let comProvaNaPlanilha = 0;
+      let naoEncontrados = 0;
+      const jaIncluidos = new Set();
+
+      linhasExcel.forEach((linha) => {
+        const numeroTexto = String(pegarValorLinha(linha, ["Numero Competicao", "Número Competição", "NUMERO", "Nº", "NO"]) || "").replace(/\D/g, "");
+        const nome = pegarValorLinha(linha, ["Nome", "Atleta", "NOME"]);
+        const escola = pegarValorLinha(linha, ["Escola", "ESCOLA"]);
+        const categoria = pegarValorLinha(linha, ["Categoria", "CATEGORIA"]);
+        const provasTexto = String(pegarValorLinha(linha, ["Provas Inscritas", "PROVAS", "Prova"]) || "").trim();
+
+        if (provasTexto && normalizarTexto(provasTexto).includes("SEM PROVA")) semProvaNaPlanilha += 1;
+        else if (provasTexto) comProvaNaPlanilha += 1;
+
+        if (!numeroTexto || !nome || !escola || !categoria) return;
+
+        const chave = chaveAtletaNumeracao(nome, escola, categoria);
+        const atleta = mapaAtletas.get(chave);
+        if (!atleta) {
+          naoEncontrados += 1;
+          return;
+        }
+
+        if (jaIncluidos.has(atleta.id)) return;
+        jaIncluidos.add(atleta.id);
+
+        const entregueTexto = normalizarTexto(pegarValorLinha(linha, ["Numero Entregue", "Número Entregue", "Entregue"]));
+        const entregue = entregueTexto === "SIM" || entregueTexto === "S" || entregueTexto === "TRUE";
+        const dataEntrega = dataEntregaPlanilha(pegarValorLinha(linha, ["Data Entrega", "DATA ENTREGA"]));
+
+        atualizacoes.push({
+          id: atleta.id,
+          numero_competicao: Number(numeroTexto),
+          numero_entregue: entregue,
+          data_entrega_numero: entregue ? dataEntrega : null,
+        });
+      });
+
+      if (atualizacoes.length === 0) {
+        setMensagem("Nenhum atleta da planilha foi encontrado no banco para atualizar.");
+        setCarregando(false);
+        return;
+      }
+
+      setMensagem("Atualizando numeracao de " + atualizacoes.length + " atleta(s)...");
+      const sucesso = await atualizarAtletas(atualizacoes);
+      if (!sucesso) {
+        setCarregando(false);
+        return;
+      }
+
+      await carregarDados();
+
+      const avisoProvas = semProvaNaPlanilha > 0 && comProvaNaPlanilha === 0
+        ? " A planilha esta com Sem prova em todas as linhas, entao ela nao recupera inscricoes/provas. Para isso use a planilha geral original da importacao."
+        : "";
+
+      setMensagem(
+        "Importacao de numeracao concluida: " + atualizacoes.length + " atleta(s) atualizado(s). Nao encontrados: " + naoEncontrados + "." + avisoProvas
+      );
+    } catch (erro) {
+      setMensagem("Erro ao importar Excel de numeracao: " + (erro?.message || String(erro)));
+      setCarregando(false);
+    }
+  }
+
   function exportarExcel() {
     const linhas = atletasOrdenados.map((atleta) => ({
       "Número Competição": formatarNumeroCompeticao(atleta.numero_competicao),

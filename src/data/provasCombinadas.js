@@ -84,7 +84,7 @@ export function ehProvaCombinada(nomeProva) {
   return (
     nome.includes("COMBINADAS") ||
     nome.includes("PENTATLO") ||
-    nome.includes("PENTALTO") ||
+    nome.includes("PENTATLO") ||
     nome.includes("HEXATLO")
   );
 }

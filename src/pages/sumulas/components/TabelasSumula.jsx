@@ -317,3 +317,64 @@ export function TabelaCampo({
     </table>
   );
 }
+
+
+export function TabelaCombinada({ serie, combinadaInfo, mudarCampo, inputTabela, formatarNascimento }) {
+  const subprovas = combinadaInfo?.subprovas || [];
+  const linhas = [...(serie.raias || [])].sort((a, b) => (a.ordem || a.raia || 0) - (b.ordem || b.raia || 0));
+
+  return (
+    <div className="sumula-combinada-wrap">
+      {combinadaInfo && (
+        <div className="combinada-resumo">
+          <strong>{combinadaInfo.nome}</strong>
+          <span>Dia 1: {subprovas.filter((p) => p.dia === 1).map((p) => p.nome).join(" | ")}</span>
+          <span>Dia 2: {subprovas.filter((p) => p.dia === 2).map((p) => p.nome).join(" | ")}</span>
+        </div>
+      )}
+
+      <table width="100%" cellPadding="8" className="tabela-combinada">
+        <thead>
+          <tr>
+            <th rowSpan="2">No</th>
+            <th rowSpan="2">Atleta</th>
+            <th rowSpan="2">Escola</th>
+            <th rowSpan="2">Nascimento</th>
+            {subprovas.map((subprova) => (
+              <th key={subprova.ordem} colSpan="2">
+                {subprova.ordem}. {subprova.nome}
+              </th>
+            ))}
+            <th rowSpan="2">Total</th>
+            <th rowSpan="2">Colocacao</th>
+          </tr>
+          <tr>
+            {subprovas.flatMap((subprova) => [
+              <th key={subprova.ordem + "-res"}>Marca/Tempo</th>,
+              <th key={subprova.ordem + "-pts"}>Pts</th>,
+            ])}
+          </tr>
+        </thead>
+        <tbody>
+          {linhas.map((r) => {
+            const atleta = r.inscricoes?.atletas;
+            return (
+              <tr key={r.id}>
+                <td>{getNumeroAtleta(atleta)}</td>
+                <td>{atleta?.nome}</td>
+                <td>{atleta?.escolas?.nome}</td>
+                <td>{formatarNascimento(atleta?.data_nascimento)}</td>
+                {subprovas.flatMap((subprova) => [
+                  <td key={subprova.ordem + "-res-" + r.id}><input value={r["tentativa" + subprova.ordem] || ""} onChange={(e) => mudarCampo(serie.id, r.id, "tentativa" + subprova.ordem, e.target.value)} style={inputTabela} /></td>,
+                  <td key={subprova.ordem + "-pts-" + r.id}><input defaultValue="" style={inputTabela} /></td>,
+                ])}
+                <td><input value={r.resultado_final || r.melhor_marca || ""} onChange={(e) => mudarCampo(serie.id, r.id, "resultado_final", e.target.value)} style={inputTabela} /></td>
+                <td><input value={r.colocacao || ""} onChange={(e) => mudarCampo(serie.id, r.id, "colocacao", e.target.value)} style={inputTabela} /></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
