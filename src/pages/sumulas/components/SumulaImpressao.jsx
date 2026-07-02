@@ -1,7 +1,8 @@
 import { getNumeroAtleta } from "../../../utils/getNumeroAtleta";
 import {
   TabelaCampo,
-  TabelaCombinada,
+  TabelaCombinadaFinal,
+  TabelaCombinadaProva,
   TabelaPista,
   TabelaRevezamento,
 } from "./TabelasSumula";
@@ -42,55 +43,139 @@ export default function SumulaImpressao({
   melhorDasTentativas,
   formatarNascimento,
 }) {
+  const subprovasCombinada = [...(combinadaInfo?.subprovas || [])].sort(
+    (a, b) => (a?.ordem || 0) - (b?.ordem || 0)
+  );
+
+  function renderAssinaturas() {
+    if (!config.mostrar_assinaturas) return null;
+
+    return (
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 50, gap: 40 }}>
+        <div style={{ textAlign: "center", flex: 1 }}>
+          <div style={{ borderTop: "1px solid black", paddingTop: 8 }}>Arbitro da Prova</div>
+        </div>
+
+        <div style={{ textAlign: "center", flex: 1 }}>
+          <div style={{ borderTop: "1px solid black", paddingTop: 8 }}>Coordenacao de Atletismo</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
-      {series.map((serie) => (
-        <div
-          className={`card quebra-pagina sumula-print ${
-            ehCombinada
-              ? "sumula-combinada"
-              : ehSaltoAltura
-              ? "sumula-salto-altura"
-              : ehCampoTentativas
-              ? "sumula-campo"
-              : ehRevezamento
-              ? "sumula-revezamento"
-              : "sumula-pista"
-          }`}
-          key={serie.id}
-          style={{ marginBottom: 20 }}
-        >
-          <h2 style={{ textAlign: "center" }}>{config.texto_cabecalho}</h2>
+      {series.map((serie) => {
+        if (ehCombinada) {
+          return (
+            <div key={serie.id + "-combinada"}>
+              {subprovasCombinada.map((subprova) => (
+                <div
+                  className="card quebra-pagina sumula-print sumula-combinada"
+                  key={serie.id + "-subprova-" + subprova.ordem}
+                  style={{ marginBottom: 20 }}
+                >
+                  <h2 style={{ textAlign: "center" }}>{config.texto_cabecalho}</h2>
 
-          {provaAtual && (
-            <p style={{ textAlign: "center" }}>
-              <strong>Prova:</strong> {provaAtual.nome}
-              &nbsp; | &nbsp;
-              <strong>Categoria:</strong> {provaAtual.categoria}
-              &nbsp; | &nbsp;
-              <strong>Naipe:</strong> {provaAtual.naipe}
-              &nbsp; | &nbsp;
-              <strong>Fase:</strong> {provaAtual.fase || "QUALIFICACAO"}
-              &nbsp; | &nbsp;
-              <strong>Data:</strong> {dataProva}
-            </p>
-          )}
+                  {provaAtual && (
+                    <p style={{ textAlign: "center" }}>
+                      <strong>Prova:</strong> {subprova.nome}
+                      {subprova.implemento ? " - " + subprova.implemento : ""}
+                      &nbsp; | &nbsp;
+                      <strong>Categoria:</strong> {provaAtual.categoria}
+                      &nbsp; | &nbsp;
+                      <strong>Naipe:</strong> {provaAtual.naipe}
+                      &nbsp; | &nbsp;
+                      <strong>Fase:</strong> {provaAtual.fase || "QUALIFICACAO"}
+                      &nbsp; | &nbsp;
+                      <strong>Data:</strong> {datasCombinada["dia" + subprova.dia] || dataProva || ""}
+                    </p>
+                  )}
 
-          {ehCombinada && (
-            <>
-              <h3>Combinadas - Serie {serie.numero_serie}</h3>
-              <TabelaCombinada
-                serie={serie}
-                combinadaInfo={combinadaInfo}
-                datasCombinada={datasCombinada}
-                mudarCampo={mudarCampo}
-                inputTabela={inputMini}
-                formatarNascimento={formatarNascimento}
-              />
-            </>
-          )}
+                  <h3>Serie {serie.numero_serie}</h3>
 
-          {!ehCombinada && ehSaltoAltura && (
+                  <TabelaCombinadaProva
+                    serie={serie}
+                    subprova={subprova}
+                    subprovas={subprovasCombinada}
+                    dataSubprova={datasCombinada["dia" + subprova.dia]}
+                    mudarCampo={mudarCampo}
+                    inputTabela={inputMini}
+                    formatarNascimento={formatarNascimento}
+                  />
+
+                  {renderAssinaturas()}
+                </div>
+              ))}
+
+              <div
+                className="card quebra-pagina sumula-print sumula-combinada"
+                key={serie.id + "-resultado-final"}
+                style={{ marginBottom: 20 }}
+              >
+                <h2 style={{ textAlign: "center" }}>{config.texto_cabecalho}</h2>
+
+                {provaAtual && (
+                  <p style={{ textAlign: "center" }}>
+                    <strong>Prova:</strong> {provaAtual.nome} - Resultado Final
+                    &nbsp; | &nbsp;
+                    <strong>Categoria:</strong> {provaAtual.categoria}
+                    &nbsp; | &nbsp;
+                    <strong>Naipe:</strong> {provaAtual.naipe}
+                    &nbsp; | &nbsp;
+                    <strong>Fase:</strong> {provaAtual.fase || "QUALIFICACAO"}
+                    &nbsp; | &nbsp;
+                    <strong>Data:</strong> {dataProva}
+                  </p>
+                )}
+
+                <h3>Serie {serie.numero_serie}</h3>
+
+                <TabelaCombinadaFinal
+                  serie={serie}
+                  subprovas={subprovasCombinada}
+                  mudarCampo={mudarCampo}
+                  inputTabela={inputMini}
+                  formatarNascimento={formatarNascimento}
+                />
+
+                {renderAssinaturas()}
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div
+            className={`card quebra-pagina sumula-print ${
+              ehSaltoAltura
+                ? "sumula-salto-altura"
+                : ehCampoTentativas
+                ? "sumula-campo"
+                : ehRevezamento
+                ? "sumula-revezamento"
+                : "sumula-pista"
+            }`}
+            key={serie.id}
+            style={{ marginBottom: 20 }}
+          >
+            <h2 style={{ textAlign: "center" }}>{config.texto_cabecalho}</h2>
+
+            {provaAtual && (
+              <p style={{ textAlign: "center" }}>
+                <strong>Prova:</strong> {provaAtual.nome}
+                &nbsp; | &nbsp;
+                <strong>Categoria:</strong> {provaAtual.categoria}
+                &nbsp; | &nbsp;
+                <strong>Naipe:</strong> {provaAtual.naipe}
+                &nbsp; | &nbsp;
+                <strong>Fase:</strong> {provaAtual.fase || "QUALIFICACAO"}
+                &nbsp; | &nbsp;
+                <strong>Data:</strong> {dataProva}
+              </p>
+            )}
+
+            {ehSaltoAltura && (
             <>
               <h3>Salto em Altura</h3>
 
@@ -205,7 +290,7 @@ export default function SumulaImpressao({
             </>
           )}
 
-          {!ehCombinada && ehCampoTentativas && !ehSaltoAltura && !ehRevezamento && (
+            {ehCampoTentativas && !ehSaltoAltura && !ehRevezamento && (
             <>
               <h3>Classificacao / Qualificacao</h3>
 
@@ -220,7 +305,7 @@ export default function SumulaImpressao({
             </>
           )}
 
-          {!ehCombinada && ehRevezamento && !ehSaltoAltura && (
+            {ehRevezamento && !ehSaltoAltura && (
             <>
               <h3>Revezamento - Serie {serie.numero_serie}</h3>
 
@@ -228,7 +313,7 @@ export default function SumulaImpressao({
             </>
           )}
 
-          {!ehCombinada && !ehCampoTentativas && !ehSaltoAltura && !ehRevezamento && (
+            {!ehCampoTentativas && !ehSaltoAltura && !ehRevezamento && (
             <>
               <h3>Serie {serie.numero_serie}</h3>
 
@@ -241,19 +326,10 @@ export default function SumulaImpressao({
             </>
           )}
 
-          {config.mostrar_assinaturas && (
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 50, gap: 40 }}>
-              <div style={{ textAlign: "center", flex: 1 }}>
-                <div style={{ borderTop: "1px solid black", paddingTop: 8 }}>Arbitro da Prova</div>
-              </div>
-
-              <div style={{ textAlign: "center", flex: 1 }}>
-                <div style={{ borderTop: "1px solid black", paddingTop: 8 }}>Coordenacao de Atletismo</div>
-              </div>
-            </div>
-          )}
-        </div>
-      ))}
+            {renderAssinaturas()}
+          </div>
+        );
+      })}
     </>
   );
 }

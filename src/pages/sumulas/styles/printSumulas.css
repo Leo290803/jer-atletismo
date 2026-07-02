@@ -277,6 +277,16 @@
     text-align: center !important;
   }
 
+  .sumula-combinada .combinada-prova {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .sumula-combinada .combinada-final {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
   .sumula-pista th:nth-child(2),
   .sumula-pista td:nth-child(2) {
     width: 7% !important;
