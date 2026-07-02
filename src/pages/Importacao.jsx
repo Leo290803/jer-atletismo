@@ -72,24 +72,21 @@ export default function Importacao() {
   function limparProva(prova) {
     let p = normalizarTexto(prova);
 
-    p = p.replace(" - MASCULINO", "");
-    p = p.replace(" - FEMININO", "");
-    p = p.replace(" MASCULINO", "");
-    p = p.replace(" FEMININO", "");
-    p = p.replace(" - MAS", "");
-    p = p.replace(" - FEM", "");
+    p = p.replace(/[\u2013\u2014\u2212]/g, "-");
+    p = p.replace(/[\u2192\u2794\u279C\u279D]/g, "");
+    p = p.replace("â†’", "");
+    p = p.replace("âž”", "");
+    p = p.replace(/\s*-\s*(MASCULINO|FEMININO|MAS|FEM)\s*$/g, "");
+    p = p.replace(/\s+(MASCULINO|FEMININO)\s*$/g, "");
     p = p.replace(" S/ BARREIRA", " COM BARREIRAS");
     p = p.replace(" S/BARREIRA", " COM BARREIRAS");
     p = p.replace(" C/ BARREIRA", " COM BARREIRAS");
     p = p.replace(" C/BARREIRA", " COM BARREIRAS");
-    p = p.replace("→", "");
-    p = p.replace("➔", "");
-    p = p.replace(/[:;.]+$/g, "");
     p = p.replace(/\s+/g, " ");
+    p = p.replace(/[\s\-\u2013\u2014\u2212:;.,]+$/g, "");
 
     return p.trim();
   }
-
   function pegarValor(linha, nomes) {
     const mapa = {};
 
@@ -267,6 +264,31 @@ export default function Importacao() {
     return "corrida";
   }
 
+  function buscarProvaOficialPorBase(base, categoria, naipe) {
+    const cat = normalizarTexto(categoria);
+    const np = normalizarTexto(naipe);
+    const baseLimpa = limparAcentos(base);
+
+    return PROVAS_OFICIAIS.find((p) => {
+      const mesmaCategoria = normalizarTexto(p.categoria) === cat;
+      const mesmoNaipe = normalizarTexto(p.naipe) === np || normalizarTexto(p.naipe) === "MISTO" || np === "MISTO";
+      const nomeOficial = limparAcentos(p.nome);
+      const apelidos = (p.apelidos || []).map((apelido) => limparAcentos(apelido));
+
+      return mesmaCategoria && mesmoNaipe && (nomeOficial.includes(baseLimpa) || apelidos.some((apelido) => apelido.includes(baseLimpa)));
+    });
+  }
+
+  function montarProvaPadronizada(base, categoria, naipe, tipo, original) {
+    const oficial = buscarProvaOficialPorBase(base, categoria, naipe);
+
+    return {
+      nome: oficial?.nome || base,
+      tipo: oficial?.tipo || tipo,
+      parametrizada: true,
+      original,
+    };
+  }
   function fallbackPadronizarNomeProva(nomeProva) {
     const p = limparAcentos(limparProva(nomeProva))
       .replace(/\s+/g, " ")
@@ -548,9 +570,9 @@ export default function Importacao() {
   }
 
   function chaveProva(linha) {
-    return `${linha.prova}|${linha.categoria}|${linha.naipe}`;
+    const prova = limparProva(linha.prova);
+    return `${prova}|${normalizarTexto(linha.categoria)}|${normalizarTexto(linha.naipe)}`;
   }
-
   function linhaEhAtleta(linha) {
     const tipoUsuario = normalizarTexto(
       pegarValor(linha, ["TIPO USUARIO", "TIPO USUÁRIO", "TIPO"])
@@ -1035,11 +1057,11 @@ export default function Importacao() {
       const mapaProvas = {};
 
       (provasExistentes || []).forEach((p) => {
-        mapaProvas[`${p.nome}|${p.categoria}|${p.naipe}`] = p.id;
+        mapaProvas[chaveProva(p)] = p.id;
       });
 
       const provasParaCriar = provasUnicas.filter(
-        (p) => !mapaProvas[`${p.nome}|${p.categoria}|${p.naipe}`]
+        (p) => !mapaProvas[chaveProva(p)]
       );
 
       let novasProvas = [];
@@ -1055,7 +1077,7 @@ export default function Importacao() {
         );
 
         novasProvas.forEach((p) => {
-          mapaProvas[`${p.nome}|${p.categoria}|${p.naipe}`] = p.id;
+          mapaProvas[chaveProva(p)] = p.id;
         });
       }
 
