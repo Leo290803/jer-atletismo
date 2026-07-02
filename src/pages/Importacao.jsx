@@ -545,7 +545,7 @@ export default function Importacao() {
   }
 
   function chaveProva(linha) {
-    const prova = limparProva(linha.prova);
+    const prova = limparProva(linha.prova || linha.nome);
     return `${prova}|${normalizarTexto(linha.categoria)}|${normalizarTexto(linha.naipe)}`;
   }
   function linhaEhAtleta(linha) {
