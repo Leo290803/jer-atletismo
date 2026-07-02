@@ -264,31 +264,6 @@ export default function Importacao() {
     return "corrida";
   }
 
-  function buscarProvaOficialPorBase(base, categoria, naipe) {
-    const cat = normalizarTexto(categoria);
-    const np = normalizarTexto(naipe);
-    const baseLimpa = limparAcentos(base);
-
-    return PROVAS_OFICIAIS.find((p) => {
-      const mesmaCategoria = normalizarTexto(p.categoria) === cat;
-      const mesmoNaipe = normalizarTexto(p.naipe) === np || normalizarTexto(p.naipe) === "MISTO" || np === "MISTO";
-      const nomeOficial = limparAcentos(p.nome);
-      const apelidos = (p.apelidos || []).map((apelido) => limparAcentos(apelido));
-
-      return mesmaCategoria && mesmoNaipe && (nomeOficial.includes(baseLimpa) || apelidos.some((apelido) => apelido.includes(baseLimpa)));
-    });
-  }
-
-  function montarProvaPadronizada(base, categoria, naipe, tipo, original) {
-    const oficial = buscarProvaOficialPorBase(base, categoria, naipe);
-
-    return {
-      nome: oficial?.nome || base,
-      tipo: oficial?.tipo || tipo,
-      parametrizada: true,
-      original,
-    };
-  }
   function fallbackPadronizarNomeProva(nomeProva) {
     const p = limparAcentos(limparProva(nomeProva))
       .replace(/\s+/g, " ")
