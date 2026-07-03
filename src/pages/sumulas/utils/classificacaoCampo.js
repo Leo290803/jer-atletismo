@@ -189,7 +189,7 @@ export function classificarCampo(series = [], config = {}) {
       finalista: mapa[r.id]?.finalista || false,
       colocacao: mapa[r.id]?.colocacao || "",
       status: mapa[r.id]?.status || r.status || "OK",
-      qualificacao: mapa[r.id]?.finalista && mapa[r.id]?.status === "OK" ? "Q" : "",
+      qualificacao: "",
     })),
   }));
 }
