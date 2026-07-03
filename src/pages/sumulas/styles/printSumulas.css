@@ -676,4 +676,14 @@
     padding: 0 !important;
     min-height: 0 !important;
   }
+
+  .sumula-print input,
+  .sumula-print select {
+    color: transparent !important;
+    text-shadow: none !important;
+  }
+
+  .sumula-print input::placeholder {
+    color: transparent !important;
+  }
 }
