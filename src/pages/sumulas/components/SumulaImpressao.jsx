@@ -51,7 +51,7 @@ export default function SumulaImpressao({
     if (!config.mostrar_assinaturas) return null;
 
     return (
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 50, gap: 40 }}>
+      <div className="assinaturas-sumula" style={{ display: "flex", justifyContent: "space-between", marginTop: 50, gap: 40 }}>
         <div style={{ textAlign: "center", flex: 1 }}>
           <div style={{ borderTop: "1px solid black", paddingTop: 8 }}>Arbitro da Prova</div>
         </div>
