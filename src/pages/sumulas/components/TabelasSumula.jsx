@@ -1,4 +1,5 @@
 import { getNumeroAtleta } from "../../../utils/getNumeroAtleta";
+import { marcaParaNumero, tempoParaNumero } from "../utils/formatadores";
 
 export function TabelaRevezamento({ serie, mudarCampo, inputTabela }) {
   function chaveEscola(raia) {
@@ -469,7 +470,29 @@ function mapaClassificacaoPorMarca(linhas, pegarNumero) {
   return mapa;
 }
 
-function recalcularTotaisEClassificacaoCombinada({ serie, subprovas, mudarCampo, alteracaoAtual = null }) {
+function mapaClassificacaoPorTempo(linhas, pegarNumero) {
+  const ordenadas = [...linhas]
+    .map((raia) => ({ raiaId: raia.id, numero: pegarNumero(raia) }))
+    .filter((item) => Number.isFinite(item.numero))
+    .sort((a, b) => a.numero - b.numero);
+
+  const mapa = new Map();
+  let posicaoAtual = 0;
+  let ultimoNumero = null;
+
+  ordenadas.forEach((item, indice) => {
+    if (ultimoNumero === null || item.numero !== ultimoNumero) {
+      posicaoAtual = indice + 1;
+      ultimoNumero = item.numero;
+    }
+
+    mapa.set(item.raiaId, String(posicaoAtual) + "º");
+  });
+
+  return mapa;
+}
+
+function montarResumoCombinada(serie, subprovas, alteracaoAtual = null) {
   const linhas = ordenarLinhasCombinada(serie);
 
   const resumo = linhas.map((raia) => {
@@ -513,6 +536,12 @@ function recalcularTotaisEClassificacaoCombinada({ serie, subprovas, mudarCampo,
 
     colocacaoPorRaia.set(item.raia.id, String(posicaoAtual) + "º");
   });
+
+  return { resumo, colocacaoPorRaia };
+}
+
+function recalcularTotaisEClassificacaoCombinada({ serie, subprovas, mudarCampo, alteracaoAtual = null }) {
+  const { resumo, colocacaoPorRaia } = montarResumoCombinada(serie, subprovas, alteracaoAtual);
 
   resumo.forEach((item) => {
     const totalTexto = item.completo ? String(item.total) : "";
@@ -601,6 +630,18 @@ export function TabelaCombinadaProva({
     : new Map();
   const classificacaoFinal6 = ehCampoTentativas
     ? mapaClassificacaoPorMarca(linhas, (raia) => obterMelhorTentativaAte(raia, subprova.ordem, 6)?.numero)
+    : new Map();
+  const classificacaoSubprova = !ehCampoTentativas
+    ? subprova?.tipo === "corrida"
+      ? mapaClassificacaoPorTempo(linhas, (raia) => {
+          const valor = raia["tentativa" + subprova.ordem] || "";
+          const numero = tempoParaNumero(valor);
+          return Number.isFinite(numero) && numero < 999999 ? numero : null;
+        })
+      : mapaClassificacaoPorMarca(linhas, (raia) => {
+          const valor = raia["tentativa" + subprova.ordem] || "";
+          return marcaParaNumero(valor);
+        })
     : new Map();
 
   return (
@@ -772,6 +813,7 @@ export function TabelaCombinadaProva({
               <th>Escola</th>
               <th>Nascimento</th>
               <th>{labelResultadoSubprova(subprova)}</th>
+              <th>Classificacao</th>
               <th>Pts</th>
             </tr>
           </thead>
@@ -796,6 +838,7 @@ export function TabelaCombinadaProva({
                       style={inputTabela}
                     />
                   </td>
+                  <td>{classificacaoSubprova.get(raia.id) || ""}</td>
                   <td>
                     <input
                       value={obterPontosCombinada(raia, subprova.ordem)}
@@ -830,6 +873,8 @@ export function TabelaCombinadaFinal({
   formatarNascimento,
 }) {
   const linhas = ordenarLinhasCombinada(serie);
+  const { resumo, colocacaoPorRaia } = montarResumoCombinada(serie, subprovas);
+  const resumoPorRaia = new Map(resumo.map((item) => [item.raia.id, item]));
 
   function mudarStatus(raia, valor) {
     mudarCampo(serie.id, raia.id, "status", valor);
@@ -872,7 +917,14 @@ export function TabelaCombinadaFinal({
         <tbody>
           {linhas.map((raia) => {
             const atleta = raia.inscricoes?.atletas;
-            const totalPontos = raia.resultado_final || calcularTotalPontosCombinada(raia, subprovas) || "";
+            const itemResumo = resumoPorRaia.get(raia.id);
+            const totalPontos =
+              raia.resultado_final ||
+              (itemResumo?.completo ? String(itemResumo.total) : "") ||
+              "";
+            const colocacaoAutomatica = itemResumo?.semClassificacao
+              ? raia.status || ""
+              : colocacaoPorRaia.get(raia.id) || "";
 
             return (
               <tr key={raia.id + "-final"}>
@@ -889,7 +941,7 @@ export function TabelaCombinadaFinal({
                 </td>
                 <td>
                   <input
-                    value={raia.colocacao || ""}
+                    value={raia.colocacao || colocacaoAutomatica}
                     readOnly
                     style={inputTabela}
                   />

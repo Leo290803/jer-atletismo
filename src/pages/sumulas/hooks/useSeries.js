@@ -14,6 +14,7 @@ import {
   carregarSeries as carregarSeriesService,
   gerarSeriesDaProva as gerarSeriesService,
 } from "../services/seriesService";
+import { buscarCombinadaPorCategoriaNaipe, ehProvaCombinada } from "../../../data/provasCombinadas";
 import {
   carregarResultadosDigitais,
   carregarResultadosSalvos,
@@ -39,6 +40,92 @@ function provaEhCampoTentativas(prova) {
     nome.includes("MARTELO") ||
     nome.includes("PESO")
   );
+}
+
+const STATUS_SEM_CLASSIFICACAO = new Set(["DQ", "DNS", "ABD", "DNF", "NM"]);
+
+function obterPontosCombinada(raia, ordem) {
+  const dados = Array.isArray(raia?.alturas) ? raia.alturas : [];
+  const item = dados.find(
+    (registro) => registro?.tipo === "combinada_pontos" && Number(registro?.ordem) === Number(ordem)
+  );
+
+  return item?.pontos || "";
+}
+
+function numeroPontos(valor) {
+  const numero = Number(String(valor || "").replace(",", "."));
+  return Number.isFinite(numero) ? numero : null;
+}
+
+function classificarCombinada(series = [], subprovas = []) {
+  const subprovasOrdenadas = [...(subprovas || [])].sort((a, b) => (a?.ordem || 0) - (b?.ordem || 0));
+
+  return (series || []).map((serie) => {
+    const resumo = (serie.raias || []).map((raia) => {
+      const status = String(raia.status || "OK").toUpperCase();
+      const semClassificacao = STATUS_SEM_CLASSIFICACAO.has(status);
+
+      let completo = true;
+      let total = 0;
+
+      subprovasOrdenadas.forEach((subprova) => {
+        const pontosNumero = numeroPontos(obterPontosCombinada(raia, subprova.ordem));
+
+        if (pontosNumero === null) {
+          completo = false;
+          return;
+        }
+
+        total += pontosNumero;
+      });
+
+      return {
+        raiaId: raia.id,
+        completo,
+        total,
+        semClassificacao,
+        status,
+      };
+    });
+
+    const classificados = resumo
+      .filter((item) => item.completo && !item.semClassificacao)
+      .sort((a, b) => b.total - a.total);
+
+    const colocacaoPorRaia = new Map();
+    let posicaoAtual = 0;
+    let ultimaPontuacao = null;
+
+    classificados.forEach((item, indice) => {
+      if (ultimaPontuacao === null || item.total !== ultimaPontuacao) {
+        posicaoAtual = indice + 1;
+        ultimaPontuacao = item.total;
+      }
+
+      colocacaoPorRaia.set(item.raiaId, String(posicaoAtual) + "º");
+    });
+
+    const resumoPorRaia = new Map(resumo.map((item) => [item.raiaId, item]));
+
+    return {
+      ...serie,
+      raias: (serie.raias || []).map((raia) => {
+        const item = resumoPorRaia.get(raia.id);
+        const resultadoFinal = item?.completo ? String(item.total) : "";
+        const colocacao = item?.semClassificacao
+          ? (raia.status || "")
+          : (colocacaoPorRaia.get(raia.id) || "");
+
+        return {
+          ...raia,
+          resultado_final: resultadoFinal,
+          colocacao,
+          qualificacao: "",
+        };
+      }),
+    };
+  });
 }
 
 export function useSeries({
@@ -244,6 +331,24 @@ export function useSeries({
     const provaAtual = (provas || []).find((p) => p.id === provaSelecionada);
     if (!provaAtual) {
       window.alert("Selecione uma prova.");
+      return;
+    }
+
+    const ehCombinada =
+      provaAtual?.tipo === "combinada" || ehProvaCombinada(provaAtual?.nome);
+
+    if (ehCombinada) {
+      const combinadaInfo = buscarCombinadaPorCategoriaNaipe(provaAtual?.categoria, provaAtual?.naipe);
+      const subprovas = combinadaInfo?.subprovas || [];
+
+      if (!subprovas.length) {
+        setMensagem?.("Combinada sem configuracao de subprovas para classificar.");
+        return;
+      }
+
+      setHasAlteracoesLocais(true);
+      setSeries((old) => classificarCombinada(old, subprovas));
+      setMensagem?.("Classificacao da combinada aplicada (resultado final por soma de pontos).");
       return;
     }
 
