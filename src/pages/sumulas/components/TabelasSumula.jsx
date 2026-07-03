@@ -684,7 +684,6 @@ export function TabelaCombinadaProva({
             {linhas.map((raia) => {
               const atleta = raia.inscricoes?.atletas;
               const parcial3 = obterMelhorTentativaAte(raia, subprova.ordem, 3);
-              const parcial5 = obterMelhorTentativaAte(raia, subprova.ordem, 5);
               const final6 = obterMelhorTentativaAte(raia, subprova.ordem, 6);
               const resultadoSubprova = raia["tentativa" + subprova.ordem] || final6?.texto || "";
 

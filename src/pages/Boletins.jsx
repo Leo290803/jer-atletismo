@@ -132,6 +132,7 @@ export default function Boletins() {
   const [mostrarEditorLayout, setMostrarEditorLayout] = useState(false);
   const [editarNoDocumento, setEditarNoDocumento] = useState(false);
   const [resultados, setResultados] = useState([]);
+  const [proximasFasesPorOrigem, setProximasFasesPorOrigem] = useState({});
   const [mensagem, setMensagem] = useState("");
 
   function atualizarLayoutBoletim(campo, valor) {
@@ -233,6 +234,7 @@ export default function Boletins() {
           numero_serie
         ),
         provas (
+          id,
           nome,
           categoria,
           naipe,
@@ -263,12 +265,29 @@ export default function Boletins() {
       return;
     }
 
-    setResultados(data || []);
+    const resultadosCarregados = data || [];
+    const idsProvas = [...new Set(resultadosCarregados.map((r) => r.provas?.id).filter(Boolean))];
+    const mapaProximasFases = {};
 
-    if (!data || data.length === 0) {
+    if (idsProvas.length > 0) {
+      const { data: proximasFases } = await supabase
+        .from("provas")
+        .select("id, prova_origem_id, fase")
+        .in("prova_origem_id", idsProvas);
+
+      (proximasFases || []).forEach((prova) => {
+        if (!prova.prova_origem_id || mapaProximasFases[prova.prova_origem_id]) return;
+        mapaProximasFases[prova.prova_origem_id] = prova.fase || "PROXIMA FASE";
+      });
+    }
+
+    setProximasFasesPorOrigem(mapaProximasFases);
+    setResultados(resultadosCarregados);
+
+    if (!resultadosCarregados.length) {
       setMensagem("Nenhum resultado publicado encontrado nesse período.");
     } else {
-      setMensagem(`Boletim carregado com ${data.length} resultado(s) publicado(s).`);
+      setMensagem(`Boletim carregado com ${resultadosCarregados.length} resultado(s) publicado(s).`);
     }
   }
 
@@ -317,6 +336,7 @@ export default function Boletins() {
     }
 
     setResultados([]);
+    setProximasFasesPorOrigem({});
     setMensagem("Resultados despublicados com sucesso.");
   }
 
@@ -344,6 +364,7 @@ export default function Boletins() {
     }
 
     setResultados([]);
+    setProximasFasesPorOrigem({});
     setMensagem("Resultados excluídos com sucesso.");
   }
 
@@ -448,6 +469,47 @@ export default function Boletins() {
     });
   }
 
+  function ordemQualificacao(valor) {
+    if (valor === "Q") return 1;
+    if (valor === "q") return 2;
+    return 3;
+  }
+
+  function obterClassificadosProximaFase(lista) {
+    return [...(lista || [])]
+      .filter((r) => r.qualificacao)
+      .sort((a, b) => {
+        const ordemA = ordemQualificacao(a.qualificacao);
+        const ordemB = ordemQualificacao(b.qualificacao);
+        if (ordemA !== ordemB) return ordemA - ordemB;
+
+        const serieA = Number(a.series?.numero_serie || 9999);
+        const serieB = Number(b.series?.numero_serie || 9999);
+        if (serieA !== serieB) return serieA - serieB;
+
+        const colocacaoA = Number(a.colocacao || 9999);
+        const colocacaoB = Number(b.colocacao || 9999);
+        if (colocacaoA !== colocacaoB) return colocacaoA - colocacaoB;
+
+        return String(a.inscricoes?.atletas?.nome || "").localeCompare(
+          String(b.inscricoes?.atletas?.nome || "")
+        );
+      });
+  }
+
+  function formatarFaseClassificados(fase) {
+    const texto = String(fase || "PROXIMA FASE").toUpperCase();
+    if (texto.includes("SEMI")) return "SEMI-FINAL";
+    return texto;
+  }
+
+  function tituloClassificadosProximaFase(grupo) {
+    const faseDestino = formatarFaseClassificados(proximasFasesPorOrigem[grupo.prova?.id]);
+    const prova = grupo.prova || {};
+    const dadosProva = [prova.nome, prova.categoria, prova.naipe].filter(Boolean).join(" - ");
+    return `ATLETAS QUALIFICADOS PARA ${faseDestino} - PROVA ${dadosProva}`;
+  }
+
 
   function escaparHtml(valor) {
     return String(valor || "")
@@ -480,6 +542,8 @@ export default function Boletins() {
       '.meta { text-align: center; font-size: 7.2pt; color: #334155; }',
       '.secao { margin-top: 4px; }',
       '.serie-bloco { page-break-inside: avoid; break-inside: avoid; margin-bottom: 3px; }',
+      '.classificados-bloco { page-break-inside: avoid; break-inside: avoid; margin: 12px 0 4px; }',
+      '.titulo-classificados-word { width: 82%; margin: 8px auto 9px; padding: 2px 4px; background: #d9d9d9; color: #111827; text-align: center; font-size: 7.8pt; font-weight: bold; text-transform: uppercase; }',
       'table { width: 100%; border-collapse: collapse; margin: 2px 0 4px; table-layout: fixed; }',
       '.resultados-word { page-break-inside: avoid; break-inside: avoid; }',
       '.resultados-word tr { page-break-inside: avoid; break-inside: avoid; }',
@@ -492,7 +556,10 @@ export default function Boletins() {
       '.col-escola { width: 29%; }',
       '.col-municipio { width: 13%; }',
       '.col-resultado { width: 10%; text-align: center; }',
-      '.col-extra { width: 10%; text-align: center; }'
+      '.col-extra { width: 10%; text-align: center; }',
+      '.classificados-word .col-num { width: 8%; }',
+      '.classificados-word .col-atleta { width: 42%; }',
+      '.classificados-word .col-escola { width: 50%; }'
     ].join('\n');
 
     const rodapeWord = '<div class="word-footer">Pagina ' + campoPaginaWord() + '</div>';
@@ -507,14 +574,23 @@ export default function Boletins() {
         (grupo.prova?.categoria || '') + ' - ' +
         (grupo.prova?.naipe || '') + ' - ' + fase;
 
+      const conteudoSeries = seriesDaProva.map((serie) => (
+        '<div class="serie-bloco">' +
+          '<h4>Serie ' + serie.numeroSerie + '</h4>' +
+          gerarTabelaResultados(serie.resultados) +
+        '</div>'
+      )).join('');
+      const classificadosProximaFase = obterClassificadosProximaFase(resultadosOrdenados);
+      const conteudoClassificados = !final && classificadosProximaFase.length
+        ? '<div class="classificados-bloco"><div class="titulo-classificados-word">' +
+          escaparHtml(tituloClassificadosProximaFase(grupo)) +
+          '</div>' +
+          gerarTabelaClassificados(classificadosProximaFase) +
+          '</div>'
+        : '';
       const conteudo = final
         ? '<h4>Classificacao geral</h4>' + gerarTabelaResultados(resultadosOrdenados)
-        : seriesDaProva.map((serie) => (
-            '<div class="serie-bloco">' +
-              '<h4>Serie ' + serie.numeroSerie + '</h4>' +
-              gerarTabelaResultados(serie.resultados) +
-            '</div>'
-          )).join('');
+        : conteudoSeries + conteudoClassificados;
 
       return '<div class="secao"><h3>' + escaparHtml(titulo) + '</h3>' + conteudo + '</div>';
     }).join('');
@@ -582,6 +658,34 @@ export default function Boletins() {
                   <td class="col-resultado">${resultadoFinal(r)}</td>
                   ${temStatusDiferenteOk ? `<td class="col-extra">${r.status && r.status !== "OK" ? r.status : ""}</td>` : ""}
                   ${temQualificacao ? `<td class="col-extra">${r.qualificacao || ""}</td>` : ""}
+                </tr>
+              `;
+            })
+            .join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function gerarTabelaClassificados(classificados) {
+    return `
+      <table class="resultados-word classificados-word">
+        <thead>
+          <tr>
+            <th class="col-num">N&ordm;</th>
+            <th class="col-atleta">Nome</th>
+            <th class="col-escola">Escola</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${classificados
+            .map((r) => {
+              const atleta = r.inscricoes?.atletas;
+              return `
+                <tr>
+                  <td class="col-num">${escaparHtml(getNumeroAtleta(atleta))}</td>
+                  <td class="col-atleta">${escaparHtml(atleta?.nome || "")}</td>
+                  <td class="col-escola">${escaparHtml(atleta?.escolas?.nome || "")}</td>
                 </tr>
               `;
             })
@@ -1126,6 +1230,28 @@ export default function Boletins() {
             background: #f8fafc;
           }
 
+          .titulo-classificados {
+            width: min(860px, 82%);
+            margin: 30px auto 16px;
+            padding: 6px 10px;
+            background: #d9d9d9;
+            color: #111827;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 800;
+            text-transform: uppercase;
+          }
+
+          .boletim-classificados {
+            margin-top: 0;
+          }
+
+          .boletim-classificados th:first-child,
+          .boletim-classificados td:first-child {
+            width: 90px;
+            text-align: center;
+          }
+
           .subtitulo {
             margin: 28px 0 12px;
             font-size: 18px;
@@ -1389,6 +1515,16 @@ export default function Boletins() {
               background: #e2e8f0 !important;
               font-size: 8px !important;
               letter-spacing: 0 !important;
+            }
+
+            .titulo-classificados {
+              width: 82% !important;
+              margin: 12px auto 9px !important;
+              padding: 3px 6px !important;
+              background: #d9d9d9 !important;
+              color: black !important;
+              font-size: 8px !important;
+              line-height: 1.15 !important;
             }
 
             .quebra-pagina {
@@ -1866,6 +2002,7 @@ export default function Boletins() {
             const final = ehFinalDaProva(fase);
             const resultadosOrdenados = ordenarResultados(grupo.resultados, final);
             const seriesDaProva = agruparPorSerie(resultadosOrdenados);
+            const classificadosProximaFase = obterClassificadosProximaFase(resultadosOrdenados);
 
             return (
               <div
@@ -1944,6 +2081,18 @@ export default function Boletins() {
                         />
                       </div>
                     ))}
+
+                    {classificadosProximaFase.length > 0 && (
+                      <div className="evitar-quebra" style={{ marginTop: 18 }}>
+                        <div className="titulo-classificados">
+                          {tituloClassificadosProximaFase(grupo)}
+                        </div>
+
+                        <TabelaClassificadosProximaFase
+                          classificados={classificadosProximaFase}
+                        />
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -2116,6 +2265,34 @@ function TabelaInstitucional({ itens }) {
             <td>{telefone}</td>
           </tr>
         ))}
+      </tbody>
+    </table>
+  );
+}
+
+function TabelaClassificadosProximaFase({ classificados }) {
+  return (
+    <table className="boletim-table boletim-classificados" width="100%" cellPadding="10">
+      <thead>
+        <tr>
+          <th>N&ordm;</th>
+          <th>Nome</th>
+          <th>Escola</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {classificados.map((r) => {
+          const atleta = r.inscricoes?.atletas;
+
+          return (
+            <tr key={r.id}>
+              <td>{getNumeroAtleta(atleta)}</td>
+              <td>{atleta?.nome}</td>
+              <td>{atleta?.escolas?.nome}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
