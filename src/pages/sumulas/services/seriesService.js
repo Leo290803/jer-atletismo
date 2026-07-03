@@ -241,7 +241,10 @@ export async function gerarSeriesDaProva({ provaSelecionada, provas, config, sub
 
   const conflitosRestantes = contarConflitosEscola(distribuicaoPorSerie);
 
-  const ordemRaias = embaralhar([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  const totalRaiasConfig = Math.max(1, Number(config.quantidade_raias || 8));
+  const ordemRaias = embaralhar(
+    Array.from({ length: totalRaiasConfig }, (_, index) => index + 1)
+  );
   const raiasParaCriar = [];
 
   distribuicaoPorSerie.forEach((grupo, serieIndex) => {
