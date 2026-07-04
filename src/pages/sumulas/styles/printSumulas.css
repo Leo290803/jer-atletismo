@@ -1255,3 +1255,226 @@
     text-align: center !important;
   }
 }
+
+/* ============================================================
+   BOLETIM MANUAL - CORES ESTILO CAPA
+   Azul, verde e amarelo, sem arte/imagem
+   ============================================================ */
+
+.boletim-manual-print {
+  background: #ffffff;
+  color: #0f172a;
+  font-family: Arial, sans-serif;
+}
+
+.boletim-manual-page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  padding: 14mm 12mm;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.boletim-manual-header {
+  position: relative;
+  margin-bottom: 12px;
+  padding: 14px 16px 12px;
+  border: 2px solid #0f3f7f;
+  border-radius: 0;
+  background:
+    linear-gradient(90deg, rgba(0, 87, 184, 0.08), rgba(0, 132, 61, 0.08)),
+    #ffffff;
+  text-align: center;
+}
+
+.boletim-manual-faixa-topo {
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  top: -2px;
+  height: 8px;
+  background: linear-gradient(90deg, #0057b8 0%, #0057b8 45%, #facc15 45%, #facc15 60%, #00843d 60%, #00843d 100%);
+}
+
+.boletim-manual-header h1 {
+  margin: 8px 0 4px;
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
+.boletim-manual-header h2 {
+  margin: 6px 0;
+  color: #0057b8;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.boletim-manual-header p {
+  margin: 2px 0;
+  color: #111827;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.boletim-manual-prova {
+  margin: 14px 0 18px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.boletim-manual-prova-titulo {
+  padding: 8px 10px;
+  border-left: 7px solid #0057b8;
+  border-top: 1px solid #111827;
+  border-right: 1px solid #111827;
+  border-bottom: 1px solid #111827;
+  background: linear-gradient(90deg, #eaf2ff, #f7fafc);
+}
+
+.boletim-manual-prova-titulo strong {
+  display: block;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.boletim-manual-prova-titulo span {
+  display: block;
+  margin-top: 3px;
+  color: #111827;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.boletim-manual-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.boletim-manual-table th,
+.boletim-manual-table td {
+  border: 1px solid #111827;
+  padding: 5px 6px;
+  color: #111827;
+  font-size: 9px;
+  line-height: 1.15;
+  vertical-align: middle;
+}
+
+.boletim-manual-table th {
+  background: #0057b8;
+  color: #ffffff;
+  font-size: 8.5px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.boletim-manual-table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.boletim-manual-table .col-pos {
+  width: 12%;
+  text-align: center;
+  font-weight: 900;
+}
+
+.boletim-manual-table .col-num {
+  width: 9%;
+  text-align: center;
+}
+
+.boletim-manual-table .col-atleta {
+  width: 32%;
+}
+
+.boletim-manual-table .col-escola {
+  width: 33%;
+}
+
+.boletim-manual-table .col-resultado {
+  width: 14%;
+  text-align: center;
+  font-weight: 800;
+}
+
+.boletim-manual-table .col-status {
+  width: 10%;
+  text-align: center;
+  font-weight: 800;
+}
+
+.boletim-manual-vazio {
+  margin-top: 20px;
+  padding: 14px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 800;
+  text-align: center;
+}
+
+@media print {
+  .boletim-manual-print {
+    display: block !important;
+  }
+
+  .boletim-manual-page {
+    width: 210mm !important;
+    min-height: 297mm !important;
+    margin: 0 !important;
+    padding: 11mm 10mm !important;
+    box-sizing: border-box !important;
+  }
+
+  .boletim-manual-header {
+    margin-bottom: 8px !important;
+    padding: 10px 12px 8px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .boletim-manual-header h1 {
+    font-size: 14px !important;
+  }
+
+  .boletim-manual-header h2 {
+    font-size: 16px !important;
+  }
+
+  .boletim-manual-header p {
+    font-size: 8.5px !important;
+  }
+
+  .boletim-manual-prova {
+    margin: 8px 0 11px !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .boletim-manual-prova-titulo {
+    padding: 5px 7px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .boletim-manual-table th,
+  .boletim-manual-table td {
+    padding: 3px 4px !important;
+    font-size: 7.6px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .boletim-manual-table th {
+    font-size: 7.2px !important;
+  }
+}
