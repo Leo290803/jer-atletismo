@@ -159,7 +159,6 @@ export default function BoletimManual({
   somenteComResultado,
   setSomenteComResultado,
   dataParaTexto = dataParaTextoPadrao,
-  onImprimir,
 }) {
   const [portalRoot, setPortalRoot] = useState(null);
   const [forcarImpressao, setForcarImpressao] = useState(false);
@@ -169,6 +168,7 @@ export default function BoletimManual({
 
     return () => {
       document.body.classList.remove("imprimindo-boletim-manual");
+      document.body.classList.remove("print-boletim-manual");
     };
   }, []);
 
@@ -187,21 +187,22 @@ export default function BoletimManual({
 
   function limparModoImpressao() {
     document.body.classList.remove("imprimindo-boletim-manual");
+    document.body.classList.remove("print-boletim-manual");
     setForcarImpressao(false);
     window.removeEventListener("afterprint", limparModoImpressao);
   }
 
   function imprimirBoletimManual() {
+    document.body.classList.remove("print-sumula");
+    document.body.classList.remove("modo-sumula-manual");
     document.body.classList.add("imprimindo-boletim-manual");
+    document.body.classList.add("print-boletim-manual");
+
     setForcarImpressao(true);
     window.addEventListener("afterprint", limparModoImpressao);
 
     window.setTimeout(() => {
-      if (typeof onImprimir === "function") {
-        onImprimir();
-      } else {
-        window.print();
-      }
+      window.print();
     }, 250);
   }
 
@@ -210,21 +211,16 @@ export default function BoletimManual({
       <style>
         {`
           @media screen {
-            .boletim-manual-print {
+            #portal-boletim-manual-root {
               display: none !important;
             }
 
-            #portal-boletim-manual-root {
+            #portal-boletim-manual-root .boletim-manual-print {
               display: none !important;
             }
           }
 
           @media print {
-            @page {
-              size: A4 portrait;
-              margin: 0;
-            }
-
             body.imprimindo-boletim-manual {
               margin: 0 !important;
               padding: 0 !important;
@@ -248,8 +244,8 @@ export default function BoletimManual({
               position: absolute !important;
               left: 0 !important;
               top: 0 !important;
-              width: 210mm !important;
-              min-height: 297mm !important;
+              width: 100% !important;
+              min-height: 100% !important;
               margin: 0 !important;
               padding: 0 !important;
               background: #ffffff !important;
@@ -257,12 +253,12 @@ export default function BoletimManual({
               z-index: 999999 !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-print {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-print {
               display: block !important;
               visibility: visible !important;
               width: 210mm !important;
               min-height: 297mm !important;
-              margin: 0 !important;
+              margin: 0 auto !important;
               padding: 0 !important;
               background: #ffffff !important;
               color: #000000 !important;
@@ -270,18 +266,18 @@ export default function BoletimManual({
               overflow: visible !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-page {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-page {
               display: block !important;
               width: 210mm !important;
               min-height: 297mm !important;
-              margin: 0 !important;
+              margin: 0 auto !important;
               padding: 8mm 9mm 10mm !important;
               box-sizing: border-box !important;
               background: #ffffff !important;
               color: #000000 !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-header {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-header {
               position: relative !important;
               margin: 0 0 7px !important;
               padding: 9px 10px 7px !important;
@@ -296,7 +292,7 @@ export default function BoletimManual({
               break-inside: avoid !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-faixa-topo {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-faixa-topo {
               position: absolute !important;
               left: -2px !important;
               right: -2px !important;
@@ -315,7 +311,7 @@ export default function BoletimManual({
               print-color-adjust: exact !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-header h1 {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-header h1 {
               margin: 8px 0 4px !important;
               color: #0f172a !important;
               font-size: 13px !important;
@@ -324,7 +320,7 @@ export default function BoletimManual({
               text-transform: uppercase !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-header h2 {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-header h2 {
               margin: 4px 0 !important;
               color: #0057b8 !important;
               font-size: 15px !important;
@@ -333,7 +329,7 @@ export default function BoletimManual({
               text-transform: uppercase !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-header p {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-header p {
               margin: 2px 0 !important;
               color: #111827 !important;
               font-size: 7.8px !important;
@@ -341,13 +337,13 @@ export default function BoletimManual({
               line-height: 1.15 !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-prova {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-prova {
               margin: 0 0 7px !important;
               break-inside: avoid !important;
               page-break-inside: avoid !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-prova-titulo {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-prova-titulo {
               padding: 4px 6px !important;
               border-left: 7px solid #0057b8 !important;
               border-top: 1px solid #111827 !important;
@@ -358,7 +354,7 @@ export default function BoletimManual({
               print-color-adjust: exact !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-prova-titulo strong {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-prova-titulo strong {
               display: block !important;
               color: #0f172a !important;
               font-size: 8.5px !important;
@@ -367,7 +363,7 @@ export default function BoletimManual({
               text-transform: uppercase !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-prova-titulo span {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-prova-titulo span {
               display: block !important;
               margin-top: 2px !important;
               color: #111827 !important;
@@ -376,7 +372,7 @@ export default function BoletimManual({
               line-height: 1.1 !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-table {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-table {
               display: table !important;
               width: 100% !important;
               border-collapse: collapse !important;
@@ -385,22 +381,22 @@ export default function BoletimManual({
               margin: 0 !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-table thead {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-table thead {
               display: table-header-group !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-table tbody {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-table tbody {
               display: table-row-group !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-table tr {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-table tr {
               display: table-row !important;
               break-inside: avoid !important;
               page-break-inside: avoid !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-table th,
-            body.imprimindo-boletim-manual .boletim-manual-table td {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-table th,
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-table td {
               display: table-cell !important;
               border: 1px solid #111827 !important;
               padding: 2px 4px !important;
@@ -414,7 +410,7 @@ export default function BoletimManual({
               print-color-adjust: exact !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-table th {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-table th {
               background: #0057b8 !important;
               color: #ffffff !important;
               font-size: 6.8px !important;
@@ -423,42 +419,42 @@ export default function BoletimManual({
               text-transform: uppercase !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-table tbody tr:nth-child(even) {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-table tbody tr:nth-child(even) {
               background: #f8fafc !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-table .col-pos {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-table .col-pos {
               width: 12% !important;
               text-align: center !important;
               font-weight: 900 !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-table .col-num {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-table .col-num {
               width: 9% !important;
               text-align: center !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-table .col-atleta {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-table .col-atleta {
               width: 32% !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-table .col-escola {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-table .col-escola {
               width: 33% !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-table .col-resultado {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-table .col-resultado {
               width: 14% !important;
               text-align: center !important;
               font-weight: 800 !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-table .col-status {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-table .col-status {
               width: 10% !important;
               text-align: center !important;
               font-weight: 800 !important;
             }
 
-            body.imprimindo-boletim-manual .boletim-manual-vazio {
+            body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-vazio {
               margin-top: 20px !important;
               padding: 14px !important;
               border: 1px solid #cbd5e1 !important;
