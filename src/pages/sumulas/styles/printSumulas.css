@@ -1,270 +1,26 @@
 /* ============================================================
-   SÚMULAS - IMPRESSÃO FINAL ATUALIZADA
+   SÚMULA MANUAL - REMOVER DATA DE NASCIMENTO NA IMPRESSÃO
    Arquivo: src/pages/sumulas/styles/printSumulas.css
-
-   Atualização:
-   - A4 horizontal
-   - Súmula maior na folha
-   - Remove coluna STATUS da impressão
-   - Mantém RAIA e Nº
-   - Evita STATUS espremido/em pé
+   Cole no FINAL do arquivo
    ============================================================ */
 
 @media print {
-  @page {
-    size: A4 landscape;
-    margin: 4mm;
-  }
+  /* 
+    SÚMULA DE PISTA
+    Colunas:
+    1 RAIA | 2 Nº | 3 ATLETA | 4 ESCOLA | 5 NASCIMENTO | 6 RESULTADO | 7 COLOCAÇÃO | 8 STATUS
 
-  * {
-    box-sizing: border-box !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
+    Remove:
+    - NASCIMENTO
+    - STATUS
+  */
 
-  html,
-  body {
-    width: 297mm !important;
-    min-height: 210mm !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #ffffff !important;
-    color: #000000 !important;
-    overflow: visible !important;
-    font-family: Arial, Helvetica, sans-serif !important;
-  }
-
-  body * {
-    visibility: hidden !important;
-  }
-
-  .sumula-print,
-  .sumula-print * {
-    visibility: visible !important;
-  }
-
-  .sidebar,
-  .topbar,
-  .header,
-  .nao-imprimir,
-  nav,
-  aside,
-  button,
-  .card:not(.sumula-print) {
-    display: none !important;
-    visibility: hidden !important;
-  }
-
-  #root,
-  .app,
-  .content,
-  main,
-  section {
-    display: block !important;
-    width: 100% !important;
-    max-width: none !important;
-    min-width: 0 !important;
-    height: auto !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #ffffff !important;
-    overflow: visible !important;
-  }
-
-  .sumula-print {
-    position: relative !important;
-    display: block !important;
-
-    width: 289mm !important;
-    max-width: 289mm !important;
-    min-height: 200mm !important;
-
-    margin: 0 auto !important;
-    padding: 5mm 6mm 5mm !important;
-
-    background: #ffffff !important;
-    color: #000000 !important;
-
-    border: none !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    outline: none !important;
-
-    transform: none !important;
-    zoom: 1 !important;
-
-    page-break-after: always !important;
-    break-after: page !important;
-    overflow: visible !important;
-  }
-
-  .sumula-print:last-child {
-    page-break-after: auto !important;
-    break-after: auto !important;
-  }
-
-  .sumula-print::before,
-  .sumula-print::after {
-    display: none !important;
-    content: none !important;
-  }
-
-  .sumula-cabecalho-impressao,
-  .sumula-print > h2:first-child {
-    width: 100% !important;
-    margin: 0 0 5px !important;
-    padding: 0 0 5px !important;
-    border-bottom: 1.8px solid #000 !important;
-    text-align: center !important;
-  }
-
-  .sumula-print h2 {
-    margin: 0 0 4px !important;
-    padding: 0 0 4px !important;
-    color: #000000 !important;
-
-    font-family: Arial, Helvetica, sans-serif !important;
-    font-size: 18px !important;
-    font-weight: 900 !important;
-    line-height: 1.08 !important;
-
-    text-align: center !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.2px !important;
-  }
-
-  .sumula-print p,
-  .sumula-meta-impressao,
-  .sumula-local-impressao {
-    margin: 0 0 3px !important;
-    color: #000000 !important;
-
-    font-family: Arial, Helvetica, sans-serif !important;
-    font-size: 10.5px !important;
-    font-weight: 700 !important;
-    line-height: 1.2 !important;
-
-    text-align: center !important;
-  }
-
-  .sumula-print p strong,
-  .sumula-meta-impressao strong,
-  .sumula-local-impressao strong {
-    font-weight: 900 !important;
-  }
-
-  .sumula-print h3,
-  .sumula-titulo-serie {
-    margin: 7px 0 5px !important;
-    color: #000000 !important;
-
-    font-family: Arial, Helvetica, sans-serif !important;
-    font-size: 12px !important;
-    font-weight: 900 !important;
-    line-height: 1.1 !important;
-
-    text-align: left !important;
-    text-transform: uppercase !important;
-  }
-
-  .sumula-print table {
-    width: 100% !important;
-    table-layout: fixed !important;
-    border-collapse: collapse !important;
-    border-spacing: 0 !important;
-
-    background: #ffffff !important;
-    color: #000000 !important;
-    border: 1.8px solid #000 !important;
-
-    font-family: Arial, Helvetica, sans-serif !important;
-  }
-
-  .sumula-print thead {
-    display: table-header-group !important;
-  }
-
-  .sumula-print tr {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-  }
-
-  .sumula-print th,
-  .sumula-print td {
-    border: 1px solid #000 !important;
-    color: #000000 !important;
-
-    vertical-align: middle !important;
-    white-space: normal !important;
-    overflow-wrap: break-word !important;
-    word-break: normal !important;
-  }
-
-  .sumula-print th {
-    background: #e8eef4 !important;
-
-    padding: 7px 5px !important;
-    font-size: 10.8px !important;
-    font-weight: 900 !important;
-    line-height: 1.05 !important;
-
-    text-align: center !important;
-    text-transform: uppercase !important;
-  }
-
-  .sumula-print td {
-    background: #ffffff !important;
-
-    height: 34px !important;
-    min-height: 34px !important;
-    padding: 6px 5px !important;
-
-    font-size: 10.5px !important;
-    font-weight: 700 !important;
-    line-height: 1.15 !important;
-  }
-
-  .sumula-print input,
-  .sumula-print select,
-  .sumula-print textarea {
-    appearance: none !important;
-    border: none !important;
-    background: transparent !important;
-    color: #000000 !important;
-
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-
-    font-family: Arial, Helvetica, sans-serif !important;
-    font-size: inherit !important;
-    font-weight: inherit !important;
-    line-height: inherit !important;
-
-    text-align: center !important;
-    box-shadow: none !important;
-    outline: none !important;
-  }
-
-  .sumula-print input::placeholder,
-  .sumula-print textarea::placeholder {
-    color: transparent !important;
-  }
-
-  /* ============================================================
-     REMOVE STATUS DA IMPRESSÃO
-     Funciona para:
-     - pista com STATUS na 8ª coluna
-     - campo com STATUS na 11ª coluna
-     - qualquer tabela onde STATUS seja a última coluna
-     ============================================================ */
-
-  .sumula-print table th:last-child,
-  .sumula-print table td:last-child,
+  .sumula-pista th:nth-child(5),
+  .sumula-pista td:nth-child(5),
   .sumula-pista th:nth-child(8),
   .sumula-pista td:nth-child(8),
-  .sumula-campo th:nth-child(11),
-  .sumula-campo td:nth-child(11) {
+  .sumula-pista th:last-child,
+  .sumula-pista td:last-child {
     display: none !important;
     width: 0 !important;
     max-width: 0 !important;
@@ -272,19 +28,6 @@
     padding: 0 !important;
     border: none !important;
     overflow: hidden !important;
-  }
-
-  /* ============================================================
-     SÚMULA DE PISTA
-     Colunas antes:
-     1 RAIA | 2 Nº | 3 ATLETA | 4 ESCOLA | 5 NASCIMENTO | 6 RESULTADO | 7 COLOCAÇÃO | 8 STATUS
-
-     Colunas impressas:
-     RAIA | Nº | ATLETA | ESCOLA | NASCIMENTO | RESULTADO | COLOCAÇÃO
-     ============================================================ */
-
-  .sumula-pista table {
-    font-size: 10.5px !important;
   }
 
   .sumula-pista th:nth-child(1),
@@ -302,25 +45,19 @@
 
   .sumula-pista th:nth-child(3),
   .sumula-pista td:nth-child(3) {
-    width: 32% !important;
+    width: 39% !important;
     text-align: left !important;
   }
 
   .sumula-pista th:nth-child(4),
   .sumula-pista td:nth-child(4) {
-    width: 32% !important;
+    width: 36% !important;
     text-align: left !important;
-  }
-
-  .sumula-pista th:nth-child(5),
-  .sumula-pista td:nth-child(5) {
-    width: 10% !important;
-    text-align: center !important;
   }
 
   .sumula-pista th:nth-child(6),
   .sumula-pista td:nth-child(6) {
-    width: 9% !important;
+    width: 8% !important;
     text-align: center !important;
     font-weight: 900 !important;
   }
@@ -332,28 +69,35 @@
     font-weight: 900 !important;
   }
 
-  /* ============================================================
-     SÚMULA DE CAMPO
-     Remove STATUS e redistribui colunas
-     ============================================================ */
+  /*
+    SÚMULA DE CAMPO
+    Normalmente:
+    1 ORDEM | 2 Nº | 3 ATLETA | 4 ESCOLA | 5 NASCIMENTO | tentativas | MELHOR | COLOCAÇÃO | STATUS
 
-  .sumula-campo table {
-    font-size: 9.5px !important;
-  }
+    Remove:
+    - NASCIMENTO
+    - STATUS
+  */
 
-  .sumula-campo th,
-  .sumula-campo td {
-    padding: 5px 4px !important;
-    font-size: 9.5px !important;
-    line-height: 1.1 !important;
-    text-align: center !important;
+  .sumula-campo th:nth-child(5),
+  .sumula-campo td:nth-child(5),
+  .sumula-campo th:nth-child(11),
+  .sumula-campo td:nth-child(11),
+  .sumula-campo th:last-child,
+  .sumula-campo td:last-child {
+    display: none !important;
+    width: 0 !important;
+    max-width: 0 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
   }
 
   .sumula-campo th:nth-child(1),
   .sumula-campo td:nth-child(1) {
     width: 5% !important;
     text-align: center !important;
-    font-weight: 900 !important;
   }
 
   .sumula-campo th:nth-child(2),
@@ -364,20 +108,14 @@
 
   .sumula-campo th:nth-child(3),
   .sumula-campo td:nth-child(3) {
-    width: 26% !important;
+    width: 29% !important;
     text-align: left !important;
   }
 
   .sumula-campo th:nth-child(4),
   .sumula-campo td:nth-child(4) {
-    width: 25% !important;
+    width: 28% !important;
     text-align: left !important;
-  }
-
-  .sumula-campo th:nth-child(5),
-  .sumula-campo td:nth-child(5) {
-    width: 9% !important;
-    text-align: center !important;
   }
 
   .sumula-campo th:nth-child(6),
@@ -388,9 +126,8 @@
   .sumula-campo td:nth-child(8),
   .sumula-campo th:nth-child(9),
   .sumula-campo td:nth-child(9) {
-    width: 6% !important;
+    width: 7% !important;
     text-align: center !important;
-    font-weight: 800 !important;
   }
 
   .sumula-campo th:nth-child(10),
@@ -398,37 +135,5 @@
     width: 7% !important;
     text-align: center !important;
     font-weight: 900 !important;
-  }
-
-  /* ============================================================
-     ASSINATURAS
-     ============================================================ */
-
-  .assinaturas-sumula {
-    display: flex !important;
-    justify-content: space-between !important;
-    align-items: flex-end !important;
-
-    gap: 22mm !important;
-    margin-top: 18mm !important;
-    padding: 0 10mm !important;
-
-    font-family: Arial, Helvetica, sans-serif !important;
-    font-size: 9.5px !important;
-    line-height: 1.1 !important;
-
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-  }
-
-  .assinaturas-sumula > div {
-    flex: 1 !important;
-    text-align: center !important;
-  }
-
-  .assinaturas-sumula > div > div {
-    border-top: 1.2px solid #000 !important;
-    padding-top: 5px !important;
-    font-weight: 700 !important;
   }
 }
