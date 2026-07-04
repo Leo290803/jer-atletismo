@@ -58,6 +58,15 @@ function resultadoLinha(linha, tipo) {
   return textoPreenchido(linha.resultado);
 }
 
+function statusValidoParaClassificacao(status) {
+  const texto = String(status || "OK").toUpperCase();
+  return texto === "OK" || texto === "";
+}
+
+function temResultadoValido(linha, tipo) {
+  return Boolean(resultadoLinha(linha, tipo)) && statusValidoParaClassificacao(linha.status);
+}
+
 function ehFinal(fase) {
   return String(fase || "").toUpperCase().includes("FINAL");
 }
@@ -129,9 +138,19 @@ function nomeCompeticao(competicao) {
   return competicao?.nomeEvento || "BOLETIM MANUAL DE RESULTADOS";
 }
 
-function formatarColocacao(colocacao, indice) {
-  if (textoPreenchido(colocacao)) return `${colocacao}º`;
-  return `${indice + 1}º`;
+function colocacaoAutomatica(linha, linhas, tipo) {
+  if (!temResultadoValido(linha, tipo)) return "";
+
+  const linhasComResultado = linhas.filter((item) => temResultadoValido(item, tipo));
+  const index = linhasComResultado.findIndex((item) => item.id === linha.id);
+
+  if (index < 0) return "";
+  return `${index + 1}º`;
+}
+
+function formatarColocacao(linha, linhas, tipo) {
+  if (textoPreenchido(linha.colocacao)) return `${linha.colocacao}º`;
+  return colocacaoAutomatica(linha, linhas, tipo);
 }
 
 function criarPortalRoot() {
@@ -566,10 +585,10 @@ export default function BoletimManual({
                     </thead>
 
                     <tbody>
-                      {prova.linhasOrdenadas.map((linha, index) => (
+                      {prova.linhasOrdenadas.map((linha) => (
                         <tr key={linha.id}>
                           <td className="col-pos">
-                            {formatarColocacao(linha.colocacao, index)}
+                            {formatarColocacao(linha, prova.linhasOrdenadas, prova.tipo)}
                           </td>
 
                           <td className="col-num">{textoPreenchido(linha.numero)}</td>
