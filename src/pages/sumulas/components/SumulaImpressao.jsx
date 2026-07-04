@@ -24,6 +24,14 @@ const inputMiniAltura = {
   textAlign: "center",
 };
 
+function dataParaTexto(data) {
+  if (!data) return "";
+  const partes = String(data).split("-");
+  if (partes.length !== 3) return data;
+  const [ano, mes, dia] = partes;
+  return `${dia}/${mes}/${ano}`;
+}
+
 export default function SumulaImpressao({
   series,
   ehSaltoAltura,
@@ -47,17 +55,45 @@ export default function SumulaImpressao({
     (a, b) => (a?.ordem || 0) - (b?.ordem || 0)
   );
 
+  function renderCabecalho({ provaNome, data }) {
+    return (
+      <div className="sumula-cabecalho-impressao">
+        <h2>{config?.texto_cabecalho || "SÚMULA OFICIAL DE ATLETISMO"}</h2>
+
+        {provaAtual && (
+          <p className="sumula-meta-impressao">
+            <strong>Prova:</strong> {provaNome || provaAtual.nome}
+            &nbsp; | &nbsp;
+            <strong>Categoria:</strong> {provaAtual.categoria}
+            &nbsp; | &nbsp;
+            <strong>Naipe:</strong> {provaAtual.naipe}
+            &nbsp; | &nbsp;
+            <strong>Fase:</strong> {provaAtual.fase || "QUALIFICACAO"}
+            &nbsp; | &nbsp;
+            <strong>Data:</strong> {dataParaTexto(data || dataProva)}
+          </p>
+        )}
+
+        {config?.local_evento && (
+          <p className="sumula-local-impressao">
+            <strong>Local:</strong> {config.local_evento}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   function renderAssinaturas() {
-    if (!config.mostrar_assinaturas) return null;
+    if (!config?.mostrar_assinaturas) return null;
 
     return (
-      <div className="assinaturas-sumula" style={{ display: "flex", justifyContent: "space-between", marginTop: 50, gap: 40 }}>
-        <div style={{ textAlign: "center", flex: 1 }}>
-          <div style={{ borderTop: "1px solid black", paddingTop: 8 }}>Arbitro da Prova</div>
+      <div className="assinaturas-sumula">
+        <div>
+          <div>Árbitro da Prova</div>
         </div>
 
-        <div style={{ textAlign: "center", flex: 1 }}>
-          <div style={{ borderTop: "1px solid black", paddingTop: 8 }}>Coordenacao de Atletismo</div>
+        <div>
+          <div>Coordenação de Atletismo</div>
         </div>
       </div>
     );
@@ -75,24 +111,12 @@ export default function SumulaImpressao({
                   key={serie.id + "-subprova-" + subprova.ordem}
                   style={{ marginBottom: 20 }}
                 >
-                  <h2 style={{ textAlign: "center" }}>{config.texto_cabecalho}</h2>
+                  {renderCabecalho({
+                    provaNome: `${subprova.nome}${subprova.implemento ? " - " + subprova.implemento : ""}`,
+                    data: datasCombinada["dia" + subprova.dia] || dataProva,
+                  })}
 
-                  {provaAtual && (
-                    <p style={{ textAlign: "center" }}>
-                      <strong>Prova:</strong> {subprova.nome}
-                      {subprova.implemento ? " - " + subprova.implemento : ""}
-                      &nbsp; | &nbsp;
-                      <strong>Categoria:</strong> {provaAtual.categoria}
-                      &nbsp; | &nbsp;
-                      <strong>Naipe:</strong> {provaAtual.naipe}
-                      &nbsp; | &nbsp;
-                      <strong>Fase:</strong> {provaAtual.fase || "QUALIFICACAO"}
-                      &nbsp; | &nbsp;
-                      <strong>Data:</strong> {datasCombinada["dia" + subprova.dia] || dataProva || ""}
-                    </p>
-                  )}
-
-                  <h3>Serie {serie.numero_serie}</h3>
+                  <h3 className="sumula-titulo-serie">Série {serie.numero_serie}</h3>
 
                   <TabelaCombinadaProva
                     serie={serie}
@@ -113,23 +137,12 @@ export default function SumulaImpressao({
                 key={serie.id + "-resultado-final"}
                 style={{ marginBottom: 20 }}
               >
-                <h2 style={{ textAlign: "center" }}>{config.texto_cabecalho}</h2>
+                {renderCabecalho({
+                  provaNome: `${provaAtual?.nome || "COMBINADA"} - Resultado Final`,
+                  data: dataProva,
+                })}
 
-                {provaAtual && (
-                  <p style={{ textAlign: "center" }}>
-                    <strong>Prova:</strong> {provaAtual.nome} - Resultado Final
-                    &nbsp; | &nbsp;
-                    <strong>Categoria:</strong> {provaAtual.categoria}
-                    &nbsp; | &nbsp;
-                    <strong>Naipe:</strong> {provaAtual.naipe}
-                    &nbsp; | &nbsp;
-                    <strong>Fase:</strong> {provaAtual.fase || "QUALIFICACAO"}
-                    &nbsp; | &nbsp;
-                    <strong>Data:</strong> {dataProva}
-                  </p>
-                )}
-
-                <h3>Serie {serie.numero_serie}</h3>
+                <h3 className="sumula-titulo-serie">Série {serie.numero_serie}</h3>
 
                 <TabelaCombinadaFinal
                   serie={serie}
@@ -159,172 +172,158 @@ export default function SumulaImpressao({
             key={serie.id}
             style={{ marginBottom: 20 }}
           >
-            <h2 style={{ textAlign: "center" }}>{config.texto_cabecalho}</h2>
-
-            {provaAtual && (
-              <p style={{ textAlign: "center" }}>
-                <strong>Prova:</strong> {provaAtual.nome}
-                &nbsp; | &nbsp;
-                <strong>Categoria:</strong> {provaAtual.categoria}
-                &nbsp; | &nbsp;
-                <strong>Naipe:</strong> {provaAtual.naipe}
-                &nbsp; | &nbsp;
-                <strong>Fase:</strong> {provaAtual.fase || "QUALIFICACAO"}
-                &nbsp; | &nbsp;
-                <strong>Data:</strong> {dataProva}
-              </p>
-            )}
+            {renderCabecalho({ provaNome: provaAtual?.nome, data: dataProva })}
 
             {ehSaltoAltura && (
-            <>
-              <h3>Salto em Altura</h3>
+              <>
+                <h3 className="sumula-titulo-serie">Salto em Altura</h3>
 
-              <div style={{ overflowX: "auto" }}>
-                <table width="100%" cellPadding="10">
-                  <thead>
-                    <tr>
-                      <th rowSpan="2">No</th>
-                      <th rowSpan="2">Atleta</th>
-                      <th rowSpan="2">Escola</th>
-                      <th rowSpan="2">Nascimento</th>
+                <div style={{ overflowX: "auto" }}>
+                  <table width="100%" cellPadding="10">
+                    <thead>
+                      <tr>
+                        <th rowSpan="2">Nº</th>
+                        <th rowSpan="2">Atleta</th>
+                        <th rowSpan="2">Escola</th>
+                        <th rowSpan="2">Nascimento</th>
 
-                      {config.alturas_salto_altura.map((altura) => (
-                        <th key={altura} colSpan="3">
-                          {altura}
-                        </th>
-                      ))}
+                        {config.alturas_salto_altura.map((altura) => (
+                          <th key={altura} colSpan="3">
+                            {altura}
+                          </th>
+                        ))}
 
-                      <th rowSpan="2">Resultado</th>
-                      <th rowSpan="2">Colocacao</th>
-                      <th rowSpan="2">Q</th>
-                    </tr>
+                        <th rowSpan="2">Resultado</th>
+                        <th rowSpan="2">Colocação</th>
+                        <th rowSpan="2">Q</th>
+                      </tr>
 
-                    <tr>
-                      {config.alturas_salto_altura.flatMap((altura) => [
-                        <th key={`${altura}-t1`}></th>,
-                        <th key={`${altura}-t2`}></th>,
-                        <th key={`${altura}-t3`}></th>,
-                      ])}
-                    </tr>
-                  </thead>
+                      <tr>
+                        {config.alturas_salto_altura.flatMap((altura) => [
+                          <th key={`${altura}-t1`}></th>,
+                          <th key={`${altura}-t2`}></th>,
+                          <th key={`${altura}-t3`}></th>,
+                        ])}
+                      </tr>
+                    </thead>
 
-                  <tbody>
-                    {serie.raias
-                      .sort((a, b) => (a.ordem || 0) - (b.ordem || 0))
-                      .map((r) => {
-                        const atleta = r.inscricoes?.atletas;
+                    <tbody>
+                      {serie.raias
+                        .sort((a, b) => (a.ordem || 0) - (b.ordem || 0))
+                        .map((r) => {
+                          const atleta = r.inscricoes?.atletas;
 
-                        return (
-                          <tr key={r.id}>
-                            <td>{getNumeroAtleta(atleta)}</td>
-                            <td>{atleta?.nome}</td>
-                            <td>{atleta?.escolas?.nome}</td>
-                            <td>{formatarNascimento(atleta?.data_nascimento)}</td>
+                          return (
+                            <tr key={r.id}>
+                              <td>{getNumeroAtleta(atleta)}</td>
+                              <td>{atleta?.nome}</td>
+                              <td>{atleta?.escolas?.nome}</td>
+                              <td>{formatarNascimento(atleta?.data_nascimento)}</td>
 
-                            {config.alturas_salto_altura.flatMap((altura) => {
-                              const valor = String(pegarValorAltura(r, altura) || "")
-                                .toUpperCase()
-                                .padEnd(3, " ");
+                              {config.alturas_salto_altura.flatMap((altura) => {
+                                const valor = String(pegarValorAltura(r, altura) || "")
+                                  .toUpperCase()
+                                  .padEnd(3, " ");
 
-                              return [
-                                <td key={`${r.id}-${altura}-1`}>
-                                  <input
-                                    value={valor[0].trim()}
-                                    onChange={(e) =>
-                                      mudarTentativaAltura(serie.id, r.id, altura, 0, e.target.value)
-                                    }
-                                    placeholder=""
-                                    style={inputMiniAltura}
-                                  />
-                                </td>,
+                                return [
+                                  <td key={`${r.id}-${altura}-1`}>
+                                    <input
+                                      value={valor[0].trim()}
+                                      onChange={(e) =>
+                                        mudarTentativaAltura(serie.id, r.id, altura, 0, e.target.value)
+                                      }
+                                      placeholder=""
+                                      style={inputMiniAltura}
+                                    />
+                                  </td>,
 
-                                <td key={`${r.id}-${altura}-2`}>
-                                  <input
-                                    value={valor[1].trim()}
-                                    onChange={(e) =>
-                                      mudarTentativaAltura(serie.id, r.id, altura, 1, e.target.value)
-                                    }
-                                    placeholder=""
-                                    style={inputMiniAltura}
-                                  />
-                                </td>,
+                                  <td key={`${r.id}-${altura}-2`}>
+                                    <input
+                                      value={valor[1].trim()}
+                                      onChange={(e) =>
+                                        mudarTentativaAltura(serie.id, r.id, altura, 1, e.target.value)
+                                      }
+                                      placeholder=""
+                                      style={inputMiniAltura}
+                                    />
+                                  </td>,
 
-                                <td key={`${r.id}-${altura}-3`}>
-                                  <input
-                                    value={valor[2].trim()}
-                                    onChange={(e) =>
-                                      mudarTentativaAltura(serie.id, r.id, altura, 2, e.target.value)
-                                    }
-                                    placeholder=""
-                                    style={inputMiniAltura}
-                                  />
-                                </td>,
-                              ];
-                            })}
+                                  <td key={`${r.id}-${altura}-3`}>
+                                    <input
+                                      value={valor[2].trim()}
+                                      onChange={(e) =>
+                                        mudarTentativaAltura(serie.id, r.id, altura, 2, e.target.value)
+                                      }
+                                      placeholder=""
+                                      style={inputMiniAltura}
+                                    />
+                                  </td>,
+                                ];
+                              })}
 
-                            <td>
-                              <input
-                                value={r.resultado_final || calcularResultadoAltura(r)}
-                                onChange={(e) => mudarCampo(serie.id, r.id, "resultado_final", e.target.value)}
-                                style={inputMini}
-                              />
-                            </td>
+                              <td>
+                                <input
+                                  value={r.resultado_final || calcularResultadoAltura(r)}
+                                  onChange={(e) => mudarCampo(serie.id, r.id, "resultado_final", e.target.value)}
+                                  style={inputMini}
+                                />
+                              </td>
 
-                            <td>
-                              <input
-                                value={r.colocacao}
-                                onChange={(e) => mudarCampo(serie.id, r.id, "colocacao", e.target.value)}
-                                style={inputMini}
-                              />
-                            </td>
+                              <td>
+                                <input
+                                  value={r.colocacao}
+                                  onChange={(e) => mudarCampo(serie.id, r.id, "colocacao", e.target.value)}
+                                  style={inputMini}
+                                />
+                              </td>
 
-                            <td style={{ fontWeight: "bold", textAlign: "center" }}>
-                              {r.qualificacao || ""}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
+                              <td style={{ fontWeight: "bold", textAlign: "center" }}>
+                                {r.qualificacao || ""}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
 
             {ehCampoTentativas && !ehSaltoAltura && !ehRevezamento && (
-            <>
-              <h3>Classificacao / Qualificacao</h3>
+              <>
+                <h3 className="sumula-titulo-serie">Classificação / Qualificação</h3>
 
-              <TabelaCampo
-                serie={serie}
-                mudarCampo={mudarCampo}
-                melhorDasTresPrimeiras={melhorDasTresPrimeiras}
-                melhorDasTentativas={melhorDasTentativas}
-                inputTabela={inputTabela}
-                formatarNascimento={formatarNascimento}
-              />
-            </>
-          )}
+                <TabelaCampo
+                  serie={serie}
+                  mudarCampo={mudarCampo}
+                  melhorDasTresPrimeiras={melhorDasTresPrimeiras}
+                  melhorDasTentativas={melhorDasTentativas}
+                  inputTabela={inputTabela}
+                  formatarNascimento={formatarNascimento}
+                />
+              </>
+            )}
 
             {ehRevezamento && !ehSaltoAltura && (
-            <>
-              <h3>Revezamento - Serie {serie.numero_serie}</h3>
+              <>
+                <h3 className="sumula-titulo-serie">Revezamento - Série {serie.numero_serie}</h3>
 
-              <TabelaRevezamento serie={serie} mudarCampo={mudarCampo} inputTabela={inputTabela} />
-            </>
-          )}
+                <TabelaRevezamento serie={serie} mudarCampo={mudarCampo} inputTabela={inputTabela} />
+              </>
+            )}
 
             {!ehCampoTentativas && !ehSaltoAltura && !ehRevezamento && (
-            <>
-              <h3>Serie {serie.numero_serie}</h3>
+              <>
+                <h3 className="sumula-titulo-serie">Série {serie.numero_serie}</h3>
 
-              <TabelaPista
-                serie={serie}
-                mudarCampo={mudarCampo}
-                inputTabela={inputTabela}
-                formatarNascimento={formatarNascimento}
-              />
-            </>
-          )}
+                <TabelaPista
+                  serie={serie}
+                  mudarCampo={mudarCampo}
+                  inputTabela={inputTabela}
+                  formatarNascimento={formatarNascimento}
+                />
+              </>
+            )}
 
             {renderAssinaturas()}
           </div>

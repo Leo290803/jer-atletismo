@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../../../lib/supabase";
+import BoletimManual from "./BoletimManual";
 
 const provaManualPadrao = {
   prova: "",
@@ -347,6 +348,20 @@ function nomeProvaNaLista(prova, indice) {
   return `${nome} - ${prova.categoria} - ${prova.naipe} - ${prova.fase}`;
 }
 
+function nomeCompeticaoNaLista(competicao, indice) {
+  return competicao.nomeEvento || `Competicao manual ${indice + 1}`;
+}
+
+function resumoCompeticaoManual(competicao) {
+  const provas = Array.isArray(competicao.provas) ? competicao.provas : [];
+  const totalLinhas = provas.reduce((total, prova) => total + (prova.linhas?.length || 0), 0);
+
+  return {
+    totalProvas: provas.length,
+    totalLinhas,
+  };
+}
+
 export default function SumulaManual({ config, imprimir }) {
   const [sessao, setSessao] = useState(criarSessaoManual);
   const [mensagem, setMensagem] = useState("");
@@ -356,6 +371,16 @@ export default function SumulaManual({ config, imprimir }) {
   const [salvandoBanco, setSalvandoBanco] = useState(false);
   const [sumulaDigitalManual, setSumulaDigitalManual] = useState(null);
   const [gerandoDigital, setGerandoDigital] = useState(false);
+  const [telaManual, setTelaManual] = useState("lista");
+  const [tipoImpressaoManual, setTipoImpressaoManual] = useState("sumula");
+  const [numeroBoletimManual, setNumeroBoletimManual] = useState("0001");
+  const [boletimSomenteFinais, setBoletimSomenteFinais] = useState(false);
+  const [boletimSomenteComResultado, setBoletimSomenteComResultado] = useState(false);
+  const [buscaProvaManual, setBuscaProvaManual] = useState("");
+  const [filtroCategoriaManual, setFiltroCategoriaManual] = useState("");
+  const [filtroNaipeManual, setFiltroNaipeManual] = useState("");
+  const [filtroFaseManual, setFiltroFaseManual] = useState("");
+  const [filtroTipoManual, setFiltroTipoManual] = useState("");
 
   const salvarEstadoNoBanco = useCallback(async (estado, opcoes = {}) => {
     if (!bancoDisponivel) return false;
@@ -517,6 +542,66 @@ export default function SumulaManual({ config, imprimir }) {
   const linhasPorSerie = useMemo(() => agruparPorSerie(rascunho.linhas), [rascunho.linhas]);
   const ehCampo = rascunho.tipo === "campo";
 
+  const categoriasManuais = useMemo(
+    () => [...new Set(competicaoAtual.provas.map((prova) => prova.categoria).filter(Boolean))],
+    [competicaoAtual.provas]
+  );
+
+  const naipesManuais = useMemo(
+    () => [...new Set(competicaoAtual.provas.map((prova) => prova.naipe).filter(Boolean))],
+    [competicaoAtual.provas]
+  );
+
+  const fasesManuais = useMemo(
+    () => [...new Set(competicaoAtual.provas.map((prova) => prova.fase).filter(Boolean))],
+    [competicaoAtual.provas]
+  );
+
+  const tiposManuais = useMemo(
+    () => [...new Set(competicaoAtual.provas.map((prova) => prova.tipo).filter(Boolean))],
+    [competicaoAtual.provas]
+  );
+
+  const provasManuaisFiltradas = useMemo(() => {
+    const termo = buscaProvaManual.trim().toLowerCase();
+
+    return competicaoAtual.provas.filter((prova) => {
+      const texto = [
+        prova.prova,
+        prova.categoria,
+        prova.naipe,
+        prova.fase,
+        prova.tipo,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return (
+        (!termo || texto.includes(termo)) &&
+        (!filtroCategoriaManual || prova.categoria === filtroCategoriaManual) &&
+        (!filtroNaipeManual || prova.naipe === filtroNaipeManual) &&
+        (!filtroFaseManual || prova.fase === filtroFaseManual) &&
+        (!filtroTipoManual || prova.tipo === filtroTipoManual)
+      );
+    });
+  }, [
+    buscaProvaManual,
+    competicaoAtual.provas,
+    filtroCategoriaManual,
+    filtroFaseManual,
+    filtroNaipeManual,
+    filtroTipoManual,
+  ]);
+
+  function limparFiltrosProvasManuais() {
+    setBuscaProvaManual("");
+    setFiltroCategoriaManual("");
+    setFiltroNaipeManual("");
+    setFiltroFaseManual("");
+    setFiltroTipoManual("");
+  }
+
   function aplicarEstado(transformar, selecao = {}, salvarAgora = false) {
     const estadoTransformado = typeof transformar === "function" ? transformar(sessao.estado) : transformar;
     const estado = normalizarEstadoManual(estadoTransformado);
@@ -565,6 +650,17 @@ export default function SumulaManual({ config, imprimir }) {
     setSumulaDigitalManual(null);
   }
 
+  function abrirCompeticao(id) {
+    selecionarCompeticao(id);
+    setTelaManual("competicao");
+  }
+
+  function voltarParaCompeticoes() {
+    setTelaManual("lista");
+    setMensagem("");
+    setSumulaDigitalManual(null);
+  }
+
   function selecionarProva(id) {
     setSessao((atual) => ajustarSessao(atual.estado, atual.competicaoId, id));
     setMensagem("");
@@ -580,7 +676,8 @@ export default function SumulaManual({ config, imprimir }) {
       { competicaoId: nova.id, provaId: nova.provas[0].id },
       true
     );
-    setMensagem("Nova competicao manual criada. Ela fica separada dos dados oficiais.");
+    setTelaManual("competicao");
+    setMensagem("Nova competição manual criada. Ela fica separada dos dados oficiais.");
     setSumulaDigitalManual(null);
   }
 
@@ -777,6 +874,16 @@ export default function SumulaManual({ config, imprimir }) {
     setMensagem(salvo ? "Competicoes e provas manuais salvas no banco." : "Nao foi possivel salvar no banco.");
   }
 
+  function imprimirSumulaManual() {
+    setTipoImpressaoManual("sumula");
+    window.setTimeout(() => imprimir(), 80);
+  }
+
+  function imprimirBoletimManual() {
+    setTipoImpressaoManual("boletim");
+    window.setTimeout(() => imprimir(), 80);
+  }
+
   function limparRascunho() {
     if (!window.confirm("Limpar somente a prova manual selecionada? Os dados oficiais nao serao alterados.")) {
       return;
@@ -869,6 +976,124 @@ export default function SumulaManual({ config, imprimir }) {
     setMensagem("Sumula digital manual criada. Envie o link ou QR Code ao arbitro.");
   }
 
+  function renderListaCompeticoes() {
+    return (
+      <div
+        style={{
+          background: "#f8fafc",
+          border: "1px solid #e2e8f0",
+          borderRadius: 14,
+          marginBottom: 16,
+          marginTop: 6,
+          padding: 14,
+        }}
+      >
+        <div
+          style={{
+            alignItems: "center",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 12,
+            marginBottom: 12,
+          }}
+        >
+          <div>
+            <h3 style={{ margin: 0 }}>Competições manuais criadas</h3>
+            <p style={{ color: "#64748b", fontWeight: 700, margin: "4px 0 0" }}>
+              Clique em uma competição para entrar nela e criar as provas.
+            </p>
+          </div>
+
+          <span
+            style={{
+              background: "#dbeafe",
+              borderRadius: 999,
+              color: "#1e3a8a",
+              fontWeight: 800,
+              padding: "8px 12px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {sessao.estado.competicoes.length} evento(s)
+          </span>
+        </div>
+
+        <button onClick={novaCompeticaoManual} style={{ ...botaoBase, background: "#38bdf8" }}>
+          Nova competição
+        </button>
+
+        <div
+          style={{
+            display: "grid",
+            gap: 10,
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            marginTop: 8,
+          }}
+        >
+          {sessao.estado.competicoes.map((competicao, indice) => {
+            const selecionada = competicao.id === sessao.competicaoId;
+            const resumo = resumoCompeticaoManual(competicao);
+
+            return (
+              <button
+                key={competicao.id}
+                type="button"
+                onClick={() => abrirCompeticao(competicao.id)}
+                style={{
+                  background: "#ffffff",
+                  border: `2px solid ${selecionada ? "#22c55e" : "#e2e8f0"}`,
+                  borderRadius: 14,
+                  cursor: "pointer",
+                  padding: 14,
+                  textAlign: "left",
+                }}
+              >
+                <div
+                  style={{
+                    alignItems: "center",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    marginBottom: 8,
+                  }}
+                >
+                  <strong style={{ color: "#0f2744", fontSize: 15 }}>
+                    {nomeCompeticaoNaLista(competicao, indice)}
+                  </strong>
+
+                  <span
+                    style={{
+                      background: "#0ea5e9",
+                      borderRadius: 999,
+                      color: "#ffffff",
+                      fontSize: 11,
+                      fontWeight: 900,
+                      padding: "5px 8px",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    ABRIR
+                  </span>
+                </div>
+
+                <div style={{ color: "#475569", display: "grid", gap: 4, fontSize: 12, fontWeight: 700 }}>
+                  <span>Local: {competicao.local || "Não informado"}</span>
+                  <span>
+                    Período: {dataParaTexto(competicao.dataInicio) || "--"} até {dataParaTexto(competicao.dataFim) || "--"}
+                  </span>
+                  <span>
+                    {resumo.totalProvas} prova(s) • {resumo.totalLinhas} linha(s)/atleta(s)
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+
   return (
     <>
       <div className="nao-imprimir">
@@ -903,7 +1128,18 @@ export default function SumulaManual({ config, imprimir }) {
             Banco de dados: {salvandoBanco ? "salvando..." : statusBanco}
           </div>
 
-          <h3 style={{ marginTop: 0 }}>Competicao manual</h3>
+          {telaManual === "lista" ? (
+            renderListaCompeticoes()
+          ) : (
+            <>
+              <button
+                onClick={voltarParaCompeticoes}
+                style={{ ...botaoBase, background: "#e2e8f0" }}
+              >
+                ← Voltar para competições
+              </button>
+
+          <h3 style={{ marginTop: 0 }}>Competição aberta</h3>
 
           <div
             style={{
@@ -922,7 +1158,7 @@ export default function SumulaManual({ config, imprimir }) {
               >
                 {sessao.estado.competicoes.map((competicao, indice) => (
                   <option key={competicao.id} value={competicao.id}>
-                    {competicao.nomeEvento || `Competicao manual ${indice + 1}`}
+                    {nomeCompeticaoNaLista(competicao, indice)}
                   </option>
                 ))}
               </select>
@@ -970,8 +1206,118 @@ export default function SumulaManual({ config, imprimir }) {
           </div>
 
           <button onClick={novaCompeticaoManual} style={{ ...botaoBase, background: "#38bdf8" }}>
-            Nova competicao
+            Nova competição
           </button>
+
+          <div
+            style={{
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: 14,
+              marginBottom: 16,
+              marginTop: 6,
+              padding: 14,
+            }}
+          >
+            <div
+              style={{
+                alignItems: "center",
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                marginBottom: 12,
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0 }}>Competições manuais criadas</h3>
+                <p style={{ color: "#64748b", fontWeight: 700, margin: "4px 0 0" }}>
+                  Clique em uma competição para abrir e editar.
+                </p>
+              </div>
+
+              <span
+                style={{
+                  background: "#dbeafe",
+                  borderRadius: 999,
+                  color: "#1e3a8a",
+                  fontWeight: 800,
+                  padding: "8px 12px",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {sessao.estado.competicoes.length} evento(s)
+              </span>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gap: 10,
+                gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+              }}
+            >
+              {sessao.estado.competicoes.map((competicao, indice) => {
+                const selecionada = competicao.id === sessao.competicaoId;
+                const resumo = resumoCompeticaoManual(competicao);
+
+                return (
+                  <button
+                    key={competicao.id}
+                    type="button"
+                    onClick={() => abrirCompeticao(competicao.id)}
+                    style={{
+                      background: selecionada ? "#ecfdf5" : "#ffffff",
+                      border: `2px solid ${selecionada ? "#22c55e" : "#e2e8f0"}`,
+                      borderRadius: 14,
+                      cursor: "pointer",
+                      padding: 14,
+                      textAlign: "left",
+                    }}
+                  >
+                    <div
+                      style={{
+                        alignItems: "center",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 10,
+                        marginBottom: 8,
+                      }}
+                    >
+                      <strong style={{ color: "#0f2744", fontSize: 15 }}>
+                        {nomeCompeticaoNaLista(competicao, indice)}
+                      </strong>
+
+                      {selecionada && (
+                        <span
+                          style={{
+                            background: "#22c55e",
+                            borderRadius: 999,
+                            color: "#ffffff",
+                            fontSize: 11,
+                            fontWeight: 900,
+                            padding: "5px 8px",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          ABERTA
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ color: "#475569", display: "grid", gap: 4, fontSize: 12, fontWeight: 700 }}>
+                      <span>Local: {competicao.local || "Não informado"}</span>
+                      <span>
+                        Período: {dataParaTexto(competicao.dataInicio) || "--"} até {dataParaTexto(competicao.dataFim) || "--"}
+                      </span>
+                      <span>
+                        {resumo.totalProvas} prova(s) • {resumo.totalLinhas} linha(s)/atleta(s)
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           <div
             style={{
@@ -980,45 +1326,213 @@ export default function SumulaManual({ config, imprimir }) {
               paddingTop: 16,
             }}
           >
-            <h3 style={{ marginTop: 0 }}>Provas desta competicao</h3>
+            <div
+              style={{
+                alignItems: "center",
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                marginBottom: 12,
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0 }}>Provas desta competição</h3>
+                <p style={{ color: "#64748b", fontWeight: 700, margin: "4px 0 0" }}>
+                  Pesquise, filtre e clique em uma prova para selecionar.
+                </p>
+              </div>
+
+              <span
+                style={{
+                  background: "#dbeafe",
+                  borderRadius: 999,
+                  color: "#1e3a8a",
+                  fontWeight: 800,
+                  padding: "8px 12px",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {provasManuaisFiltradas.length} de {competicaoAtual.provas.length} prova(s)
+              </span>
+            </div>
 
             <div
               style={{
                 display: "grid",
-                gap: 12,
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                marginBottom: 14,
+                gap: 10,
+                gridTemplateColumns: "1fr",
+                marginBottom: 12,
               }}
             >
               <label style={labelStyle}>
-                Prova selecionada
-                <select
+                Pesquisar prova
+                <input
                   style={inputStyle}
-                  value={sessao.provaId}
-                  onChange={(e) => selecionarProva(e.target.value)}
-                >
-                  {competicaoAtual.provas.map((prova, indice) => (
-                    <option key={prova.id} value={prova.id}>
-                      {nomeProvaNaLista(prova, indice)}
-                    </option>
-                  ))}
-                </select>
+                  value={buscaProvaManual}
+                  onChange={(e) => setBuscaProvaManual(e.target.value)}
+                  placeholder="Digite o nome da prova, categoria, naipe ou fase..."
+                />
               </label>
 
-              <button onClick={novaProvaManual} style={{ ...botaoBase, background: "#22c55e", alignSelf: "end" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gap: 10,
+                  gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+                }}
+              >
+                <label style={labelStyle}>
+                  Categoria
+                  <select
+                    style={inputStyle}
+                    value={filtroCategoriaManual}
+                    onChange={(e) => setFiltroCategoriaManual(e.target.value)}
+                  >
+                    <option value="">Todas</option>
+                    {categoriasManuais.map((categoria) => (
+                      <option key={categoria} value={categoria}>{categoria}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label style={labelStyle}>
+                  Naipe
+                  <select
+                    style={inputStyle}
+                    value={filtroNaipeManual}
+                    onChange={(e) => setFiltroNaipeManual(e.target.value)}
+                  >
+                    <option value="">Todos</option>
+                    {naipesManuais.map((naipe) => (
+                      <option key={naipe} value={naipe}>{naipe}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label style={labelStyle}>
+                  Fase
+                  <select
+                    style={inputStyle}
+                    value={filtroFaseManual}
+                    onChange={(e) => setFiltroFaseManual(e.target.value)}
+                  >
+                    <option value="">Todas</option>
+                    {fasesManuais.map((fase) => (
+                      <option key={fase} value={fase}>{fase}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label style={labelStyle}>
+                  Tipo
+                  <select
+                    style={inputStyle}
+                    value={filtroTipoManual}
+                    onChange={(e) => setFiltroTipoManual(e.target.value)}
+                  >
+                    <option value="">Todos</option>
+                    {tiposManuais.map((tipo) => (
+                      <option key={tipo} value={tipo}>{tipo}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <button onClick={limparFiltrosProvasManuais} style={{ ...botaoBase, background: "#94a3b8", color: "#ffffff" }}>
+                Limpar filtros
+              </button>
+              <button onClick={novaProvaManual} style={{ ...botaoBase, background: "#22c55e" }}>
                 Nova prova
               </button>
-              <button onClick={duplicarProvaManual} style={{ ...botaoBase, background: "#a78bfa", alignSelf: "end" }}>
+              <button onClick={duplicarProvaManual} style={{ ...botaoBase, background: "#a78bfa" }}>
                 Duplicar prova
               </button>
-              <button onClick={excluirProvaManual} style={{ ...botaoBase, background: "#ef4444", color: "#fff", alignSelf: "end" }}>
+              <button onClick={excluirProvaManual} style={{ ...botaoBase, background: "#ef4444", color: "#fff" }}>
                 Excluir prova
               </button>
             </div>
 
-            <p style={{ color: "#475569", fontWeight: 700, marginTop: 0 }}>
-              {competicaoAtual.provas.length} prova(s) manual(is) nesta competicao.
+            <p style={{ color: "#0f2744", fontWeight: 800, margin: "0 0 10px" }}>
+              Provas encontradas: {provasManuaisFiltradas.length}
             </p>
+
+            <div
+              style={{
+                display: "grid",
+                gap: 10,
+                gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                maxHeight: 310,
+                overflowY: "auto",
+                paddingRight: 6,
+                marginBottom: 14,
+              }}
+            >
+              {!provasManuaisFiltradas.length && (
+                <div
+                  style={{
+                    background: "#f8fafc",
+                    border: "1px dashed #cbd5e1",
+                    borderRadius: 12,
+                    color: "#64748b",
+                    fontWeight: 700,
+                    padding: 14,
+                    textAlign: "center",
+                  }}
+                >
+                  Nenhuma prova encontrada com os filtros atuais.
+                </div>
+              )}
+
+              {provasManuaisFiltradas.map((prova, indice) => {
+                const selecionada = prova.id === sessao.provaId;
+                const totalAtletas = prova.linhas?.length || 0;
+
+                return (
+                  <div
+                    key={prova.id}
+                    style={{
+                      background: selecionada ? "#ecfdf5" : "#f8fafc",
+                      border: `2px solid ${selecionada ? "#22c55e" : "#cbd5e1"}`,
+                      borderRadius: 12,
+                      display: "grid",
+                      gap: 8,
+                      minHeight: 138,
+                      padding: 12,
+                    }}
+                  >
+                    <strong style={{ color: "#0f2744", fontSize: 14, lineHeight: 1.2 }}>
+                      {prova.prova || `Prova manual ${indice + 1}`}
+                    </strong>
+
+                    <div style={{ color: "#0f2744", fontSize: 12, lineHeight: 1.25 }}>
+                      {prova.categoria} • {prova.naipe} • {prova.fase}
+                    </div>
+
+                    <div style={{ color: "#64748b", fontSize: 12, fontWeight: 700 }}>
+                      Tipo: {prova.tipo || "corrida"} • {totalAtletas} atleta(s)
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => selecionarProva(prova.id)}
+                      style={{
+                        ...botaoBase,
+                        alignSelf: "end",
+                        background: selecionada ? "#16a34a" : "#38bdf8",
+                        color: selecionada ? "#ffffff" : "#020617",
+                        margin: 0,
+                        padding: "9px 12px",
+                        width: "fit-content",
+                      }}
+                    >
+                      {selecionada ? "Selecionada" : "Selecionar"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <h3>Dados da prova selecionada</h3>
@@ -1139,7 +1653,7 @@ export default function SumulaManual({ config, imprimir }) {
           <button onClick={classificarAutomaticamente} style={{ ...botaoBase, background: "#facc15" }}>
             Classificar automatico
           </button>
-          <button onClick={imprimir} style={{ ...botaoBase, background: "#facc15" }}>
+          <button onClick={imprimirSumulaManual} style={{ ...botaoBase, background: "#facc15" }}>
             Imprimir sumula manual
           </button>
           <button
@@ -1152,6 +1666,19 @@ export default function SumulaManual({ config, imprimir }) {
           <button onClick={limparRascunho} style={{ ...botaoBase, background: "#ef4444", color: "#fff" }}>
             Limpar prova atual
           </button>
+
+          <BoletimManual
+            modo="preview"
+            competicao={competicaoAtual}
+            numeroBoletim={numeroBoletimManual}
+            setNumeroBoletim={setNumeroBoletimManual}
+            somenteFinais={boletimSomenteFinais}
+            setSomenteFinais={setBoletimSomenteFinais}
+            somenteComResultado={boletimSomenteComResultado}
+            setSomenteComResultado={setBoletimSomenteComResultado}
+            dataParaTexto={dataParaTexto}
+            onImprimir={imprimirBoletimManual}
+          />
 
           {mensagem && <p style={{ color: "#0f2744", fontWeight: 700 }}>{mensagem}</p>}
 
@@ -1190,8 +1717,11 @@ export default function SumulaManual({ config, imprimir }) {
               </div>
             </div>
           )}
+            </>
+          )}
         </div>
 
+        {telaManual === "competicao" && (
         <div className="card" style={{ marginBottom: 20, overflowX: "auto" }}>
           <h3 style={{ marginTop: 0 }}>Atletas da prova manual selecionada</h3>
 
@@ -1283,9 +1813,25 @@ export default function SumulaManual({ config, imprimir }) {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
-      {Object.entries(linhasPorSerie).map(([numeroSerie, linhas]) => (
+      {telaManual === "competicao" && tipoImpressaoManual === "boletim" && (
+        <BoletimManual
+          modo="impressao"
+          competicao={competicaoAtual}
+          numeroBoletim={numeroBoletimManual}
+          setNumeroBoletim={setNumeroBoletimManual}
+          somenteFinais={boletimSomenteFinais}
+          setSomenteFinais={setBoletimSomenteFinais}
+          somenteComResultado={boletimSomenteComResultado}
+          setSomenteComResultado={setBoletimSomenteComResultado}
+          dataParaTexto={dataParaTexto}
+          onImprimir={imprimirBoletimManual}
+        />
+      )}
+
+      {telaManual === "competicao" && tipoImpressaoManual === "sumula" && Object.entries(linhasPorSerie).map(([numeroSerie, linhas]) => (
         <div className={`card quebra-pagina sumula-print ${ehCampo ? "sumula-campo" : "sumula-pista"}`} key={numeroSerie} style={{ marginBottom: 20 }}>
           <h2 style={{ textAlign: "center" }}>
             {rascunho.nomeEvento || config?.texto_cabecalho || "SUMULA OFICIAL DE ATLETISMO - JER 2026"}
