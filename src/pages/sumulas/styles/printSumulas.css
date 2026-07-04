@@ -137,3 +137,399 @@
     font-weight: 900 !important;
   }
 }
+
+/* ============================================================
+   CORREÇÃO EMERGENCIAL - IMPRIMIR SOMENTE A SÚMULA
+   Arquivo: src/pages/sumulas/styles/printSumulas.css
+
+   Corrige:
+   - não imprimir a tela inteira do sistema
+   - esconder menu, cards, botões e formulários
+   - imprimir só .sumula-print ou .sumula-manual-oficial
+   - remover STATUS
+   - remover NASCIMENTO na súmula manual
+   ============================================================ */
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 5mm;
+  }
+
+  * {
+    box-sizing: border-box !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html,
+  body {
+    width: 297mm !important;
+    height: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: hidden !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+  }
+
+  /* Esconde tudo */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* Mostra somente as áreas de impressão */
+  .sumula-print,
+  .sumula-print *,
+  .sumula-manual-oficial,
+  .sumula-manual-oficial * {
+    visibility: visible !important;
+  }
+
+  /* Garante que a interface não apareça */
+  .nao-imprimir,
+  .sidebar,
+  .topbar,
+  .header,
+  nav,
+  aside,
+  button,
+  input[type="button"],
+  input[type="submit"],
+  select,
+  .card:not(.sumula-print):not(.sumula-manual-oficial) {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  #root,
+  .app,
+  .content,
+  main,
+  section {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  .sumula-print,
+  .sumula-manual-oficial {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+
+    display: block !important;
+    width: 287mm !important;
+    max-width: 287mm !important;
+    min-height: 198mm !important;
+
+    margin: 0 !important;
+    padding: 4mm 5mm !important;
+
+    background: #ffffff !important;
+    color: #000000 !important;
+
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+
+    overflow: hidden !important;
+    transform: none !important;
+    zoom: 1 !important;
+
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  .sumula-print:last-child,
+  .sumula-manual-oficial:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  .sumula-print::before,
+  .sumula-print::after,
+  .sumula-manual-oficial::before,
+  .sumula-manual-oficial::after {
+    display: none !important;
+    content: none !important;
+  }
+
+  .sumula-print h2,
+  .sumula-manual-oficial h2 {
+    margin: 0 0 4px !important;
+    padding: 0 0 4px !important;
+    border-bottom: 2px solid #000 !important;
+
+    color: #000000 !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+    font-size: 17px !important;
+    font-weight: 900 !important;
+    line-height: 1.05 !important;
+
+    text-align: center !important;
+    text-transform: uppercase !important;
+  }
+
+  .sumula-print p,
+  .sumula-manual-oficial p,
+  .sumula-meta-impressao,
+  .sumula-local-impressao {
+    margin: 0 0 3px !important;
+    color: #000000 !important;
+
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    line-height: 1.15 !important;
+    text-align: center !important;
+  }
+
+  .sumula-print h3,
+  .sumula-manual-oficial h3,
+  .sumula-titulo-serie {
+    margin: 7px 0 5px !important;
+    color: #000000 !important;
+
+    font-size: 12px !important;
+    font-weight: 900 !important;
+    line-height: 1.1 !important;
+    text-align: left !important;
+    text-transform: uppercase !important;
+  }
+
+  .sumula-print table,
+  .sumula-manual-oficial table {
+    width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: 2px solid #000 !important;
+
+    font-family: Arial, Helvetica, sans-serif !important;
+  }
+
+  .sumula-print th,
+  .sumula-print td,
+  .sumula-manual-oficial th,
+  .sumula-manual-oficial td {
+    border: 1px solid #000 !important;
+    color: #000000 !important;
+    vertical-align: middle !important;
+    white-space: normal !important;
+    overflow-wrap: break-word !important;
+  }
+
+  .sumula-print th,
+  .sumula-manual-oficial th {
+    background: #e8eef4 !important;
+    padding: 7px 5px !important;
+    font-size: 10px !important;
+    font-weight: 900 !important;
+    line-height: 1.05 !important;
+    text-align: center !important;
+    text-transform: uppercase !important;
+  }
+
+  .sumula-print td,
+  .sumula-manual-oficial td {
+    background: #ffffff !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 6px 5px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    line-height: 1.15 !important;
+  }
+
+  .sumula-print input,
+  .sumula-print textarea,
+  .sumula-manual-oficial input,
+  .sumula-manual-oficial textarea {
+    appearance: none !important;
+    border: none !important;
+    background: transparent !important;
+    color: #000000 !important;
+
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+
+    font-family: Arial, Helvetica, sans-serif !important;
+    font-size: inherit !important;
+    font-weight: inherit !important;
+    line-height: inherit !important;
+    text-align: center !important;
+
+    box-shadow: none !important;
+    outline: none !important;
+  }
+
+  .sumula-print input::placeholder,
+  .sumula-print textarea::placeholder,
+  .sumula-manual-oficial input::placeholder,
+  .sumula-manual-oficial textarea::placeholder {
+    color: transparent !important;
+  }
+
+  /* Remove STATUS sempre que for a última coluna */
+  .sumula-print table th:last-child,
+  .sumula-print table td:last-child,
+  .sumula-manual-oficial table th:last-child,
+  .sumula-manual-oficial table td:last-child {
+    display: none !important;
+    width: 0 !important;
+    max-width: 0 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
+  }
+
+  /* Remove NASCIMENTO na súmula manual/oficial de pista */
+  .sumula-pista th:nth-child(5),
+  .sumula-pista td:nth-child(5) {
+    display: none !important;
+    width: 0 !important;
+    max-width: 0 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
+  }
+
+  /* Pista após remover nascimento e status */
+  .sumula-pista th:nth-child(1),
+  .sumula-pista td:nth-child(1) {
+    width: 5% !important;
+    text-align: center !important;
+  }
+
+  .sumula-pista th:nth-child(2),
+  .sumula-pista td:nth-child(2) {
+    width: 7% !important;
+    text-align: center !important;
+  }
+
+  .sumula-pista th:nth-child(3),
+  .sumula-pista td:nth-child(3) {
+    width: 39% !important;
+    text-align: left !important;
+  }
+
+  .sumula-pista th:nth-child(4),
+  .sumula-pista td:nth-child(4) {
+    width: 36% !important;
+    text-align: left !important;
+  }
+
+  .sumula-pista th:nth-child(6),
+  .sumula-pista td:nth-child(6) {
+    width: 8% !important;
+    text-align: center !important;
+  }
+
+  .sumula-pista th:nth-child(7),
+  .sumula-pista td:nth-child(7) {
+    width: 5% !important;
+    text-align: center !important;
+  }
+
+  /* Campo: remove nascimento */
+  .sumula-campo th:nth-child(5),
+  .sumula-campo td:nth-child(5) {
+    display: none !important;
+    width: 0 !important;
+    max-width: 0 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
+  }
+
+  .sumula-campo th,
+  .sumula-campo td {
+    padding: 5px 4px !important;
+    font-size: 9.2px !important;
+    line-height: 1.1 !important;
+    text-align: center !important;
+  }
+
+  .sumula-campo th:nth-child(1),
+  .sumula-campo td:nth-child(1) {
+    width: 5% !important;
+    text-align: center !important;
+  }
+
+  .sumula-campo th:nth-child(2),
+  .sumula-campo td:nth-child(2) {
+    width: 6% !important;
+    text-align: center !important;
+  }
+
+  .sumula-campo th:nth-child(3),
+  .sumula-campo td:nth-child(3) {
+    width: 29% !important;
+    text-align: left !important;
+  }
+
+  .sumula-campo th:nth-child(4),
+  .sumula-campo td:nth-child(4) {
+    width: 28% !important;
+    text-align: left !important;
+  }
+
+  .sumula-campo th:nth-child(6),
+  .sumula-campo td:nth-child(6),
+  .sumula-campo th:nth-child(7),
+  .sumula-campo td:nth-child(7),
+  .sumula-campo th:nth-child(8),
+  .sumula-campo td:nth-child(8),
+  .sumula-campo th:nth-child(9),
+  .sumula-campo td:nth-child(9) {
+    width: 7% !important;
+    text-align: center !important;
+  }
+
+  .sumula-campo th:nth-child(10),
+  .sumula-campo td:nth-child(10) {
+    width: 7% !important;
+    text-align: center !important;
+    font-weight: 900 !important;
+  }
+
+  .assinaturas-sumula {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-end !important;
+
+    gap: 22mm !important;
+    margin-top: 15mm !important;
+    padding: 0 10mm !important;
+
+    font-family: Arial, Helvetica, sans-serif !important;
+    font-size: 9px !important;
+    line-height: 1.1 !important;
+
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .assinaturas-sumula > div {
+    flex: 1 !important;
+    text-align: center !important;
+  }
+
+  .assinaturas-sumula > div > div {
+    border-top: 1.2px solid #000 !important;
+    padding-top: 5px !important;
+    font-weight: 700 !important;
+  }
+}
