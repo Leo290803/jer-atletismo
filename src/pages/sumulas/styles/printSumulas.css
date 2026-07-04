@@ -892,3 +892,182 @@
     font-weight: 700 !important;
   }
 }
+
+/* ============================================================
+   IMPRESSÃO EM LOTE - UMA SÚMULA POR FOLHA
+   Cole no FINAL do printSumulas.css
+   ============================================================ */
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 5mm;
+  }
+
+  html,
+  body {
+    width: 297mm !important;
+    min-height: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .sumula-print,
+  .sumula-print * {
+    visibility: visible !important;
+  }
+
+  .nao-imprimir,
+  .sidebar,
+  .topbar,
+  .header,
+  nav,
+  aside,
+  button,
+  .card:not(.sumula-print) {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  #root,
+  .app,
+  .content,
+  main,
+  section {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  .sumula-print {
+    position: relative !important;
+    display: block !important;
+
+    width: 287mm !important;
+    max-width: 287mm !important;
+    height: 198mm !important;
+    min-height: 198mm !important;
+
+    margin: 0 auto !important;
+    padding: 4mm 5mm !important;
+
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+
+    page-break-before: auto !important;
+    page-break-inside: avoid !important;
+    page-break-after: always !important;
+
+    break-before: auto !important;
+    break-inside: avoid !important;
+    break-after: page !important;
+  }
+
+  .sumula-print:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  .quebra-pagina {
+    page-break-after: always !important;
+    break-after: page !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .quebra-pagina:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  .sumula-print h2 {
+    margin: 0 0 4px !important;
+    padding: 0 0 4px !important;
+    border-bottom: 2px solid #000 !important;
+    font-size: 17px !important;
+    font-weight: 900 !important;
+    line-height: 1.05 !important;
+    text-align: center !important;
+    text-transform: uppercase !important;
+  }
+
+  .sumula-print p {
+    margin: 0 0 3px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    line-height: 1.15 !important;
+    text-align: center !important;
+  }
+
+  .sumula-print h3 {
+    margin: 7px 0 5px !important;
+    font-size: 12px !important;
+    font-weight: 900 !important;
+    text-transform: uppercase !important;
+  }
+
+  .sumula-print table {
+    width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    border: 2px solid #000 !important;
+  }
+
+  .sumula-print th,
+  .sumula-print td {
+    border: 1px solid #000 !important;
+    color: #000 !important;
+    vertical-align: middle !important;
+  }
+
+  .sumula-print th {
+    background: #e8eef4 !important;
+    padding: 7px 5px !important;
+    font-size: 10px !important;
+    font-weight: 900 !important;
+    text-align: center !important;
+    text-transform: uppercase !important;
+  }
+
+  .sumula-print td {
+    height: 34px !important;
+    padding: 6px 5px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+  }
+
+  .assinaturas-sumula {
+    display: flex !important;
+    justify-content: space-between !important;
+    gap: 22mm !important;
+    margin-top: 15mm !important;
+    padding: 0 10mm !important;
+    font-size: 9px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .assinaturas-sumula > div {
+    flex: 1 !important;
+    text-align: center !important;
+  }
+
+  .assinaturas-sumula > div > div {
+    border-top: 1.2px solid #000 !important;
+    padding-top: 5px !important;
+    font-weight: 700 !important;
+  }
+}
