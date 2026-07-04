@@ -1071,3 +1071,265 @@
     font-weight: 700 !important;
   }
 }
+
+/* ============================================================
+   CORREÇÃO FINAL - VOLTAR RESULTADO E COLOCAÇÃO
+   SÚMULA MANUAL SEM NASCIMENTO E SEM STATUS
+   Cole no FINAL do printSumulas.css
+   ============================================================ */
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 5mm;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .sumula-print,
+  .sumula-print * {
+    visibility: visible !important;
+  }
+
+  .nao-imprimir,
+  .sidebar,
+  .topbar,
+  .header,
+  nav,
+  aside,
+  button,
+  .card:not(.sumula-print) {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  html,
+  body {
+    width: 297mm !important;
+    min-height: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    overflow: visible !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+  }
+
+  #root,
+  .app,
+  .content,
+  main,
+  section {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    overflow: visible !important;
+  }
+
+  .sumula-print {
+    position: relative !important;
+    display: block !important;
+    width: 287mm !important;
+    max-width: 287mm !important;
+    height: 198mm !important;
+    min-height: 198mm !important;
+    margin: 0 auto !important;
+    padding: 4mm 5mm !important;
+    background: white !important;
+    color: black !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+
+    page-break-inside: avoid !important;
+    page-break-after: always !important;
+    break-inside: avoid !important;
+    break-after: page !important;
+  }
+
+  .sumula-print:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  .sumula-print h2 {
+    margin: 0 0 4px !important;
+    padding: 0 0 4px !important;
+    border-bottom: 2px solid #000 !important;
+    font-size: 17px !important;
+    font-weight: 900 !important;
+    line-height: 1.05 !important;
+    text-align: center !important;
+    text-transform: uppercase !important;
+  }
+
+  .sumula-print p {
+    margin: 0 0 3px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    line-height: 1.15 !important;
+    text-align: center !important;
+  }
+
+  .sumula-print h3 {
+    margin: 7px 0 5px !important;
+    font-size: 12px !important;
+    font-weight: 900 !important;
+    text-transform: uppercase !important;
+  }
+
+  .sumula-print table {
+    width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    border: 2px solid #000 !important;
+  }
+
+  .sumula-print th,
+  .sumula-print td {
+    display: table-cell !important;
+    visibility: visible !important;
+    border: 1px solid #000 !important;
+    color: #000 !important;
+    vertical-align: middle !important;
+    overflow-wrap: break-word !important;
+  }
+
+  .sumula-print th {
+    background: #e8eef4 !important;
+    padding: 7px 5px !important;
+    font-size: 10px !important;
+    font-weight: 900 !important;
+    text-align: center !important;
+    text-transform: uppercase !important;
+  }
+
+  .sumula-print td {
+    height: 34px !important;
+    padding: 6px 5px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+  }
+
+  /* IMPORTANTE:
+     Não esconder mais last-child.
+     Agora a última coluna é COLOCAÇÃO, não STATUS.
+  */
+  .sumula-print table th:last-child,
+  .sumula-print table td:last-child {
+    display: table-cell !important;
+    visibility: visible !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    padding: 6px 5px !important;
+    border: 1px solid #000 !important;
+  }
+
+  /* PISTA:
+     RAIA | Nº | ATLETA | ESCOLA | RESULTADO | COLOCAÇÃO
+  */
+  .sumula-pista th:nth-child(1),
+  .sumula-pista td:nth-child(1) {
+    width: 6% !important;
+    text-align: center !important;
+  }
+
+  .sumula-pista th:nth-child(2),
+  .sumula-pista td:nth-child(2) {
+    width: 7% !important;
+    text-align: center !important;
+  }
+
+  .sumula-pista th:nth-child(3),
+  .sumula-pista td:nth-child(3) {
+    width: 38% !important;
+    text-align: left !important;
+  }
+
+  .sumula-pista th:nth-child(4),
+  .sumula-pista td:nth-child(4) {
+    width: 34% !important;
+    text-align: left !important;
+  }
+
+  .sumula-pista th:nth-child(5),
+  .sumula-pista td:nth-child(5) {
+    width: 9% !important;
+    text-align: center !important;
+    font-weight: 900 !important;
+  }
+
+  .sumula-pista th:nth-child(6),
+  .sumula-pista td:nth-child(6) {
+    width: 6% !important;
+    text-align: center !important;
+    font-weight: 900 !important;
+  }
+
+  /* CAMPO:
+     ORDEM | Nº | ATLETA | ESCOLA | 1ª | 2ª | 3ª | MELHOR | COLOCAÇÃO
+  */
+  .sumula-campo th:nth-child(1),
+  .sumula-campo td:nth-child(1) {
+    width: 6% !important;
+    text-align: center !important;
+  }
+
+  .sumula-campo th:nth-child(2),
+  .sumula-campo td:nth-child(2) {
+    width: 7% !important;
+    text-align: center !important;
+  }
+
+  .sumula-campo th:nth-child(3),
+  .sumula-campo td:nth-child(3) {
+    width: 30% !important;
+    text-align: left !important;
+  }
+
+  .sumula-campo th:nth-child(4),
+  .sumula-campo td:nth-child(4) {
+    width: 27% !important;
+    text-align: left !important;
+  }
+
+  .sumula-campo th:nth-child(5),
+  .sumula-campo td:nth-child(5),
+  .sumula-campo th:nth-child(6),
+  .sumula-campo td:nth-child(6),
+  .sumula-campo th:nth-child(7),
+  .sumula-campo td:nth-child(7),
+  .sumula-campo th:nth-child(8),
+  .sumula-campo td:nth-child(8),
+  .sumula-campo th:nth-child(9),
+  .sumula-campo td:nth-child(9) {
+    width: 6% !important;
+    text-align: center !important;
+    font-weight: 900 !important;
+  }
+
+  .assinaturas-sumula {
+    display: flex !important;
+    justify-content: space-between !important;
+    gap: 22mm !important;
+    margin-top: 15mm !important;
+    padding: 0 10mm !important;
+    font-size: 9px !important;
+  }
+
+  .assinaturas-sumula > div {
+    flex: 1 !important;
+    text-align: center !important;
+  }
+
+  .assinaturas-sumula > div > div {
+    border-top: 1.2px solid #000 !important;
+    padding-top: 5px !important;
+    font-weight: 700 !important;
+  }
+}
