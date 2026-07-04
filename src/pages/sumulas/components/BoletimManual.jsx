@@ -27,18 +27,35 @@ function dataParaTextoPadrao(data) {
   return `${dia}/${mes}/${ano}`;
 }
 
+function textoPreenchido(valor) {
+  return String(valor ?? "").trim();
+}
+
+function linhaPossuiAtleta(linha) {
+  return Boolean(
+    textoPreenchido(linha?.numero) ||
+      textoPreenchido(linha?.atleta) ||
+      textoPreenchido(linha?.escola) ||
+      textoPreenchido(linha?.resultado) ||
+      textoPreenchido(linha?.tentativa1) ||
+      textoPreenchido(linha?.tentativa2) ||
+      textoPreenchido(linha?.tentativa3) ||
+      textoPreenchido(linha?.colocacao)
+  );
+}
+
 function resultadoLinha(linha, tipo) {
   if (tipo === "campo") {
     return (
-      linha.resultado ||
-      linha.tentativa3 ||
-      linha.tentativa2 ||
-      linha.tentativa1 ||
+      textoPreenchido(linha.resultado) ||
+      textoPreenchido(linha.tentativa3) ||
+      textoPreenchido(linha.tentativa2) ||
+      textoPreenchido(linha.tentativa1) ||
       ""
     );
   }
 
-  return linha.resultado || "";
+  return textoPreenchido(linha.resultado);
 }
 
 function ehFinal(fase) {
@@ -47,11 +64,11 @@ function ehFinal(fase) {
 
 function temResultadoOuColocacao(linha) {
   return Boolean(
-    linha.resultado ||
-      linha.colocacao ||
-      linha.tentativa1 ||
-      linha.tentativa2 ||
-      linha.tentativa3 ||
+    textoPreenchido(linha.resultado) ||
+      textoPreenchido(linha.colocacao) ||
+      textoPreenchido(linha.tentativa1) ||
+      textoPreenchido(linha.tentativa2) ||
+      textoPreenchido(linha.tentativa3) ||
       String(linha.status || "OK") !== "OK"
   );
 }
@@ -83,10 +100,19 @@ function agruparPorProva(competicao, opcoes) {
   const provas = Array.isArray(competicao?.provas) ? competicao.provas : [];
 
   return provas
+    .map((prova) => {
+      const linhasValidas = Array.isArray(prova.linhas)
+        ? prova.linhas.filter(linhaPossuiAtleta)
+        : [];
+
+      return {
+        ...prova,
+        linhasValidas,
+      };
+    })
     .filter((prova) => {
-      const linhas = Array.isArray(prova.linhas) ? prova.linhas : [];
-      const temLinha = linhas.length > 0;
-      const temResultado = linhas.some(temResultadoOuColocacao);
+      const temLinha = prova.linhasValidas.length > 0;
+      const temResultado = prova.linhasValidas.some(temResultadoOuColocacao);
 
       if (opcoes.somenteComResultado && !temResultado) return false;
       if (opcoes.somenteFinais && !ehFinal(prova.fase)) return false;
@@ -95,7 +121,7 @@ function agruparPorProva(competicao, opcoes) {
     })
     .map((prova) => ({
       ...prova,
-      linhasOrdenadas: ordenarLinhas(prova.linhas || [], prova.tipo),
+      linhasOrdenadas: ordenarLinhas(prova.linhasValidas || [], prova.tipo),
     }));
 }
 
@@ -104,7 +130,7 @@ function nomeCompeticao(competicao) {
 }
 
 function formatarColocacao(colocacao) {
-  if (!colocacao) return "";
+  if (!textoPreenchido(colocacao)) return "";
   return `${colocacao}º`;
 }
 
@@ -157,7 +183,7 @@ export default function BoletimManual({
   );
 
   const mostrarPreview = modo !== "impressao";
-  const mostrarImpressaoNormal = modo !== "preview";
+  const mostrarImpressaoNormal = modo === "impressao";
 
   function limparModoImpressao() {
     document.body.classList.remove("imprimindo-boletim-manual");
@@ -176,7 +202,7 @@ export default function BoletimManual({
       } else {
         window.print();
       }
-    }, 200);
+    }, 250);
   }
 
   function renderEstilosImpressao() {
@@ -204,14 +230,10 @@ export default function BoletimManual({
               padding: 0 !important;
               background: #ffffff !important;
               color: #000000 !important;
+              overflow: visible !important;
             }
 
-            body.imprimindo-boletim-manual .sidebar,
-            body.imprimindo-boletim-manual .topbar,
-            body.imprimindo-boletim-manual .nao-imprimir,
-            body.imprimindo-boletim-manual .sumula-print,
-            body.imprimindo-boletim-manual .area-impressao-manual,
-            body.imprimindo-boletim-manual .boletim-pagina {
+            body.imprimindo-boletim-manual > *:not(#portal-boletim-manual-root) {
               display: none !important;
               visibility: hidden !important;
             }
@@ -223,12 +245,16 @@ export default function BoletimManual({
 
             body.imprimindo-boletim-manual #portal-boletim-manual-root {
               display: block !important;
-              position: static !important;
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
               width: 210mm !important;
               min-height: 297mm !important;
               margin: 0 !important;
               padding: 0 !important;
               background: #ffffff !important;
+              overflow: visible !important;
+              z-index: 999999 !important;
             }
 
             body.imprimindo-boletim-manual .boletim-manual-print {
@@ -241,6 +267,7 @@ export default function BoletimManual({
               background: #ffffff !important;
               color: #000000 !important;
               font-family: Arial, sans-serif !important;
+              overflow: visible !important;
             }
 
             body.imprimindo-boletim-manual .boletim-manual-page {
@@ -248,18 +275,16 @@ export default function BoletimManual({
               width: 210mm !important;
               min-height: 297mm !important;
               margin: 0 !important;
-              padding: 10mm 10mm 12mm !important;
+              padding: 8mm 9mm 10mm !important;
               box-sizing: border-box !important;
               background: #ffffff !important;
               color: #000000 !important;
-              page-break-after: auto !important;
-              break-after: auto !important;
             }
 
             body.imprimindo-boletim-manual .boletim-manual-header {
               position: relative !important;
-              margin-bottom: 8px !important;
-              padding: 10px 12px 8px !important;
+              margin: 0 0 7px !important;
+              padding: 9px 10px 7px !important;
               border: 2px solid #0057b8 !important;
               background:
                 linear-gradient(90deg, rgba(0, 87, 184, 0.08), rgba(0, 132, 61, 0.08)),
@@ -267,6 +292,8 @@ export default function BoletimManual({
               text-align: center !important;
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
             }
 
             body.imprimindo-boletim-manual .boletim-manual-faixa-topo {
@@ -274,7 +301,7 @@ export default function BoletimManual({
               left: -2px !important;
               right: -2px !important;
               top: -2px !important;
-              height: 8px !important;
+              height: 7px !important;
               background: linear-gradient(
                 90deg,
                 #0057b8 0%,
@@ -291,36 +318,37 @@ export default function BoletimManual({
             body.imprimindo-boletim-manual .boletim-manual-header h1 {
               margin: 8px 0 4px !important;
               color: #0f172a !important;
-              font-size: 14px !important;
+              font-size: 13px !important;
               font-weight: 900 !important;
-              line-height: 1.15 !important;
+              line-height: 1.1 !important;
               text-transform: uppercase !important;
             }
 
             body.imprimindo-boletim-manual .boletim-manual-header h2 {
-              margin: 6px 0 !important;
+              margin: 4px 0 !important;
               color: #0057b8 !important;
-              font-size: 16px !important;
+              font-size: 15px !important;
               font-weight: 900 !important;
-              line-height: 1.1 !important;
+              line-height: 1.05 !important;
               text-transform: uppercase !important;
             }
 
             body.imprimindo-boletim-manual .boletim-manual-header p {
               margin: 2px 0 !important;
               color: #111827 !important;
-              font-size: 8.5px !important;
+              font-size: 7.8px !important;
               font-weight: 700 !important;
+              line-height: 1.15 !important;
             }
 
             body.imprimindo-boletim-manual .boletim-manual-prova {
-              margin: 8px 0 11px !important;
+              margin: 0 0 7px !important;
               break-inside: avoid !important;
               page-break-inside: avoid !important;
             }
 
             body.imprimindo-boletim-manual .boletim-manual-prova-titulo {
-              padding: 5px 7px !important;
+              padding: 4px 6px !important;
               border-left: 7px solid #0057b8 !important;
               border-top: 1px solid #111827 !important;
               border-right: 1px solid #111827 !important;
@@ -333,17 +361,19 @@ export default function BoletimManual({
             body.imprimindo-boletim-manual .boletim-manual-prova-titulo strong {
               display: block !important;
               color: #0f172a !important;
-              font-size: 9px !important;
+              font-size: 8.5px !important;
               font-weight: 900 !important;
+              line-height: 1.05 !important;
               text-transform: uppercase !important;
             }
 
             body.imprimindo-boletim-manual .boletim-manual-prova-titulo span {
               display: block !important;
-              margin-top: 3px !important;
+              margin-top: 2px !important;
               color: #111827 !important;
-              font-size: 7.4px !important;
+              font-size: 6.8px !important;
               font-weight: 800 !important;
+              line-height: 1.1 !important;
             }
 
             body.imprimindo-boletim-manual .boletim-manual-table {
@@ -352,6 +382,7 @@ export default function BoletimManual({
               border-collapse: collapse !important;
               table-layout: fixed !important;
               background: #ffffff !important;
+              margin: 0 !important;
             }
 
             body.imprimindo-boletim-manual .boletim-manual-table thead {
@@ -372,10 +403,11 @@ export default function BoletimManual({
             body.imprimindo-boletim-manual .boletim-manual-table td {
               display: table-cell !important;
               border: 1px solid #111827 !important;
-              padding: 3px 4px !important;
+              padding: 2px 4px !important;
               color: #111827 !important;
-              font-size: 7.6px !important;
-              line-height: 1.15 !important;
+              font-size: 7.1px !important;
+              line-height: 1.08 !important;
+              height: 12px !important;
               vertical-align: middle !important;
               word-break: break-word !important;
               -webkit-print-color-adjust: exact !important;
@@ -385,8 +417,9 @@ export default function BoletimManual({
             body.imprimindo-boletim-manual .boletim-manual-table th {
               background: #0057b8 !important;
               color: #ffffff !important;
-              font-size: 7.2px !important;
+              font-size: 6.8px !important;
               font-weight: 900 !important;
+              line-height: 1 !important;
               text-transform: uppercase !important;
             }
 
@@ -508,11 +541,11 @@ export default function BoletimManual({
                             {formatarColocacao(linha.colocacao)}
                           </td>
 
-                          <td className="col-num">{linha.numero || ""}</td>
+                          <td className="col-num">{textoPreenchido(linha.numero)}</td>
 
-                          <td className="col-atleta">{linha.atleta || ""}</td>
+                          <td className="col-atleta">{textoPreenchido(linha.atleta)}</td>
 
-                          <td className="col-escola">{linha.escola || ""}</td>
+                          <td className="col-escola">{textoPreenchido(linha.escola)}</td>
 
                           <td className="col-resultado">
                             {resultadoLinha(linha, prova.tipo)}
