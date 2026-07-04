@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 const cardStyle = {
   background: "#ffffff",
@@ -107,6 +108,21 @@ function formatarColocacao(colocacao) {
   return `${colocacao}º`;
 }
 
+function criarPortalRoot() {
+  if (typeof document === "undefined") return null;
+
+  let root = document.getElementById("portal-boletim-manual-root");
+
+  if (!root) {
+    root = document.createElement("div");
+    root.id = "portal-boletim-manual-root";
+    root.className = "portal-boletim-manual-root";
+    document.body.appendChild(root);
+  }
+
+  return root;
+}
+
 export default function BoletimManual({
   modo = "completo",
   competicao,
@@ -119,6 +135,17 @@ export default function BoletimManual({
   dataParaTexto = dataParaTextoPadrao,
   onImprimir,
 }) {
+  const [portalRoot, setPortalRoot] = useState(null);
+  const [forcarImpressao, setForcarImpressao] = useState(false);
+
+  useEffect(() => {
+    setPortalRoot(criarPortalRoot());
+
+    return () => {
+      document.body.classList.remove("imprimindo-boletim-manual");
+    };
+  }, []);
+
   const provasBoletim = useMemo(
     () => agruparPorProva(competicao, { somenteFinais, somenteComResultado }),
     [competicao, somenteFinais, somenteComResultado]
@@ -130,10 +157,389 @@ export default function BoletimManual({
   );
 
   const mostrarPreview = modo !== "impressao";
-  const mostrarImpressao = modo !== "preview";
+  const mostrarImpressaoNormal = modo !== "preview";
+
+  function limparModoImpressao() {
+    document.body.classList.remove("imprimindo-boletim-manual");
+    setForcarImpressao(false);
+    window.removeEventListener("afterprint", limparModoImpressao);
+  }
+
+  function imprimirBoletimManual() {
+    document.body.classList.add("imprimindo-boletim-manual");
+    setForcarImpressao(true);
+    window.addEventListener("afterprint", limparModoImpressao);
+
+    window.setTimeout(() => {
+      if (typeof onImprimir === "function") {
+        onImprimir();
+      } else {
+        window.print();
+      }
+    }, 200);
+  }
+
+  function renderEstilosImpressao() {
+    return (
+      <style>
+        {`
+          @media screen {
+            .boletim-manual-print {
+              display: none !important;
+            }
+
+            #portal-boletim-manual-root {
+              display: none !important;
+            }
+          }
+
+          @media print {
+            @page {
+              size: A4 portrait;
+              margin: 0;
+            }
+
+            body.imprimindo-boletim-manual {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              color: #000000 !important;
+            }
+
+            body.imprimindo-boletim-manual .sidebar,
+            body.imprimindo-boletim-manual .topbar,
+            body.imprimindo-boletim-manual .nao-imprimir,
+            body.imprimindo-boletim-manual .sumula-print,
+            body.imprimindo-boletim-manual .area-impressao-manual,
+            body.imprimindo-boletim-manual .boletim-pagina {
+              display: none !important;
+              visibility: hidden !important;
+            }
+
+            body.imprimindo-boletim-manual #portal-boletim-manual-root,
+            body.imprimindo-boletim-manual #portal-boletim-manual-root * {
+              visibility: visible !important;
+            }
+
+            body.imprimindo-boletim-manual #portal-boletim-manual-root {
+              display: block !important;
+              position: static !important;
+              width: 210mm !important;
+              min-height: 297mm !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-print {
+              display: block !important;
+              visibility: visible !important;
+              width: 210mm !important;
+              min-height: 297mm !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              color: #000000 !important;
+              font-family: Arial, sans-serif !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-page {
+              display: block !important;
+              width: 210mm !important;
+              min-height: 297mm !important;
+              margin: 0 !important;
+              padding: 10mm 10mm 12mm !important;
+              box-sizing: border-box !important;
+              background: #ffffff !important;
+              color: #000000 !important;
+              page-break-after: auto !important;
+              break-after: auto !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-header {
+              position: relative !important;
+              margin-bottom: 8px !important;
+              padding: 10px 12px 8px !important;
+              border: 2px solid #0057b8 !important;
+              background:
+                linear-gradient(90deg, rgba(0, 87, 184, 0.08), rgba(0, 132, 61, 0.08)),
+                #ffffff !important;
+              text-align: center !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-faixa-topo {
+              position: absolute !important;
+              left: -2px !important;
+              right: -2px !important;
+              top: -2px !important;
+              height: 8px !important;
+              background: linear-gradient(
+                90deg,
+                #0057b8 0%,
+                #0057b8 45%,
+                #facc15 45%,
+                #facc15 60%,
+                #00843d 60%,
+                #00843d 100%
+              ) !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-header h1 {
+              margin: 8px 0 4px !important;
+              color: #0f172a !important;
+              font-size: 14px !important;
+              font-weight: 900 !important;
+              line-height: 1.15 !important;
+              text-transform: uppercase !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-header h2 {
+              margin: 6px 0 !important;
+              color: #0057b8 !important;
+              font-size: 16px !important;
+              font-weight: 900 !important;
+              line-height: 1.1 !important;
+              text-transform: uppercase !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-header p {
+              margin: 2px 0 !important;
+              color: #111827 !important;
+              font-size: 8.5px !important;
+              font-weight: 700 !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-prova {
+              margin: 8px 0 11px !important;
+              break-inside: avoid !important;
+              page-break-inside: avoid !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-prova-titulo {
+              padding: 5px 7px !important;
+              border-left: 7px solid #0057b8 !important;
+              border-top: 1px solid #111827 !important;
+              border-right: 1px solid #111827 !important;
+              border-bottom: 1px solid #111827 !important;
+              background: linear-gradient(90deg, #eaf2ff, #f7fafc) !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-prova-titulo strong {
+              display: block !important;
+              color: #0f172a !important;
+              font-size: 9px !important;
+              font-weight: 900 !important;
+              text-transform: uppercase !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-prova-titulo span {
+              display: block !important;
+              margin-top: 3px !important;
+              color: #111827 !important;
+              font-size: 7.4px !important;
+              font-weight: 800 !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-table {
+              display: table !important;
+              width: 100% !important;
+              border-collapse: collapse !important;
+              table-layout: fixed !important;
+              background: #ffffff !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-table thead {
+              display: table-header-group !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-table tbody {
+              display: table-row-group !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-table tr {
+              display: table-row !important;
+              break-inside: avoid !important;
+              page-break-inside: avoid !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-table th,
+            body.imprimindo-boletim-manual .boletim-manual-table td {
+              display: table-cell !important;
+              border: 1px solid #111827 !important;
+              padding: 3px 4px !important;
+              color: #111827 !important;
+              font-size: 7.6px !important;
+              line-height: 1.15 !important;
+              vertical-align: middle !important;
+              word-break: break-word !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-table th {
+              background: #0057b8 !important;
+              color: #ffffff !important;
+              font-size: 7.2px !important;
+              font-weight: 900 !important;
+              text-transform: uppercase !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-table tbody tr:nth-child(even) {
+              background: #f8fafc !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-table .col-pos {
+              width: 12% !important;
+              text-align: center !important;
+              font-weight: 900 !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-table .col-num {
+              width: 9% !important;
+              text-align: center !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-table .col-atleta {
+              width: 32% !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-table .col-escola {
+              width: 33% !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-table .col-resultado {
+              width: 14% !important;
+              text-align: center !important;
+              font-weight: 800 !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-table .col-status {
+              width: 10% !important;
+              text-align: center !important;
+              font-weight: 800 !important;
+            }
+
+            body.imprimindo-boletim-manual .boletim-manual-vazio {
+              margin-top: 20px !important;
+              padding: 14px !important;
+              border: 1px solid #cbd5e1 !important;
+              background: #f8fafc !important;
+              color: #475569 !important;
+              font-weight: 800 !important;
+              text-align: center !important;
+            }
+          }
+        `}
+      </style>
+    );
+  }
+
+  function renderImpressao() {
+    return (
+      <div className="boletim-manual-print">
+        <section className="boletim-manual-page">
+          <header className="boletim-manual-header">
+            <div className="boletim-manual-faixa-topo" />
+
+            <h1>{nomeCompeticao(competicao)}</h1>
+
+            <h2>BOLETIM Nº {numeroBoletim || "0001"} - ATLETISMO PARALÍMPICO</h2>
+
+            <p>
+              <strong>BOLETIM OFICIAL DE RESULTADOS - SÚMULA MANUAL</strong>
+            </p>
+
+            <p>
+              <strong>Período:</strong> {dataParaTexto(competicao?.dataInicio)} até{" "}
+              {dataParaTexto(competicao?.dataFim)}
+            </p>
+
+            {competicao?.local && (
+              <p>
+                <strong>Local:</strong> {competicao.local}
+              </p>
+            )}
+          </header>
+
+          {provasBoletim.length === 0 ? (
+            <p className="boletim-manual-vazio">
+              Nenhum resultado disponível para o boletim.
+            </p>
+          ) : (
+            provasBoletim.map((prova) => {
+              const temStatus = prova.linhasOrdenadas.some(
+                (linha) => linha.status && linha.status !== "OK"
+              );
+
+              return (
+                <article className="boletim-manual-prova" key={prova.id}>
+                  <div className="boletim-manual-prova-titulo">
+                    <strong>{prova.prova || "PROVA MANUAL"}</strong>
+
+                    <span>
+                      Categoria: {prova.categoria} &nbsp; | &nbsp; Naipe:{" "}
+                      {prova.naipe} &nbsp; | &nbsp; Fase: {prova.fase}{" "}
+                      &nbsp; | &nbsp; Data: {dataParaTexto(prova.data)}
+                    </span>
+                  </div>
+
+                  <table className="boletim-manual-table">
+                    <thead>
+                      <tr>
+                        <th className="col-pos">Colocação</th>
+                        <th className="col-num">Nº</th>
+                        <th className="col-atleta">Atleta</th>
+                        <th className="col-escola">Escola</th>
+                        <th className="col-resultado">Resultado</th>
+                        {temStatus && <th className="col-status">Status</th>}
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {prova.linhasOrdenadas.map((linha) => (
+                        <tr key={linha.id}>
+                          <td className="col-pos">
+                            {formatarColocacao(linha.colocacao)}
+                          </td>
+
+                          <td className="col-num">{linha.numero || ""}</td>
+
+                          <td className="col-atleta">{linha.atleta || ""}</td>
+
+                          <td className="col-escola">{linha.escola || ""}</td>
+
+                          <td className="col-resultado">
+                            {resultadoLinha(linha, prova.tipo)}
+                          </td>
+
+                          {temStatus && (
+                            <td className="col-status">
+                              {linha.status !== "OK" ? linha.status : ""}
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </article>
+              );
+            })
+          )}
+        </section>
+      </div>
+    );
+  }
 
   return (
     <>
+      {renderEstilosImpressao()}
+
       {mostrarPreview && (
         <div className="nao-imprimir" style={cardStyle}>
           <div
@@ -227,7 +633,7 @@ export default function BoletimManual({
           </div>
 
           <div style={{ marginTop: 14 }}>
-            <button onClick={onImprimir} style={{ ...botaoBase, background: "#facc15" }}>
+            <button onClick={imprimirBoletimManual} style={{ ...botaoBase, background: "#facc15" }}>
               Imprimir boletim manual
             </button>
           </div>
@@ -275,101 +681,17 @@ export default function BoletimManual({
         </div>
       )}
 
-      {mostrarImpressao && (
-        <div className="boletim-manual-print">
-          <section className="boletim-manual-page">
-            <header className="boletim-manual-header">
-              <div className="boletim-manual-faixa-topo" />
+      {mostrarImpressaoNormal && renderImpressao()}
 
-              <h1>{nomeCompeticao(competicao)}</h1>
-
-              <h2>
-                BOLETIM Nº {numeroBoletim || "0001"} - ATLETISMO PARALÍMPICO
-              </h2>
-
-              <p>
-                <strong>BOLETIM OFICIAL DE RESULTADOS - SÚMULA MANUAL</strong>
-              </p>
-
-              <p>
-                <strong>Período:</strong> {dataParaTexto(competicao?.dataInicio)} até{" "}
-                {dataParaTexto(competicao?.dataFim)}
-              </p>
-
-              {competicao?.local && (
-                <p>
-                  <strong>Local:</strong> {competicao.local}
-                </p>
-              )}
-            </header>
-
-            {provasBoletim.length === 0 ? (
-              <p className="boletim-manual-vazio">
-                Nenhum resultado disponível para o boletim.
-              </p>
-            ) : (
-              provasBoletim.map((prova) => {
-                const temStatus = prova.linhasOrdenadas.some(
-                  (linha) => linha.status && linha.status !== "OK"
-                );
-
-                return (
-                  <article className="boletim-manual-prova" key={prova.id}>
-                    <div className="boletim-manual-prova-titulo">
-                      <strong>{prova.prova || "PROVA MANUAL"}</strong>
-
-                      <span>
-                        Categoria: {prova.categoria} &nbsp; | &nbsp; Naipe:{" "}
-                        {prova.naipe} &nbsp; | &nbsp; Fase: {prova.fase}{" "}
-                        &nbsp; | &nbsp; Data: {dataParaTexto(prova.data)}
-                      </span>
-                    </div>
-
-                    <table className="boletim-manual-table">
-                      <thead>
-                        <tr>
-                          <th className="col-pos">Colocação</th>
-                          <th className="col-num">Nº</th>
-                          <th className="col-atleta">Atleta</th>
-                          <th className="col-escola">Escola</th>
-                          <th className="col-resultado">Resultado</th>
-                          {temStatus && <th className="col-status">Status</th>}
-                        </tr>
-                      </thead>
-
-                      <tbody>
-                        {prova.linhasOrdenadas.map((linha) => (
-                          <tr key={linha.id}>
-                            <td className="col-pos">
-                              {formatarColocacao(linha.colocacao)}
-                            </td>
-
-                            <td className="col-num">{linha.numero || ""}</td>
-
-                            <td className="col-atleta">{linha.atleta || ""}</td>
-
-                            <td className="col-escola">{linha.escola || ""}</td>
-
-                            <td className="col-resultado">
-                              {resultadoLinha(linha, prova.tipo)}
-                            </td>
-
-                            {temStatus && (
-                              <td className="col-status">
-                                {linha.status !== "OK" ? linha.status : ""}
-                              </td>
-                            )}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </article>
-                );
-              })
-            )}
-          </section>
-        </div>
-      )}
+      {forcarImpressao &&
+        portalRoot &&
+        createPortal(
+          <>
+            {renderEstilosImpressao()}
+            {renderImpressao()}
+          </>,
+          portalRoot
+        )}
     </>
   );
 }
