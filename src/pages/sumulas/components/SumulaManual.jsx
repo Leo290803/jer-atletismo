@@ -1914,37 +1914,37 @@ export default function SumulaManual({ config, imprimir }) {
 
             <h3>{ehCampoImpressao ? "Ordem de tentativa" : `Série ${numeroSerie}`}</h3>
 
-            <table width="100%" cellPadding="10">
+            <table className="tabela-sumula-manual-print" width="100%" cellPadding="10">
               <thead>
                 <tr>
-                  <th>{ehCampoImpressao ? "Ordem" : "Raia"}</th>
-                  <th>Nº</th>
-                  <th>Atleta</th>
-                  <th>Escola</th>
+                  <th className="col-raia">{ehCampoImpressao ? "Ordem" : "Raia"}</th>
+                  <th className="col-numero">Nº</th>
+                  <th className="col-atleta">Atleta</th>
+                  <th className="col-escola">Escola</th>
 
-                  {ehCampoImpressao && <th>1ª</th>}
-                  {ehCampoImpressao && <th>2ª</th>}
-                  {ehCampoImpressao && <th>3ª</th>}
+                  {ehCampoImpressao && <th className="col-tentativa">1ª</th>}
+                  {ehCampoImpressao && <th className="col-tentativa">2ª</th>}
+                  {ehCampoImpressao && <th className="col-tentativa">3ª</th>}
 
-                  <th>{ehCampoImpressao ? "Melhor" : "Resultado"}</th>
-                  <th>Colocação</th>
+                  <th className="col-resultado">{ehCampoImpressao ? "Melhor" : "Resultado"}</th>
+                  <th className="col-colocacao">Colocação</th>
                 </tr>
               </thead>
 
               <tbody>
                 {linhas.map((linha) => (
                   <tr key={linha.id}>
-                    <td>{linha.raia}</td>
-                    <td>{linha.numero}</td>
-                    <td>{linha.atleta}</td>
-                    <td>{linha.escola}</td>
+                    <td className="col-raia">{linha.raia}</td>
+                    <td className="col-numero">{linha.numero}</td>
+                    <td className="col-atleta">{linha.atleta}</td>
+                    <td className="col-escola">{linha.escola}</td>
 
-                    {ehCampoImpressao && <td>{linha.tentativa1}</td>}
-                    {ehCampoImpressao && <td>{linha.tentativa2}</td>}
-                    {ehCampoImpressao && <td>{linha.tentativa3}</td>}
+                    {ehCampoImpressao && <td className="col-tentativa">{linha.tentativa1}</td>}
+                    {ehCampoImpressao && <td className="col-tentativa">{linha.tentativa2}</td>}
+                    {ehCampoImpressao && <td className="col-tentativa">{linha.tentativa3}</td>}
 
-                    <td>{linha.resultado}</td>
-                    <td>{linha.colocacao}</td>
+                    <td className="col-resultado">{linha.resultado}</td>
+                    <td className="col-colocacao">{linha.colocacao}</td>
                   </tr>
                 ))}
               </tbody>
