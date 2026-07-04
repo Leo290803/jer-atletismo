@@ -373,6 +373,7 @@ export default function SumulaManual({ config, imprimir }) {
   const [gerandoDigital, setGerandoDigital] = useState(false);
   const [telaManual, setTelaManual] = useState("lista");
   const [tipoImpressaoManual, setTipoImpressaoManual] = useState("sumula");
+  const [idsProvasImpressaoManual, setIdsProvasImpressaoManual] = useState([]);
   const [numeroBoletimManual, setNumeroBoletimManual] = useState("0001");
   const [boletimSomenteFinais, setBoletimSomenteFinais] = useState(false);
   const [boletimSomenteComResultado, setBoletimSomenteComResultado] = useState(false);
@@ -541,6 +542,22 @@ export default function SumulaManual({ config, imprimir }) {
 
   const linhasPorSerie = useMemo(() => agruparPorSerie(rascunho.linhas), [rascunho.linhas]);
   const ehCampo = rascunho.tipo === "campo";
+
+  const provasParaImpressaoManual = useMemo(() => {
+    if (telaManual !== "competicao" || tipoImpressaoManual !== "sumula") return [];
+
+    const ids = idsProvasImpressaoManual.length
+      ? new Set(idsProvasImpressaoManual)
+      : new Set([provaAtual.id]);
+
+    return competicaoAtual.provas.filter((prova) => ids.has(prova.id));
+  }, [
+    competicaoAtual.provas,
+    idsProvasImpressaoManual,
+    provaAtual.id,
+    telaManual,
+    tipoImpressaoManual,
+  ]);
 
   const categoriasManuais = useMemo(
     () => [...new Set(competicaoAtual.provas.map((prova) => prova.categoria).filter(Boolean))],
@@ -875,8 +892,35 @@ export default function SumulaManual({ config, imprimir }) {
   }
 
   function imprimirSumulaManual() {
+    setIdsProvasImpressaoManual([provaAtual.id]);
     setTipoImpressaoManual("sumula");
-    window.setTimeout(() => imprimir(), 80);
+    window.setTimeout(() => imprimir(), 120);
+  }
+
+  function imprimirSumulasFiltradasManual() {
+    const ids = provasManuaisFiltradas.map((prova) => prova.id);
+
+    if (!ids.length) {
+      window.alert("Nenhuma prova encontrada nos filtros atuais para imprimir.");
+      return;
+    }
+
+    setIdsProvasImpressaoManual(ids);
+    setTipoImpressaoManual("sumula");
+    window.setTimeout(() => imprimir(), 120);
+  }
+
+  function imprimirTodasSumulasManual() {
+    const ids = competicaoAtual.provas.map((prova) => prova.id);
+
+    if (!ids.length) {
+      window.alert("Esta competição ainda não possui provas para imprimir.");
+      return;
+    }
+
+    setIdsProvasImpressaoManual(ids);
+    setTipoImpressaoManual("sumula");
+    window.setTimeout(() => imprimir(), 120);
   }
 
   function imprimirBoletimManual() {
@@ -1654,7 +1698,13 @@ export default function SumulaManual({ config, imprimir }) {
             Classificar automatico
           </button>
           <button onClick={imprimirSumulaManual} style={{ ...botaoBase, background: "#facc15" }}>
-            Imprimir sumula manual
+            Imprimir sumula selecionada
+          </button>
+          <button onClick={imprimirSumulasFiltradasManual} style={{ ...botaoBase, background: "#fb923c" }}>
+            Imprimir sumulas filtradas
+          </button>
+          <button onClick={imprimirTodasSumulasManual} style={{ ...botaoBase, background: "#0ea5e9", color: "#ffffff" }}>
+            Imprimir todas da competição
           </button>
           <button
             onClick={() => void gerarSumulaDigitalManual()}
@@ -1831,83 +1881,88 @@ export default function SumulaManual({ config, imprimir }) {
         />
       )}
 
-      {telaManual === "competicao" && tipoImpressaoManual === "sumula" && Object.entries(linhasPorSerie).map(([numeroSerie, linhas]) => (
-        <div
-          className={`quebra-pagina sumula-print ${ehCampo ? "sumula-campo" : "sumula-pista"}`}
-          key={numeroSerie}
-        >
-          <h2 style={{ textAlign: "center" }}>
-            {rascunho.nomeEvento || config?.texto_cabecalho || "SÚMULA OFICIAL DE ATLETISMO - JER 2026"}
-          </h2>
+      {telaManual === "competicao" && tipoImpressaoManual === "sumula" && provasParaImpressaoManual.flatMap((provaImpressao) => {
+        const ehCampoImpressao = provaImpressao.tipo === "campo";
+        const seriesImpressao = Object.entries(agruparPorSerie(provaImpressao.linhas || []));
 
-          <p style={{ textAlign: "center" }}>
-            <strong>Prova:</strong> {rascunho.prova || "SÚMULA MANUAL"}
-            &nbsp; | &nbsp;
-            <strong>Categoria:</strong> {rascunho.categoria}
-            &nbsp; | &nbsp;
-            <strong>Naipe:</strong> {rascunho.naipe}
-            &nbsp; | &nbsp;
-            <strong>Fase:</strong> {rascunho.fase}
-            &nbsp; | &nbsp;
-            <strong>Data:</strong> {dataParaTexto(rascunho.data)}
-          </p>
+        return seriesImpressao.map(([numeroSerie, linhas]) => (
+          <div
+            className={`quebra-pagina sumula-print ${ehCampoImpressao ? "sumula-campo" : "sumula-pista"}`}
+            key={`${provaImpressao.id}-${numeroSerie}`}
+          >
+            <h2 style={{ textAlign: "center" }}>
+              {competicaoAtual.nomeEvento || config?.texto_cabecalho || "SÚMULA OFICIAL DE ATLETISMO - JER 2026"}
+            </h2>
 
-          {rascunho.localEvento && (
             <p style={{ textAlign: "center" }}>
-              <strong>Local:</strong> {rascunho.localEvento}
+              <strong>Prova:</strong> {provaImpressao.prova || "SÚMULA MANUAL"}
+              &nbsp; | &nbsp;
+              <strong>Categoria:</strong> {provaImpressao.categoria}
+              &nbsp; | &nbsp;
+              <strong>Naipe:</strong> {provaImpressao.naipe}
+              &nbsp; | &nbsp;
+              <strong>Fase:</strong> {provaImpressao.fase}
+              &nbsp; | &nbsp;
+              <strong>Data:</strong> {dataParaTexto(provaImpressao.data)}
             </p>
-          )}
 
-          <h3>{ehCampo ? "Ordem de tentativa" : `Série ${numeroSerie}`}</h3>
+            {competicaoAtual.local && (
+              <p style={{ textAlign: "center" }}>
+                <strong>Local:</strong> {competicaoAtual.local}
+              </p>
+            )}
 
-          <table width="100%" cellPadding="10">
-            <thead>
-              <tr>
-                <th>{ehCampo ? "Ordem" : "Raia"}</th>
-                <th>Nº</th>
-                <th>Atleta</th>
-                <th>Escola</th>
+            <h3>{ehCampoImpressao ? "Ordem de tentativa" : `Série ${numeroSerie}`}</h3>
 
-                {ehCampo && <th>1ª</th>}
-                {ehCampo && <th>2ª</th>}
-                {ehCampo && <th>3ª</th>}
+            <table width="100%" cellPadding="10">
+              <thead>
+                <tr>
+                  <th>{ehCampoImpressao ? "Ordem" : "Raia"}</th>
+                  <th>Nº</th>
+                  <th>Atleta</th>
+                  <th>Escola</th>
 
-                <th>{ehCampo ? "Melhor" : "Resultado"}</th>
-                <th>Colocação</th>
-              </tr>
-            </thead>
+                  {ehCampoImpressao && <th>1ª</th>}
+                  {ehCampoImpressao && <th>2ª</th>}
+                  {ehCampoImpressao && <th>3ª</th>}
 
-            <tbody>
-              {linhas.map((linha) => (
-                <tr key={linha.id}>
-                  <td>{linha.raia}</td>
-                  <td>{linha.numero}</td>
-                  <td>{linha.atleta}</td>
-                  <td>{linha.escola}</td>
-
-                  {ehCampo && <td>{linha.tentativa1}</td>}
-                  {ehCampo && <td>{linha.tentativa2}</td>}
-                  {ehCampo && <td>{linha.tentativa3}</td>}
-
-                  <td>{linha.resultado}</td>
-                  <td>{linha.colocacao}</td>
+                  <th>{ehCampoImpressao ? "Melhor" : "Resultado"}</th>
+                  <th>Colocação</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
 
-          {config?.mostrar_assinaturas !== false && (
-            <div className="assinaturas-sumula">
-              <div>
-                <div>Árbitro da Prova</div>
-              </div>
+              <tbody>
+                {linhas.map((linha) => (
+                  <tr key={linha.id}>
+                    <td>{linha.raia}</td>
+                    <td>{linha.numero}</td>
+                    <td>{linha.atleta}</td>
+                    <td>{linha.escola}</td>
 
-              <div>
-                <div>Coordenação de Atletismo</div>
+                    {ehCampoImpressao && <td>{linha.tentativa1}</td>}
+                    {ehCampoImpressao && <td>{linha.tentativa2}</td>}
+                    {ehCampoImpressao && <td>{linha.tentativa3}</td>}
+
+                    <td>{linha.resultado}</td>
+                    <td>{linha.colocacao}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {config?.mostrar_assinaturas !== false && (
+              <div className="assinaturas-sumula">
+                <div>
+                  <div>Árbitro da Prova</div>
+                </div>
+
+                <div>
+                  <div>Coordenação de Atletismo</div>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      ))}    </>
+            )}
+          </div>
+        ));
+      })}    </>
   );
 }
