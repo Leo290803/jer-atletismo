@@ -1832,13 +1832,16 @@ export default function SumulaManual({ config, imprimir }) {
       )}
 
       {telaManual === "competicao" && tipoImpressaoManual === "sumula" && Object.entries(linhasPorSerie).map(([numeroSerie, linhas]) => (
-        <div className={`card quebra-pagina sumula-print ${ehCampo ? "sumula-campo" : "sumula-pista"}`} key={numeroSerie} style={{ marginBottom: 20 }}>
+        <div
+          className={`quebra-pagina sumula-print ${ehCampo ? "sumula-campo" : "sumula-pista"}`}
+          key={numeroSerie}
+        >
           <h2 style={{ textAlign: "center" }}>
-            {rascunho.nomeEvento || config?.texto_cabecalho || "SUMULA OFICIAL DE ATLETISMO - JER 2026"}
+            {rascunho.nomeEvento || config?.texto_cabecalho || "SÚMULA OFICIAL DE ATLETISMO - JER 2026"}
           </h2>
 
           <p style={{ textAlign: "center" }}>
-            <strong>Prova:</strong> {rascunho.prova || "SUMULA MANUAL"}
+            <strong>Prova:</strong> {rascunho.prova || "SÚMULA MANUAL"}
             &nbsp; | &nbsp;
             <strong>Categoria:</strong> {rascunho.categoria}
             &nbsp; | &nbsp;
@@ -1855,22 +1858,22 @@ export default function SumulaManual({ config, imprimir }) {
             </p>
           )}
 
-          <h3>{ehCampo ? "Ordem de tentativa" : `Serie ${numeroSerie}`}</h3>
+          <h3>{ehCampo ? "Ordem de tentativa" : `Série ${numeroSerie}`}</h3>
 
           <table width="100%" cellPadding="10">
             <thead>
               <tr>
                 <th>{ehCampo ? "Ordem" : "Raia"}</th>
-                <th>No</th>
+                <th>Nº</th>
                 <th>Atleta</th>
                 <th>Escola</th>
-                <th>Nascimento</th>
-                {ehCampo && <th>1a</th>}
-                {ehCampo && <th>2a</th>}
-                {ehCampo && <th>3a</th>}
+
+                {ehCampo && <th>1ª</th>}
+                {ehCampo && <th>2ª</th>}
+                {ehCampo && <th>3ª</th>}
+
                 <th>{ehCampo ? "Melhor" : "Resultado"}</th>
-                <th>Colocacao</th>
-                <th>Status</th>
+                <th>Colocação</th>
               </tr>
             </thead>
 
@@ -1881,31 +1884,30 @@ export default function SumulaManual({ config, imprimir }) {
                   <td>{linha.numero}</td>
                   <td>{linha.atleta}</td>
                   <td>{linha.escola}</td>
-                  <td>{linha.nascimento}</td>
+
                   {ehCampo && <td>{linha.tentativa1}</td>}
                   {ehCampo && <td>{linha.tentativa2}</td>}
                   {ehCampo && <td>{linha.tentativa3}</td>}
+
                   <td>{linha.resultado}</td>
                   <td>{linha.colocacao}</td>
-                  <td>{linha.status !== "OK" ? linha.status : ""}</td>
                 </tr>
               ))}
             </tbody>
           </table>
 
           {config?.mostrar_assinaturas !== false && (
-            <div className="assinaturas-sumula" style={{ display: "flex", justifyContent: "space-between", marginTop: 50, gap: 40 }}>
-              <div style={{ textAlign: "center", flex: 1 }}>
-                <div style={{ borderTop: "1px solid black", paddingTop: 8 }}>Arbitro da Prova</div>
+            <div className="assinaturas-sumula">
+              <div>
+                <div>Árbitro da Prova</div>
               </div>
 
-              <div style={{ textAlign: "center", flex: 1 }}>
-                <div style={{ borderTop: "1px solid black", paddingTop: 8 }}>Coordenacao de Atletismo</div>
+              <div>
+                <div>Coordenação de Atletismo</div>
               </div>
             </div>
           )}
         </div>
-      ))}
-    </>
+      ))}    </>
   );
 }
