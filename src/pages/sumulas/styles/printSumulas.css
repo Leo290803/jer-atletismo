@@ -1566,3 +1566,265 @@
   }
 }
 
+/* ============================================================
+   SOBRESCREVER TUDO - SÚMULA MANUAL FINAL POR CLASSE
+   Cole no FINAL ABSOLUTO do printSumulas.css
+   ============================================================ */
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 5mm;
+  }
+
+  * {
+    box-sizing: border-box !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html,
+  body {
+    width: 297mm !important;
+    min-height: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+    overflow: visible !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .sumula-print,
+  .sumula-print * {
+    visibility: visible !important;
+  }
+
+  .nao-imprimir,
+  .sidebar,
+  .topbar,
+  .header,
+  nav,
+  aside,
+  button,
+  .card:not(.sumula-print) {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  #root,
+  .app,
+  .content,
+  main,
+  section {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    overflow: visible !important;
+  }
+
+  .sumula-print {
+    position: relative !important;
+    display: block !important;
+    width: 287mm !important;
+    max-width: 287mm !important;
+    height: 198mm !important;
+    min-height: 198mm !important;
+    margin: 0 auto !important;
+    padding: 4mm 5mm !important;
+    background: #fff !important;
+    color: #000 !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    break-after: page !important;
+    page-break-after: always !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .sumula-print:last-child {
+    break-after: auto !important;
+    page-break-after: auto !important;
+  }
+
+  .sumula-print h2 {
+    margin: 0 0 4px !important;
+    padding: 0 0 4px !important;
+    border-bottom: 2px solid #000 !important;
+    font-size: 17px !important;
+    font-weight: 900 !important;
+    line-height: 1.05 !important;
+    text-align: center !important;
+    text-transform: uppercase !important;
+  }
+
+  .sumula-print p {
+    margin: 0 0 3px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    line-height: 1.15 !important;
+    text-align: center !important;
+  }
+
+  .sumula-print h3 {
+    margin: 7px 0 5px !important;
+    font-size: 12px !important;
+    font-weight: 900 !important;
+    text-transform: uppercase !important;
+  }
+
+  /* FORÇA A TABELA MANUAL A NÃO SER AFETADA PELOS nth-child ANTIGOS */
+  .sumula-print .tabela-sumula-manual-print,
+  .sumula-print .tabela-sumula-manual-print thead,
+  .sumula-print .tabela-sumula-manual-print tbody,
+  .sumula-print .tabela-sumula-manual-print tr,
+  .sumula-print .tabela-sumula-manual-print th,
+  .sumula-print .tabela-sumula-manual-print td {
+    visibility: visible !important;
+  }
+
+  .sumula-print .tabela-sumula-manual-print {
+    display: table !important;
+    width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    border: 2px solid #000 !important;
+    background: #fff !important;
+  }
+
+  .sumula-print .tabela-sumula-manual-print thead {
+    display: table-header-group !important;
+  }
+
+  .sumula-print .tabela-sumula-manual-print tbody {
+    display: table-row-group !important;
+  }
+
+  .sumula-print .tabela-sumula-manual-print tr {
+    display: table-row !important;
+  }
+
+  .sumula-print .tabela-sumula-manual-print th,
+  .sumula-print .tabela-sumula-manual-print td,
+  .sumula-print .tabela-sumula-manual-print th:last-child,
+  .sumula-print .tabela-sumula-manual-print td:last-child,
+  .sumula-pista .tabela-sumula-manual-print th:nth-child(5),
+  .sumula-pista .tabela-sumula-manual-print td:nth-child(5),
+  .sumula-campo .tabela-sumula-manual-print th:nth-child(5),
+  .sumula-campo .tabela-sumula-manual-print td:nth-child(5) {
+    display: table-cell !important;
+    visibility: visible !important;
+    border: 1px solid #000 !important;
+    padding: 6px 5px !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+
+  .sumula-print .tabela-sumula-manual-print th {
+    background: #e8eef4 !important;
+    color: #000 !important;
+    padding: 7px 5px !important;
+    font-size: 10px !important;
+    font-weight: 900 !important;
+    text-align: center !important;
+    text-transform: uppercase !important;
+    vertical-align: middle !important;
+  }
+
+  .sumula-print .tabela-sumula-manual-print td {
+    background: #fff !important;
+    color: #000 !important;
+    height: 34px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    vertical-align: middle !important;
+  }
+
+  /* PISTA: RAIA | Nº | ATLETA | ESCOLA | RESULTADO | COLOCAÇÃO */
+  .sumula-print .tabela-sumula-manual-print .col-raia {
+    width: 6% !important;
+    text-align: center !important;
+  }
+
+  .sumula-print .tabela-sumula-manual-print .col-numero {
+    width: 7% !important;
+    text-align: center !important;
+  }
+
+  .sumula-print .tabela-sumula-manual-print .col-atleta {
+    width: 36% !important;
+    text-align: left !important;
+  }
+
+  .sumula-print .tabela-sumula-manual-print .col-escola {
+    width: 32% !important;
+    text-align: left !important;
+  }
+
+  .sumula-print .tabela-sumula-manual-print .col-resultado {
+    width: 10% !important;
+    text-align: center !important;
+    font-weight: 900 !important;
+  }
+
+  .sumula-print .tabela-sumula-manual-print .col-colocacao {
+    width: 9% !important;
+    text-align: center !important;
+    font-weight: 900 !important;
+  }
+
+  /* CAMPO: ORDEM | Nº | ATLETA | ESCOLA | 1ª | 2ª | 3ª | MELHOR | COLOCAÇÃO */
+  .sumula-campo .tabela-sumula-manual-print .col-atleta {
+    width: 28% !important;
+  }
+
+  .sumula-campo .tabela-sumula-manual-print .col-escola {
+    width: 25% !important;
+  }
+
+  .sumula-campo .tabela-sumula-manual-print .col-tentativa {
+    width: 6% !important;
+    text-align: center !important;
+  }
+
+  .sumula-campo .tabela-sumula-manual-print .col-resultado {
+    width: 8% !important;
+  }
+
+  .sumula-campo .tabela-sumula-manual-print .col-colocacao {
+    width: 8% !important;
+  }
+
+  .assinaturas-sumula {
+    display: flex !important;
+    justify-content: space-between !important;
+    gap: 22mm !important;
+    margin-top: 15mm !important;
+    padding: 0 10mm !important;
+    font-size: 9px !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .assinaturas-sumula > div {
+    flex: 1 !important;
+    text-align: center !important;
+  }
+
+  .assinaturas-sumula > div > div {
+    border-top: 1.2px solid #000 !important;
+    padding-top: 5px !important;
+    font-weight: 700 !important;
+  }
+}
+
