@@ -1478,3 +1478,277 @@
     font-size: 7.2px !important;
   }
 }
+
+/* ============================================================
+   CORREÇÃO FINAL - SÚMULA MANUAL EM PAISAGEM
+   Cole no FINAL do printSumulas.css
+   ============================================================ */
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 6mm;
+  }
+
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .sidebar,
+  .topbar,
+  .nao-imprimir {
+    display: none !important;
+  }
+
+  .app,
+  .content {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  .sumula-print {
+    display: block !important;
+    width: 285mm !important;
+    max-width: 285mm !important;
+    min-height: 190mm !important;
+    margin: 0 auto !important;
+    padding: 4mm 6mm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    border: none !important;
+    box-shadow: none !important;
+    box-sizing: border-box !important;
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  .sumula-print:last-child {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  .sumula-print h2 {
+    margin: 0 0 3px !important;
+    padding: 0 0 3px !important;
+    border-bottom: 1px solid #000 !important;
+    font-family: Arial, sans-serif !important;
+    font-size: 15px !important;
+    font-weight: 900 !important;
+    line-height: 1.1 !important;
+    text-align: center !important;
+    text-transform: uppercase !important;
+  }
+
+  .sumula-print p {
+    margin: 0 0 3px !important;
+    font-family: Arial, sans-serif !important;
+    font-size: 8.5px !important;
+    font-weight: 700 !important;
+    line-height: 1.15 !important;
+    text-align: center !important;
+  }
+
+  .sumula-print h3 {
+    margin: 5px 0 4px !important;
+    font-family: Arial, sans-serif !important;
+    font-size: 10px !important;
+    font-weight: 900 !important;
+    text-transform: uppercase !important;
+  }
+
+  .sumula-print table {
+    width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    font-family: Arial, sans-serif !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .sumula-print th,
+  .sumula-print td {
+    border: 1px solid #000 !important;
+    color: #000000 !important;
+    vertical-align: middle !important;
+    box-sizing: border-box !important;
+  }
+
+  .sumula-print th {
+    background: #e8eef4 !important;
+    padding: 5px 4px !important;
+    font-size: 9px !important;
+    font-weight: 900 !important;
+    line-height: 1.05 !important;
+    text-align: center !important;
+    text-transform: uppercase !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .sumula-print td {
+    padding: 4px 4px !important;
+    height: 24px !important;
+    font-size: 8.5px !important;
+    font-weight: 600 !important;
+    line-height: 1.1 !important;
+  }
+
+  .sumula-print input,
+  .sumula-print select {
+    border: none !important;
+    background: transparent !important;
+    color: #000000 !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-family: Arial, sans-serif !important;
+    font-size: inherit !important;
+    font-weight: inherit !important;
+    text-align: center !important;
+  }
+
+  .sumula-print input::placeholder {
+    color: transparent !important;
+  }
+
+  /* PISTA */
+  .sumula-pista th:nth-child(1),
+  .sumula-pista td:nth-child(1) {
+    width: 5% !important;
+    text-align: center !important;
+    font-weight: 900 !important;
+  }
+
+  .sumula-pista th:nth-child(2),
+  .sumula-pista td:nth-child(2) {
+    width: 7% !important;
+    text-align: center !important;
+  }
+
+  .sumula-pista th:nth-child(3),
+  .sumula-pista td:nth-child(3) {
+    width: 31% !important;
+    text-align: left !important;
+  }
+
+  .sumula-pista th:nth-child(4),
+  .sumula-pista td:nth-child(4) {
+    width: 31% !important;
+    text-align: left !important;
+  }
+
+  .sumula-pista th:nth-child(5),
+  .sumula-pista td:nth-child(5) {
+    width: 10% !important;
+    text-align: center !important;
+  }
+
+  .sumula-pista th:nth-child(6),
+  .sumula-pista td:nth-child(6) {
+    width: 8% !important;
+    text-align: center !important;
+  }
+
+  .sumula-pista th:nth-child(7),
+  .sumula-pista td:nth-child(7) {
+    width: 5% !important;
+    text-align: center !important;
+    font-weight: 900 !important;
+  }
+
+  .sumula-pista th:nth-child(8),
+  .sumula-pista td:nth-child(8) {
+    width: 3% !important;
+    text-align: center !important;
+  }
+
+  /* CAMPO */
+  .sumula-campo th:nth-child(1),
+  .sumula-campo td:nth-child(1) {
+    width: 6% !important;
+    text-align: center !important;
+    font-weight: 900 !important;
+  }
+
+  .sumula-campo th:nth-child(2),
+  .sumula-campo td:nth-child(2) {
+    width: 7% !important;
+    text-align: center !important;
+  }
+
+  .sumula-campo th:nth-child(3),
+  .sumula-campo td:nth-child(3) {
+    width: 25% !important;
+    text-align: left !important;
+  }
+
+  .sumula-campo th:nth-child(4),
+  .sumula-campo td:nth-child(4) {
+    width: 24% !important;
+    text-align: left !important;
+  }
+
+  .sumula-campo th:nth-child(5),
+  .sumula-campo td:nth-child(5) {
+    width: 9% !important;
+    text-align: center !important;
+  }
+
+  .sumula-campo th:nth-child(6),
+  .sumula-campo td:nth-child(6),
+  .sumula-campo th:nth-child(7),
+  .sumula-campo td:nth-child(7),
+  .sumula-campo th:nth-child(8),
+  .sumula-campo td:nth-child(8),
+  .sumula-campo th:nth-child(9),
+  .sumula-campo td:nth-child(9) {
+    width: 6% !important;
+    text-align: center !important;
+  }
+
+  .sumula-campo th:nth-child(10),
+  .sumula-campo td:nth-child(10) {
+    width: 6% !important;
+    text-align: center !important;
+    font-weight: 900 !important;
+  }
+
+  .sumula-campo th:nth-child(11),
+  .sumula-campo td:nth-child(11) {
+    width: 5% !important;
+    text-align: center !important;
+  }
+
+  .assinaturas-sumula {
+    display: flex !important;
+    justify-content: space-between !important;
+    gap: 40px !important;
+    margin-top: 18px !important;
+    font-family: Arial, sans-serif !important;
+    font-size: 8px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .assinaturas-sumula > div {
+    flex: 1 !important;
+    text-align: center !important;
+  }
+
+  .assinaturas-sumula > div > div {
+    border-top: 1px solid #000 !important;
+    padding-top: 5px !important;
+  }
+}
