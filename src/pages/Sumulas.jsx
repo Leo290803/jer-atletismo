@@ -11,7 +11,209 @@ import { useSumulaDigital } from "./sumulas/hooks/useSumulaDigital";
 import { useSumulas } from "./sumulas/hooks/useSumulas";
 import { buscarCombinadaPorCategoriaNaipe, ehProvaCombinada } from "../data/provasCombinadas";
 import { formatarNascimento } from "./sumulas/utils/formatadores";
+import { getNumeroAtleta } from "../utils/getNumeroAtleta";
 import "./sumulas/styles/printSumulas.css";
+
+
+function valorResultadoPreview(raia, ehCampoTentativas, ehSaltoAltura) {
+  if (!raia) return "";
+
+  if (ehSaltoAltura) {
+    return raia.resultado_final || raia.resultado || "";
+  }
+
+  if (ehCampoTentativas) {
+    return (
+      raia.resultado_final ||
+      raia.melhor_marca ||
+      raia.marca ||
+      raia.tentativa6 ||
+      raia.tentativa5 ||
+      raia.tentativa4 ||
+      raia.tentativa3 ||
+      raia.tentativa2 ||
+      raia.tentativa1 ||
+      ""
+    );
+  }
+
+  return raia.tempo || raia.resultado_final || raia.marca || "";
+}
+
+function PreviewSumulaOficial({
+  series,
+  provaAtual,
+  dataProva,
+  ehCampoTentativas,
+  ehSaltoAltura,
+  ehRevezamento,
+  ehCombinada,
+  formatarNascimento,
+}) {
+  if (!provaAtual) return null;
+
+  const totalLinhas = (series || []).reduce(
+    (total, serie) => total + (serie.raias?.length || 0),
+    0
+  );
+
+  if (!series?.length) {
+    return (
+      <div className="card" style={{ marginBottom: 20 }}>
+        <h3 style={{ marginTop: 0 }}>Prévia da súmula oficial</h3>
+        <p style={{ color: "#64748b", fontWeight: 700, marginBottom: 0 }}>
+          Nenhuma série carregada para esta prova. Clique em “Gerar Séries desta Prova” ou “Recarregar Séries”.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <div
+        style={{
+          alignItems: "center",
+          display: "flex",
+          gap: 12,
+          justifyContent: "space-between",
+          marginBottom: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <h3 style={{ margin: 0 }}>Súmula oficial carregada</h3>
+          <p style={{ color: "#64748b", fontWeight: 700, margin: "4px 0 0" }}>
+            Confira os atletas carregados antes de lançar, classificar ou imprimir.
+          </p>
+        </div>
+
+        <span
+          style={{
+            background: "#dbeafe",
+            borderRadius: 999,
+            color: "#1e3a8a",
+            fontWeight: 800,
+            padding: "8px 12px",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {series.length} série(s) • {totalLinhas} atleta(s)
+        </span>
+      </div>
+
+      <div
+        style={{
+          background: "#eff6ff",
+          border: "1px solid #bfdbfe",
+          borderRadius: 12,
+          color: "#0f2744",
+          fontWeight: 800,
+          marginBottom: 12,
+          padding: 12,
+        }}
+      >
+        {provaAtual.nome} • {provaAtual.categoria} • {provaAtual.naipe} • {provaAtual.fase || "QUALIFICACAO"}
+        {dataProva ? ` • ${dataProva}` : ""}
+      </div>
+
+      <div style={{ display: "grid", gap: 14 }}>
+        {series.map((serie) => (
+          <div
+            key={serie.id}
+            style={{
+              border: "1px solid #e2e8f0",
+              borderRadius: 14,
+              overflow: "hidden",
+              background: "#ffffff",
+            }}
+          >
+            <div
+              style={{
+                background: "#f1f5f9",
+                color: "#0f2744",
+                fontWeight: 900,
+                padding: "10px 12px",
+              }}
+            >
+              {ehCampoTentativas || ehSaltoAltura
+                ? `Ordem de tentativa / Série ${serie.numero_serie || 1}`
+                : ehRevezamento
+                ? `Revezamento / Série ${serie.numero_serie || 1}`
+                : ehCombinada
+                ? `Combinada / Série ${serie.numero_serie || 1}`
+                : `Série ${serie.numero_serie || 1}`}
+            </div>
+
+            <div style={{ overflowX: "auto" }}>
+              <table
+                width="100%"
+                cellPadding="9"
+                style={{ borderCollapse: "collapse", minWidth: 900 }}
+              >
+                <thead>
+                  <tr style={{ background: "#e8eef4" }}>
+                    {!ehCampoTentativas && !ehSaltoAltura && <th>Raia</th>}
+                    <th>{ehCampoTentativas || ehSaltoAltura ? "Ordem" : "Nº"}</th>
+                    {(ehCampoTentativas || ehSaltoAltura) && <th>Nº</th>}
+                    <th>Atleta</th>
+                    <th>Escola</th>
+                    <th>Nascimento</th>
+                    {ehCampoTentativas && <th>1ª</th>}
+                    {ehCampoTentativas && <th>2ª</th>}
+                    {ehCampoTentativas && <th>3ª</th>}
+                    <th>{ehCampoTentativas ? "Melhor" : "Resultado"}</th>
+                    <th>Colocação</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {[...(serie.raias || [])]
+                    .sort((a, b) =>
+                      ehCampoTentativas || ehSaltoAltura
+                        ? (a.ordem || 0) - (b.ordem || 0)
+                        : (a.raia || 0) - (b.raia || 0)
+                    )
+                    .map((raia, index) => {
+                      const atleta = raia.inscricoes?.atletas;
+
+                      return (
+                        <tr key={raia.id}>
+                          {!ehCampoTentativas && !ehSaltoAltura && (
+                            <td style={{ textAlign: "center", fontWeight: 800 }}>{raia.raia || ""}</td>
+                          )}
+                          <td style={{ textAlign: "center", fontWeight: 800 }}>
+                            {ehCampoTentativas || ehSaltoAltura ? raia.ordem || index + 1 : getNumeroAtleta(atleta)}
+                          </td>
+                          {(ehCampoTentativas || ehSaltoAltura) && (
+                            <td style={{ textAlign: "center", fontWeight: 800 }}>{getNumeroAtleta(atleta)}</td>
+                          )}
+                          <td>{atleta?.nome || ""}</td>
+                          <td>{atleta?.escolas?.nome || ""}</td>
+                          <td style={{ textAlign: "center" }}>
+                            {formatarNascimento(atleta?.data_nascimento)}
+                          </td>
+                          {ehCampoTentativas && <td style={{ textAlign: "center" }}>{raia.tentativa1 || ""}</td>}
+                          {ehCampoTentativas && <td style={{ textAlign: "center" }}>{raia.tentativa2 || ""}</td>}
+                          {ehCampoTentativas && <td style={{ textAlign: "center" }}>{raia.tentativa3 || ""}</td>}
+                          <td style={{ textAlign: "center", fontWeight: 800 }}>
+                            {valorResultadoPreview(raia, ehCampoTentativas, ehSaltoAltura)}
+                          </td>
+                          <td style={{ textAlign: "center", fontWeight: 800 }}>{raia.colocacao || ""}</td>
+                          <td style={{ textAlign: "center" }}>{raia.status && raia.status !== "OK" ? raia.status : ""}</td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 
 export default function Sumulas() {
   const [mensagem, setMensagem] = useState("");
@@ -308,6 +510,17 @@ export default function Sumulas() {
           salvarResultados={salvarResultados}
           classificarAutomaticamente={classificarAutomaticamente}
           imprimir={imprimir}
+        />
+
+        <PreviewSumulaOficial
+          series={series}
+          provaAtual={provaAtual}
+          dataProva={dataProva}
+          ehCampoTentativas={ehCampoTentativas}
+          ehSaltoAltura={ehSaltoAltura}
+          ehRevezamento={ehRevezamento}
+          ehCombinada={ehCombinada}
+          formatarNascimento={formatarNascimento}
         />
 
         {ehCombinada && combinadaInfo && (
