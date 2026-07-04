@@ -1,13 +1,13 @@
 /* ============================================================
-   CORREÇÃO FINAL V3 - SÚMULA MAIOR NA IMPRESSÃO
+   SÚMULAS - IMPRESSÃO FINAL ATUALIZADA
    Arquivo: src/pages/sumulas/styles/printSumulas.css
 
-   Objetivo:
+   Atualização:
    - A4 horizontal
-   - Súmula ocupando quase toda a folha
-   - Fonte maior
-   - Tabela maior
-   - Sem ficar pequena no topo
+   - Súmula maior na folha
+   - Remove coluna STATUS da impressão
+   - Mantém RAIA e Nº
+   - Evita STATUS espremido/em pé
    ============================================================ */
 
 @media print {
@@ -55,11 +55,11 @@
     visibility: hidden !important;
   }
 
+  #root,
   .app,
   .content,
   main,
-  section,
-  #root {
+  section {
     display: block !important;
     width: 100% !important;
     max-width: none !important;
@@ -251,11 +251,37 @@
     color: transparent !important;
   }
 
-  /* =========================
+  /* ============================================================
+     REMOVE STATUS DA IMPRESSÃO
+     Funciona para:
+     - pista com STATUS na 8ª coluna
+     - campo com STATUS na 11ª coluna
+     - qualquer tabela onde STATUS seja a última coluna
+     ============================================================ */
+
+  .sumula-print table th:last-child,
+  .sumula-print table td:last-child,
+  .sumula-pista th:nth-child(8),
+  .sumula-pista td:nth-child(8),
+  .sumula-campo th:nth-child(11),
+  .sumula-campo td:nth-child(11) {
+    display: none !important;
+    width: 0 !important;
+    max-width: 0 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    overflow: hidden !important;
+  }
+
+  /* ============================================================
      SÚMULA DE PISTA
-     Colunas:
-     RAIA | Nº | ATLETA | ESCOLA | NASCIMENTO | RESULTADO | COLOCAÇÃO | STATUS
-     ========================= */
+     Colunas antes:
+     1 RAIA | 2 Nº | 3 ATLETA | 4 ESCOLA | 5 NASCIMENTO | 6 RESULTADO | 7 COLOCAÇÃO | 8 STATUS
+
+     Colunas impressas:
+     RAIA | Nº | ATLETA | ESCOLA | NASCIMENTO | RESULTADO | COLOCAÇÃO
+     ============================================================ */
 
   .sumula-pista table {
     font-size: 10.5px !important;
@@ -270,19 +296,19 @@
 
   .sumula-pista th:nth-child(2),
   .sumula-pista td:nth-child(2) {
-    width: 6% !important;
+    width: 7% !important;
     text-align: center !important;
   }
 
   .sumula-pista th:nth-child(3),
   .sumula-pista td:nth-child(3) {
-    width: 31% !important;
+    width: 32% !important;
     text-align: left !important;
   }
 
   .sumula-pista th:nth-child(4),
   .sumula-pista td:nth-child(4) {
-    width: 31% !important;
+    width: 32% !important;
     text-align: left !important;
   }
 
@@ -301,20 +327,15 @@
 
   .sumula-pista th:nth-child(7),
   .sumula-pista td:nth-child(7) {
-    width: 6% !important;
+    width: 5% !important;
     text-align: center !important;
     font-weight: 900 !important;
   }
 
-  .sumula-pista th:nth-child(8),
-  .sumula-pista td:nth-child(8) {
-    width: 2% !important;
-    text-align: center !important;
-  }
-
-  /* =========================
+  /* ============================================================
      SÚMULA DE CAMPO
-     ========================= */
+     Remove STATUS e redistribui colunas
+     ============================================================ */
 
   .sumula-campo table {
     font-size: 9.5px !important;
@@ -343,13 +364,13 @@
 
   .sumula-campo th:nth-child(3),
   .sumula-campo td:nth-child(3) {
-    width: 25% !important;
+    width: 26% !important;
     text-align: left !important;
   }
 
   .sumula-campo th:nth-child(4),
   .sumula-campo td:nth-child(4) {
-    width: 24% !important;
+    width: 25% !important;
     text-align: left !important;
   }
 
@@ -374,20 +395,14 @@
 
   .sumula-campo th:nth-child(10),
   .sumula-campo td:nth-child(10) {
-    width: 6% !important;
+    width: 7% !important;
     text-align: center !important;
     font-weight: 900 !important;
   }
 
-  .sumula-campo th:nth-child(11),
-  .sumula-campo td:nth-child(11) {
-    width: 5% !important;
-    text-align: center !important;
-  }
-
-  /* =========================
+  /* ============================================================
      ASSINATURAS
-     ========================= */
+     ============================================================ */
 
   .assinaturas-sumula {
     display: flex !important;
