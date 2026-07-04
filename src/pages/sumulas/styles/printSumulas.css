@@ -313,8 +313,8 @@
 
 @media print {
   .sumula-print h2 {
-    font-size: 20px !important;
-    line-height: 1.15 !important;
+font-size: 22px !important;
+     line-height: 1.15 !important;
     font-weight: 900 !important;
     margin-bottom: 5px !important;
     text-align: center !important;
@@ -322,14 +322,14 @@
   }
 
   .sumula-print p {
-    font-size: 11px !important;
-    line-height: 1.25 !important;
+font-size: 12px !important; 
+     line-height: 1.25 !important;
     font-weight: 800 !important;
     text-align: center !important;
   }
 
   .sumula-print p strong {
-    font-size: 11px !important;
-    font-weight: 900 !important;
+font-size: 12px !important;
+     font-weight: 900 !important;
   }
 }
