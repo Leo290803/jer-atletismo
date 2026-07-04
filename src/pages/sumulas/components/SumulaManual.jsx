@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "../../../lib/supabase";
 import BoletimManual from "./BoletimManual";
 
@@ -362,6 +363,39 @@ function resumoCompeticaoManual(competicao) {
   };
 }
 
+
+function criarPortalSumulaManualRoot() {
+  if (typeof document === "undefined") return null;
+
+  let root = document.getElementById("portal-sumula-manual-root");
+
+  if (!root) {
+    root = document.createElement("div");
+    root.id = "portal-sumula-manual-root";
+    root.className = "portal-sumula-manual-root";
+    document.body.appendChild(root);
+  }
+
+  return root;
+}
+
+function textoManual(valor) {
+  return String(valor ?? "").trim();
+}
+
+function linhaManualTemAtleta(linha) {
+  return Boolean(
+    textoManual(linha?.numero) ||
+      textoManual(linha?.atleta) ||
+      textoManual(linha?.escola) ||
+      textoManual(linha?.resultado) ||
+      textoManual(linha?.tentativa1) ||
+      textoManual(linha?.tentativa2) ||
+      textoManual(linha?.tentativa3) ||
+      textoManual(linha?.colocacao)
+  );
+}
+
 export default function SumulaManual({ config, imprimir }) {
   const [sessao, setSessao] = useState(criarSessaoManual);
   const [mensagem, setMensagem] = useState("");
@@ -374,6 +408,8 @@ export default function SumulaManual({ config, imprimir }) {
   const [telaManual, setTelaManual] = useState("lista");
   const [tipoImpressaoManual, setTipoImpressaoManual] = useState("sumula");
   const [idsProvasImpressaoManual, setIdsProvasImpressaoManual] = useState([]);
+  const [portalSumulaManual, setPortalSumulaManual] = useState(null);
+  const [forcarImpressaoSumulaManual, setForcarImpressaoSumulaManual] = useState(false);
   const [numeroBoletimManual, setNumeroBoletimManual] = useState("0001");
   const [boletimSomenteFinais, setBoletimSomenteFinais] = useState(false);
   const [boletimSomenteComResultado, setBoletimSomenteComResultado] = useState(false);
@@ -499,6 +535,15 @@ export default function SumulaManual({ config, imprimir }) {
     setSessao((atual) => ajustarSessao(estado, atual.competicaoId, atual.provaId));
     setCarregandoBanco(false);
     setStatusBanco((competicoes || []).length ? "Dados manuais carregados do banco." : "Nenhuma competicao manual no banco ainda.");
+  }, []);
+
+
+  useEffect(() => {
+    setPortalSumulaManual(criarPortalSumulaManualRoot());
+
+    return () => {
+      document.body.classList.remove("imprimindo-sumula-manual");
+    };
   }, []);
 
   useEffect(() => {
@@ -891,10 +936,38 @@ export default function SumulaManual({ config, imprimir }) {
     setMensagem(salvo ? "Competicoes e provas manuais salvas no banco." : "Nao foi possivel salvar no banco.");
   }
 
-  function imprimirSumulaManual() {
-    setIdsProvasImpressaoManual([provaAtual.id]);
+  function limparModoImpressaoSumulaManual() {
+    document.body.classList.remove("imprimindo-sumula-manual");
+    setForcarImpressaoSumulaManual(false);
+    window.removeEventListener("afterprint", limparModoImpressaoSumulaManual);
+  }
+
+  function dispararImpressaoSumulaManual(ids) {
+    const idsValidos = Array.isArray(ids) ? ids.filter(Boolean) : [];
+
+    if (!idsValidos.length) {
+      window.alert("Nenhuma súmula encontrada para imprimir.");
+      return;
+    }
+
+    setIdsProvasImpressaoManual(idsValidos);
     setTipoImpressaoManual("sumula");
-    window.setTimeout(() => imprimir(), 120);
+
+    document.body.classList.remove("imprimindo-boletim-manual");
+    document.body.classList.remove("print-boletim-manual");
+    document.body.classList.remove("modo-boletim-manual");
+    document.body.classList.add("imprimindo-sumula-manual");
+
+    setForcarImpressaoSumulaManual(true);
+    window.addEventListener("afterprint", limparModoImpressaoSumulaManual);
+
+    window.setTimeout(() => {
+      window.print();
+    }, 250);
+  }
+
+  function imprimirSumulaManual() {
+    dispararImpressaoSumulaManual([provaAtual.id]);
   }
 
   function imprimirSumulasFiltradasManual() {
@@ -905,9 +978,7 @@ export default function SumulaManual({ config, imprimir }) {
       return;
     }
 
-    setIdsProvasImpressaoManual(ids);
-    setTipoImpressaoManual("sumula");
-    window.setTimeout(() => imprimir(), 120);
+    dispararImpressaoSumulaManual(ids);
   }
 
   function imprimirTodasSumulasManual() {
@@ -918,14 +989,21 @@ export default function SumulaManual({ config, imprimir }) {
       return;
     }
 
-    setIdsProvasImpressaoManual(ids);
-    setTipoImpressaoManual("sumula");
-    window.setTimeout(() => imprimir(), 120);
+    dispararImpressaoSumulaManual(ids);
   }
 
   function imprimirBoletimManual() {
+    document.body.classList.remove("imprimindo-sumula-manual");
+    setForcarImpressaoSumulaManual(false);
     setTipoImpressaoManual("boletim");
-    window.setTimeout(() => imprimir(), 80);
+
+    window.setTimeout(() => {
+      if (typeof imprimir === "function") {
+        imprimir();
+      } else {
+        window.print();
+      }
+    }, 80);
   }
 
   function limparRascunho() {
@@ -1135,6 +1213,338 @@ export default function SumulaManual({ config, imprimir }) {
         </div>
       </div>
     );
+  }
+
+
+  function renderEstilosImpressaoSumulaManual() {
+    return (
+      <style>
+        {`
+          @media screen {
+            #portal-sumula-manual-root {
+              display: none !important;
+            }
+          }
+
+          @media print {
+            @page {
+              size: A4 landscape;
+              margin: 6mm;
+            }
+
+            body.imprimindo-sumula-manual {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              color: #000000 !important;
+              overflow: visible !important;
+            }
+
+            body.imprimindo-sumula-manual > *:not(#portal-sumula-manual-root) {
+              display: none !important;
+              visibility: hidden !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root,
+            body.imprimindo-sumula-manual #portal-sumula-manual-root * {
+              visibility: visible !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root {
+              display: block !important;
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 100% !important;
+              min-height: 100% !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              overflow: visible !important;
+              z-index: 999999 !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-print {
+              display: block !important;
+              visibility: visible !important;
+              width: 285mm !important;
+              max-width: 285mm !important;
+              min-height: 190mm !important;
+              margin: 0 auto !important;
+              padding: 4mm 6mm !important;
+              box-sizing: border-box !important;
+              background: #ffffff !important;
+              color: #000000 !important;
+              border: none !important;
+              box-shadow: none !important;
+              page-break-after: always !important;
+              break-after: page !important;
+              font-family: Arial, sans-serif !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-print:last-child {
+              page-break-after: auto !important;
+              break-after: auto !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-print h2 {
+              margin: 0 0 3px !important;
+              padding: 0 0 4px !important;
+              border-bottom: 2px solid #000000 !important;
+              color: #000000 !important;
+              font-size: 17px !important;
+              font-weight: 900 !important;
+              line-height: 1.08 !important;
+              text-align: center !important;
+              text-transform: uppercase !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-print p {
+              margin: 0 0 3px !important;
+              color: #000000 !important;
+              font-size: 9px !important;
+              font-weight: 800 !important;
+              line-height: 1.15 !important;
+              text-align: center !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-print h3 {
+              margin: 5px 0 4px !important;
+              color: #000000 !important;
+              font-size: 10px !important;
+              font-weight: 900 !important;
+              line-height: 1.1 !important;
+              text-transform: uppercase !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-print table {
+              display: table !important;
+              width: 100% !important;
+              border-collapse: collapse !important;
+              table-layout: fixed !important;
+              background: #ffffff !important;
+              color: #000000 !important;
+              font-family: Arial, sans-serif !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-print thead {
+              display: table-header-group !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-print tbody {
+              display: table-row-group !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-print tr {
+              display: table-row !important;
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-print th,
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-print td {
+              display: table-cell !important;
+              border: 1px solid #000000 !important;
+              color: #000000 !important;
+              padding: 4px 4px !important;
+              height: 24px !important;
+              font-size: 8.4px !important;
+              font-weight: 700 !important;
+              line-height: 1.08 !important;
+              vertical-align: middle !important;
+              box-sizing: border-box !important;
+              word-break: break-word !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-print th {
+              background: #e8eef4 !important;
+              font-size: 8.6px !important;
+              font-weight: 900 !important;
+              text-align: center !important;
+              text-transform: uppercase !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-pista .col-raia {
+              width: 7% !important;
+              text-align: center !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-pista .col-numero {
+              width: 8% !important;
+              text-align: center !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-pista .col-atleta {
+              width: 32% !important;
+              text-align: left !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-pista .col-escola {
+              width: 34% !important;
+              text-align: left !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-pista .col-resultado {
+              width: 10% !important;
+              text-align: center !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-pista .col-colocacao {
+              width: 9% !important;
+              text-align: center !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-campo .col-raia {
+              width: 6% !important;
+              text-align: center !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-campo .col-numero {
+              width: 7% !important;
+              text-align: center !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-campo .col-atleta {
+              width: 25% !important;
+              text-align: left !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-campo .col-escola {
+              width: 25% !important;
+              text-align: left !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-campo .col-tentativa {
+              width: 7% !important;
+              text-align: center !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-campo .col-resultado {
+              width: 8% !important;
+              text-align: center !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .sumula-campo .col-colocacao {
+              width: 8% !important;
+              text-align: center !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .assinaturas-sumula {
+              display: flex !important;
+              justify-content: space-between !important;
+              gap: 40px !important;
+              margin-top: 18px !important;
+              font-size: 8px !important;
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .assinaturas-sumula > div {
+              flex: 1 !important;
+              text-align: center !important;
+            }
+
+            body.imprimindo-sumula-manual #portal-sumula-manual-root .assinaturas-sumula > div > div {
+              border-top: 1px solid #000000 !important;
+              padding-top: 5px !important;
+            }
+          }
+        `}
+      </style>
+    );
+  }
+
+  function renderSumulasManuaisImpressao() {
+    return provasParaImpressaoManual.flatMap((provaImpressao) => {
+      const ehCampoImpressao = provaImpressao.tipo === "campo";
+      const linhasParaImpressao = (provaImpressao.linhas || []).filter(linhaManualTemAtleta);
+      const seriesImpressao = Object.entries(agruparPorSerie(linhasParaImpressao));
+
+      return seriesImpressao.map(([numeroSerie, linhas]) => (
+        <div
+          className={`quebra-pagina sumula-print ${
+            ehCampoImpressao ? "sumula-campo" : "sumula-pista"
+          }`}
+          key={`${provaImpressao.id}-${numeroSerie}`}
+        >
+          <h2>
+            {competicaoAtual.nomeEvento ||
+              config?.texto_cabecalho ||
+              "SÚMULA OFICIAL DE ATLETISMO - JER 2026"}
+          </h2>
+
+          <p>
+            <strong>Prova:</strong> {provaImpressao.prova || "SÚMULA MANUAL"}
+            &nbsp; | &nbsp;
+            <strong>Categoria:</strong> {provaImpressao.categoria}
+            &nbsp; | &nbsp;
+            <strong>Naipe:</strong> {provaImpressao.naipe}
+            &nbsp; | &nbsp;
+            <strong>Fase:</strong> {provaImpressao.fase}
+            &nbsp; | &nbsp;
+            <strong>Data:</strong> {dataParaTexto(provaImpressao.data)}
+          </p>
+
+          {competicaoAtual.local && (
+            <p>
+              <strong>Local:</strong> {competicaoAtual.local}
+            </p>
+          )}
+
+          <h3>{ehCampoImpressao ? "Ordem de tentativa" : `Série ${numeroSerie}`}</h3>
+
+          <table className="tabela-sumula-manual-print">
+            <thead>
+              <tr>
+                <th className="col-raia">{ehCampoImpressao ? "Ordem" : "Raia"}</th>
+                <th className="col-numero">Nº</th>
+                <th className="col-atleta">Atleta</th>
+                <th className="col-escola">Escola</th>
+
+                {ehCampoImpressao && <th className="col-tentativa">1ª</th>}
+                {ehCampoImpressao && <th className="col-tentativa">2ª</th>}
+                {ehCampoImpressao && <th className="col-tentativa">3ª</th>}
+
+                <th className="col-resultado">{ehCampoImpressao ? "Melhor" : "Resultado"}</th>
+                <th className="col-colocacao">Colocação</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {linhas.map((linha) => (
+                <tr key={linha.id}>
+                  <td className="col-raia">{linha.raia}</td>
+                  <td className="col-numero">{linha.numero}</td>
+                  <td className="col-atleta">{linha.atleta}</td>
+                  <td className="col-escola">{linha.escola}</td>
+
+                  {ehCampoImpressao && <td className="col-tentativa">{linha.tentativa1}</td>}
+                  {ehCampoImpressao && <td className="col-tentativa">{linha.tentativa2}</td>}
+                  {ehCampoImpressao && <td className="col-tentativa">{linha.tentativa3}</td>}
+
+                  <td className="col-resultado">{linha.resultado}</td>
+                  <td className="col-colocacao">{linha.colocacao}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {config?.mostrar_assinaturas !== false && (
+            <div className="assinaturas-sumula">
+              <div>
+                <div>Árbitro da Prova</div>
+              </div>
+
+              <div>
+                <div>Coordenação de Atletismo</div>
+              </div>
+            </div>
+          )}
+        </div>
+      ));
+    });
   }
 
 
@@ -1881,88 +2291,15 @@ export default function SumulaManual({ config, imprimir }) {
         />
       )}
 
-      {telaManual === "competicao" && tipoImpressaoManual === "sumula" && provasParaImpressaoManual.flatMap((provaImpressao) => {
-        const ehCampoImpressao = provaImpressao.tipo === "campo";
-        const seriesImpressao = Object.entries(agruparPorSerie(provaImpressao.linhas || []));
-
-        return seriesImpressao.map(([numeroSerie, linhas]) => (
-          <div
-            className={`quebra-pagina sumula-print ${ehCampoImpressao ? "sumula-campo" : "sumula-pista"}`}
-            key={`${provaImpressao.id}-${numeroSerie}`}
-          >
-            <h2 style={{ textAlign: "center" }}>
-              {competicaoAtual.nomeEvento || config?.texto_cabecalho || "SÚMULA OFICIAL DE ATLETISMO - JER 2026"}
-            </h2>
-
-            <p style={{ textAlign: "center" }}>
-              <strong>Prova:</strong> {provaImpressao.prova || "SÚMULA MANUAL"}
-              &nbsp; | &nbsp;
-              <strong>Categoria:</strong> {provaImpressao.categoria}
-              &nbsp; | &nbsp;
-              <strong>Naipe:</strong> {provaImpressao.naipe}
-              &nbsp; | &nbsp;
-              <strong>Fase:</strong> {provaImpressao.fase}
-              &nbsp; | &nbsp;
-              <strong>Data:</strong> {dataParaTexto(provaImpressao.data)}
-            </p>
-
-            {competicaoAtual.local && (
-              <p style={{ textAlign: "center" }}>
-                <strong>Local:</strong> {competicaoAtual.local}
-              </p>
-            )}
-
-            <h3>{ehCampoImpressao ? "Ordem de tentativa" : `Série ${numeroSerie}`}</h3>
-
-            <table className="tabela-sumula-manual-print" width="100%" cellPadding="10">
-              <thead>
-                <tr>
-                  <th className="col-raia">{ehCampoImpressao ? "Ordem" : "Raia"}</th>
-                  <th className="col-numero">Nº</th>
-                  <th className="col-atleta">Atleta</th>
-                  <th className="col-escola">Escola</th>
-
-                  {ehCampoImpressao && <th className="col-tentativa">1ª</th>}
-                  {ehCampoImpressao && <th className="col-tentativa">2ª</th>}
-                  {ehCampoImpressao && <th className="col-tentativa">3ª</th>}
-
-                  <th className="col-resultado">{ehCampoImpressao ? "Melhor" : "Resultado"}</th>
-                  <th className="col-colocacao">Colocação</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {linhas.map((linha) => (
-                  <tr key={linha.id}>
-                    <td className="col-raia">{linha.raia}</td>
-                    <td className="col-numero">{linha.numero}</td>
-                    <td className="col-atleta">{linha.atleta}</td>
-                    <td className="col-escola">{linha.escola}</td>
-
-                    {ehCampoImpressao && <td className="col-tentativa">{linha.tentativa1}</td>}
-                    {ehCampoImpressao && <td className="col-tentativa">{linha.tentativa2}</td>}
-                    {ehCampoImpressao && <td className="col-tentativa">{linha.tentativa3}</td>}
-
-                    <td className="col-resultado">{linha.resultado}</td>
-                    <td className="col-colocacao">{linha.colocacao}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {config?.mostrar_assinaturas !== false && (
-              <div className="assinaturas-sumula">
-                <div>
-                  <div>Árbitro da Prova</div>
-                </div>
-
-                <div>
-                  <div>Coordenação de Atletismo</div>
-                </div>
-              </div>
-            )}
-          </div>
-        ));
-      })}    </>
+      {forcarImpressaoSumulaManual &&
+        portalSumulaManual &&
+        createPortal(
+          <>
+            {renderEstilosImpressaoSumulaManual()}
+            {renderSumulasManuaisImpressao()}
+          </>,
+          portalSumulaManual
+        )}
+    </>
   );
 }
