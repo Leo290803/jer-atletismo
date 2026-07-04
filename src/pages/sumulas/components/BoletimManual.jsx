@@ -129,9 +129,9 @@ function nomeCompeticao(competicao) {
   return competicao?.nomeEvento || "BOLETIM MANUAL DE RESULTADOS";
 }
 
-function formatarColocacao(colocacao) {
-  if (!textoPreenchido(colocacao)) return "";
-  return `${colocacao}º`;
+function formatarColocacao(colocacao, indice) {
+  if (textoPreenchido(colocacao)) return `${colocacao}º`;
+  return `${indice + 1}º`;
 }
 
 function criarPortalRoot() {
@@ -147,6 +147,34 @@ function criarPortalRoot() {
   }
 
   return root;
+}
+
+function aplicarPaginaPaisagemBoletim() {
+  if (typeof document === "undefined") return;
+
+  const antigo = document.getElementById("boletim-manual-page-landscape-style");
+  if (antigo) antigo.remove();
+
+  const style = document.createElement("style");
+  style.id = "boletim-manual-page-landscape-style";
+  style.setAttribute("data-boletim-manual", "true");
+  style.textContent = `
+    @media print {
+      @page {
+        size: A4 landscape !important;
+        margin: 0 !important;
+      }
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+
+function removerPaginaPaisagemBoletim() {
+  if (typeof document === "undefined") return;
+
+  const style = document.getElementById("boletim-manual-page-landscape-style");
+  if (style) style.remove();
 }
 
 export default function BoletimManual({
@@ -169,6 +197,7 @@ export default function BoletimManual({
     return () => {
       document.body.classList.remove("imprimindo-boletim-manual");
       document.body.classList.remove("print-boletim-manual");
+      removerPaginaPaisagemBoletim();
     };
   }, []);
 
@@ -188,22 +217,27 @@ export default function BoletimManual({
   function limparModoImpressao() {
     document.body.classList.remove("imprimindo-boletim-manual");
     document.body.classList.remove("print-boletim-manual");
+    removerPaginaPaisagemBoletim();
     setForcarImpressao(false);
     window.removeEventListener("afterprint", limparModoImpressao);
   }
 
   function imprimirBoletimManual() {
+    const root = criarPortalRoot();
+    setPortalRoot(root);
+
     document.body.classList.remove("print-sumula");
     document.body.classList.remove("modo-sumula-manual");
     document.body.classList.add("imprimindo-boletim-manual");
     document.body.classList.add("print-boletim-manual");
 
+    aplicarPaginaPaisagemBoletim();
     setForcarImpressao(true);
     window.addEventListener("afterprint", limparModoImpressao);
 
     window.setTimeout(() => {
       window.print();
-    }, 250);
+    }, 350);
   }
 
   function renderEstilosBase() {
@@ -244,8 +278,8 @@ export default function BoletimManual({
               position: absolute !important;
               left: 0 !important;
               top: 0 !important;
-              width: 100% !important;
-              min-height: 100% !important;
+              width: 297mm !important;
+              min-height: 210mm !important;
               margin: 0 !important;
               padding: 0 !important;
               background: #ffffff !important;
@@ -258,7 +292,7 @@ export default function BoletimManual({
               visibility: visible !important;
               width: 297mm !important;
               min-height: 210mm !important;
-              margin: 0 auto !important;
+              margin: 0 !important;
               padding: 0 !important;
               background: #ffffff !important;
               color: #000000 !important;
@@ -270,7 +304,7 @@ export default function BoletimManual({
               display: block !important;
               width: 297mm !important;
               min-height: 210mm !important;
-              margin: 0 auto !important;
+              margin: 0 !important;
               padding: 7mm 8mm 9mm !important;
               box-sizing: border-box !important;
               background: #ffffff !important;
@@ -469,23 +503,6 @@ export default function BoletimManual({
     );
   }
 
-  function renderEstilosPaisagemSomenteQuandoImprime() {
-    if (!forcarImpressao) return null;
-
-    return (
-      <style>
-        {`
-          @media print {
-            @page {
-              size: A4 landscape;
-              margin: 0;
-            }
-          }
-        `}
-      </style>
-    );
-  }
-
   function renderImpressao() {
     return (
       <div className="boletim-manual-print">
@@ -548,10 +565,10 @@ export default function BoletimManual({
                     </thead>
 
                     <tbody>
-                      {prova.linhasOrdenadas.map((linha) => (
+                      {prova.linhasOrdenadas.map((linha, index) => (
                         <tr key={linha.id}>
                           <td className="col-pos">
-                            {formatarColocacao(linha.colocacao)}
+                            {formatarColocacao(linha.colocacao, index)}
                           </td>
 
                           <td className="col-num">{textoPreenchido(linha.numero)}</td>
@@ -585,7 +602,6 @@ export default function BoletimManual({
   return (
     <>
       {renderEstilosBase()}
-      {renderEstilosPaisagemSomenteQuandoImprime()}
 
       {mostrarPreview && (
         <div className="nao-imprimir" style={cardStyle}>
@@ -735,7 +751,6 @@ export default function BoletimManual({
         createPortal(
           <>
             {renderEstilosBase()}
-            {renderEstilosPaisagemSomenteQuandoImprime()}
             {renderImpressao()}
           </>,
           portalRoot
