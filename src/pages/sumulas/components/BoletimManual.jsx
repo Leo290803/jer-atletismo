@@ -305,7 +305,7 @@ export default function BoletimManual({
               width: 297mm !important;
               min-height: 210mm !important;
               margin: 0 !important;
-              padding: 7mm 8mm 9mm !important;
+              padding: 8mm 10mm 10mm !important;
               box-sizing: border-box !important;
               background: #ffffff !important;
               color: #000000 !important;
@@ -313,8 +313,8 @@ export default function BoletimManual({
 
             body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-header {
               position: relative !important;
-              margin: 0 0 7px !important;
-              padding: 9px 10px 7px !important;
+              margin: 0 0 8px !important;
+              padding: 10px 12px 8px !important;
               border: 2px solid #0057b8 !important;
               background:
                 linear-gradient(90deg, rgba(0, 87, 184, 0.08), rgba(0, 132, 61, 0.08)),
@@ -348,7 +348,7 @@ export default function BoletimManual({
             body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-header h1 {
               margin: 8px 0 4px !important;
               color: #0f172a !important;
-              font-size: 15px !important;
+              font-size: 17px !important;
               font-weight: 900 !important;
               line-height: 1.1 !important;
               text-transform: uppercase !important;
@@ -357,7 +357,7 @@ export default function BoletimManual({
             body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-header h2 {
               margin: 4px 0 !important;
               color: #0057b8 !important;
-              font-size: 18px !important;
+              font-size: 20px !important;
               font-weight: 900 !important;
               line-height: 1.05 !important;
               text-transform: uppercase !important;
@@ -366,20 +366,20 @@ export default function BoletimManual({
             body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-header p {
               margin: 2px 0 !important;
               color: #111827 !important;
-              font-size: 8.4px !important;
+              font-size: 9px !important;
               font-weight: 700 !important;
               line-height: 1.15 !important;
             }
 
             body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-prova {
-              margin: 0 0 7px !important;
+              margin: 0 0 9px !important;
               break-inside: avoid !important;
               page-break-inside: avoid !important;
             }
 
             body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-prova-titulo {
-              padding: 4px 6px !important;
-              border-left: 7px solid #0057b8 !important;
+              padding: 5px 7px !important;
+              border-left: 8px solid #0057b8 !important;
               border-top: 1px solid #111827 !important;
               border-right: 1px solid #111827 !important;
               border-bottom: 1px solid #111827 !important;
@@ -391,7 +391,7 @@ export default function BoletimManual({
             body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-prova-titulo strong {
               display: block !important;
               color: #0f172a !important;
-              font-size: 9px !important;
+              font-size: 10px !important;
               font-weight: 900 !important;
               line-height: 1.05 !important;
               text-transform: uppercase !important;
@@ -399,9 +399,9 @@ export default function BoletimManual({
 
             body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-prova-titulo span {
               display: block !important;
-              margin-top: 2px !important;
+              margin-top: 3px !important;
               color: #111827 !important;
-              font-size: 7px !important;
+              font-size: 7.8px !important;
               font-weight: 800 !important;
               line-height: 1.1 !important;
             }
@@ -433,11 +433,11 @@ export default function BoletimManual({
             body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-table td {
               display: table-cell !important;
               border: 1px solid #111827 !important;
-              padding: 2px 4px !important;
+              padding: 3px 5px !important;
               color: #111827 !important;
-              font-size: 7.4px !important;
-              line-height: 1.08 !important;
-              height: 12px !important;
+              font-size: 8.4px !important;
+              line-height: 1.15 !important;
+              min-height: 14px !important;
               vertical-align: middle !important;
               word-break: break-word !important;
               -webkit-print-color-adjust: exact !important;
@@ -447,9 +447,9 @@ export default function BoletimManual({
             body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-table th {
               background: #0057b8 !important;
               color: #ffffff !important;
-              font-size: 7px !important;
+              font-size: 8px !important;
               font-weight: 900 !important;
-              line-height: 1 !important;
+              line-height: 1.05 !important;
               text-transform: uppercase !important;
             }
 
@@ -466,6 +466,7 @@ export default function BoletimManual({
             body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-table .col-num {
               width: 8% !important;
               text-align: center !important;
+              font-weight: 800 !important;
             }
 
             body.imprimindo-boletim-manual #portal-boletim-manual-root .boletim-manual-table .col-atleta {
