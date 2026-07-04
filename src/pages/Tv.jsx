@@ -74,7 +74,7 @@ export default function Tv() {
     if (!error && data?.valor) setConfig({ ...CONFIG_PADRAO, ...data.valor });
   }, []);
 
-  function aplicarFiltros(lista) {
+  const aplicarFiltros = useCallback((lista) => {
     const hoje = new Date().toISOString().slice(0, 10);
     return (lista || []).filter((r) => {
       const prova = r.provas || {};
@@ -84,7 +84,7 @@ export default function Tv() {
       if (config.filtroNaipe && prova.naipe !== config.filtroNaipe) return false;
       return true;
     });
-  }
+  }, [config.somenteHoje, config.somenteFinais, config.filtroCategoria, config.filtroNaipe]);
 
   const carregarResultados = useCallback(async () => {
     setStatus("Atualizando resultados");
@@ -115,7 +115,7 @@ export default function Tv() {
 
     setResultados(lista.map((r) => ({ ...r, numero_serie_tv: mapaSeries[r.serie_id] || null })));
     setStatus("Atualizacao automatica");
-  }, [config.limiteResultados, config.somenteHoje, config.somenteFinais, config.filtroCategoria, config.filtroNaipe]);
+  }, [config.limiteResultados, aplicarFiltros]);
 
   const carregarMedalhas = useCallback(async () => {
     const limite = Number(config.limiteMedalhas) || 6;
@@ -138,7 +138,7 @@ export default function Tv() {
       .filter((r) => [1, 2, 3].includes(Number(r.colocacao)) && ["FINAL", "FINAL POR TEMPO"].includes(r.provas?.fase || ""))
       .sort((a, b) => Number(b.id || 0) - Number(a.id || 0))
       .slice(0, Number(config.limiteUltimasMedalhas) || 5));
-  }, [config.limiteMedalhas, config.limiteUltimasMedalhas, config.somenteHoje, config.somenteFinais, config.filtroCategoria, config.filtroNaipe]);
+  }, [config.limiteMedalhas, config.limiteUltimasMedalhas, aplicarFiltros]);
 
   const carregarTudo = useCallback(async () => {
     await carregarConfig();
@@ -147,11 +147,17 @@ export default function Tv() {
   }, [carregarConfig, carregarResultados, carregarMedalhas]);
 
   useEffect(() => {
-    void carregarTudo();
-    atualizarHora();
+    const idCarga = window.setTimeout(() => {
+      void carregarTudo();
+    }, 0);
+    const idHoraInicial = window.setTimeout(() => {
+      atualizarHora();
+    }, 0);
     const timerDados = window.setInterval(() => void carregarTudo(), Number(config.tempoAtualizacao) || 8000);
     const timerHora = window.setInterval(atualizarHora, 1000);
     return () => {
+      window.clearTimeout(idCarga);
+      window.clearTimeout(idHoraInicial);
       window.clearInterval(timerDados);
       window.clearInterval(timerHora);
     };
@@ -169,7 +175,7 @@ export default function Tv() {
     return "normal";
   }
 
-  function agruparPorSerie(lista) {
+  const agruparPorSerie = useCallback((lista) => {
     const mapa = {};
     lista.forEach((r) => {
       const prova = r.provas || {};
@@ -187,9 +193,9 @@ export default function Tv() {
       mapa[chave].resultados.push(r);
     });
     return Object.values(mapa).slice(0, Number(config.limiteSeries) || 4);
-  }
+  }, [config.limiteSeries]);
 
-  const grupos = useMemo(() => agruparPorSerie(resultados), [resultados, config.limiteSeries]);
+  const grupos = useMemo(() => agruparPorSerie(resultados), [resultados, agruparPorSerie]);
   const totaisMedalhas = useMemo(() => medalhas.reduce((acc, item) => ({
     ouro: acc.ouro + item.ouro,
     prata: acc.prata + item.prata,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 const SELECT_MEDALHAS = [
@@ -14,28 +14,6 @@ export default function MedalhasPublico() {
   const [modo, setModo] = useState("escola");
   const [busca, setBusca] = useState("");
   const [mensagem, setMensagem] = useState("");
-
-  useEffect(() => {
-    void carregarMedalhas();
-  }, []);
-
-  async function carregarMedalhas() {
-    setMensagem("Carregando quadro de medalhas...");
-    const { data, error } = await supabase
-      .from("resultados")
-      .select(SELECT_MEDALHAS)
-      .eq("publicado", true)
-      .in("colocacao", [1, 2, 3]);
-
-    if (error) {
-      setMensagem("Erro ao carregar medalhas: " + error.message);
-      return;
-    }
-
-    setLinhasEscola(montarRanking(data || [], "escola"));
-    setLinhasMunicipio(montarRanking(data || [], "municipio"));
-    setMensagem("");
-  }
 
   function montarRanking(lista, tipo) {
     const mapa = {};
@@ -66,6 +44,32 @@ export default function MedalhasPublico() {
       return a.nome.localeCompare(b.nome);
     });
   }
+
+  const carregarMedalhas = useCallback(async () => {
+    setMensagem("Carregando quadro de medalhas...");
+    const { data, error } = await supabase
+      .from("resultados")
+      .select(SELECT_MEDALHAS)
+      .eq("publicado", true)
+      .in("colocacao", [1, 2, 3]);
+
+    if (error) {
+      setMensagem("Erro ao carregar medalhas: " + error.message);
+      return;
+    }
+
+    setLinhasEscola(montarRanking(data || [], "escola"));
+    setLinhasMunicipio(montarRanking(data || [], "municipio"));
+    setMensagem("");
+  }, []);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      void carregarMedalhas();
+    }, 0);
+
+    return () => window.clearTimeout(id);
+  }, [carregarMedalhas]);
 
   const linhasAtivas = modo === "municipio" ? linhasMunicipio : linhasEscola;
   const linhas = linhasAtivas.filter((linha) => (linha.nome + " " + linha.detalhe).toLowerCase().includes(busca.toLowerCase()));

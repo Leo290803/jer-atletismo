@@ -37,6 +37,7 @@ const TvConfig = lazy(() => import("./pages/TvConfig"));
 const PistaAoVivo = lazy(() => import("./pages/PistaAoVivo"));
 const TelaoPista = lazy(() => import("./pages/TelaoPista"));
 const ArbitroSumula = lazy(() => import("./pages/ArbitroSumula"));
+const ArbitroSumulaManual = lazy(() => import("./pages/ArbitroSumulaManual"));
 const Login = lazy(() => import("./pages/Login"));
 
 import "./styles/theme.css";
@@ -214,6 +215,7 @@ export default function App() {
             <Route path="/publico/telao" element={<Telao />} />
             <Route path="/arbitro/sumula" element={<ArbitroSumula />} />
             <Route path="/arbitro/sumula/:token" element={<ArbitroSumula />} />
+            <Route path="/arbitro/sumula-manual/:token" element={<ArbitroSumulaManual />} />
             <Route path="/publico/telao-pista" element={<TelaoPista />} />
 
             <Route

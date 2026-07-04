@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import EtapaLancamento from "./sumulas/components/EtapaLancamento";
 import EtapaProximaFase from "./sumulas/components/EtapaProximaFase";
 import EtapaSelecaoProva from "./sumulas/components/EtapaSelecaoProva";
+import SumulaManual from "./sumulas/components/SumulaManual";
 import SumulaImpressao from "./sumulas/components/SumulaImpressao";
 import { useGerenciarInscritos } from "./sumulas/hooks/useGerenciarInscritos";
 import { useProximaFase } from "./sumulas/hooks/useProximaFase";
@@ -14,6 +15,7 @@ import "./sumulas/styles/printSumulas.css";
 
 export default function Sumulas() {
   const [mensagem, setMensagem] = useState("");
+  const [modoSumula, setModoSumula] = useState("oficial");
 
   const sumulas = useSumulas();
   const {
@@ -126,6 +128,7 @@ export default function Sumulas() {
     : null;
 
   useEffect(() => {
+    const id = window.setTimeout(() => {
     if (!provaSelecionada || !ehCombinada) {
       setDatasCombinada({ dia1: "", dia2: "" });
       return;
@@ -145,6 +148,9 @@ export default function Sumulas() {
     }
 
     setDatasCombinada({ dia1: dataProva || "", dia2: "" });
+    }, 0);
+
+    return () => window.clearTimeout(id);
   }, [provaSelecionada, ehCombinada, dataProva]);
 
   function atualizarDataCombinada(campo, valor) {
@@ -221,6 +227,38 @@ export default function Sumulas() {
         <h1>Sumulas</h1>
         <p className="muted">Controle completo da prova em uma unica tela.</p>
 
+        <div className="card" style={{ marginBottom: 20, display: "flex", flexWrap: "wrap", gap: 10 }}>
+          <button
+            onClick={() => setModoSumula("oficial")}
+            style={{
+              background: modoSumula === "oficial" ? "#22c55e" : "#e2e8f0",
+              border: "none",
+              borderRadius: 10,
+              cursor: "pointer",
+              fontWeight: "bold",
+              padding: "12px 18px",
+            }}
+          >
+            Sumula oficial
+          </button>
+
+          <button
+            onClick={() => setModoSumula("manual")}
+            style={{
+              background: modoSumula === "manual" ? "#22c55e" : "#e2e8f0",
+              border: "none",
+              borderRadius: 10,
+              cursor: "pointer",
+              fontWeight: "bold",
+              padding: "12px 18px",
+            }}
+          >
+            Sumula manual
+          </button>
+        </div>
+
+        {modoSumula === "oficial" && (
+          <>
         <EtapaSelecaoProva
           buscaProva={buscaProva}
           setBuscaProva={setBuscaProva}
@@ -329,27 +367,35 @@ export default function Sumulas() {
             {mensagem}
           </div>
         )}
+          </>
+        )}
       </div>
 
-      <SumulaImpressao
-        series={series}
-        ehSaltoAltura={ehSaltoAltura}
-        ehCampoTentativas={ehCampoTentativas}
-        ehRevezamento={ehRevezamento}
-        ehCombinada={ehCombinada}
-        combinadaInfo={combinadaInfo}
-        config={config}
-        provaAtual={provaAtual}
-        dataProva={dataProva}
-        datasCombinada={datasCombinada}
-        pegarValorAltura={pegarValorAltura}
-        mudarTentativaAltura={mudarTentativaAltura}
-        mudarCampo={mudarCampo}
-        calcularResultadoAltura={calcularResultadoAltura}
-        melhorDasTresPrimeiras={melhorDasTresPrimeiras}
-        melhorDasTentativas={melhorDasTentativas}
-        formatarNascimento={formatarNascimento}
-      />
+      {modoSumula === "manual" && (
+        <SumulaManual config={config} imprimir={imprimir} />
+      )}
+
+      {modoSumula === "oficial" && (
+        <SumulaImpressao
+          series={series}
+          ehSaltoAltura={ehSaltoAltura}
+          ehCampoTentativas={ehCampoTentativas}
+          ehRevezamento={ehRevezamento}
+          ehCombinada={ehCombinada}
+          combinadaInfo={combinadaInfo}
+          config={config}
+          provaAtual={provaAtual}
+          dataProva={dataProva}
+          datasCombinada={datasCombinada}
+          pegarValorAltura={pegarValorAltura}
+          mudarTentativaAltura={mudarTentativaAltura}
+          mudarCampo={mudarCampo}
+          calcularResultadoAltura={calcularResultadoAltura}
+          melhorDasTresPrimeiras={melhorDasTresPrimeiras}
+          melhorDasTentativas={melhorDasTentativas}
+          formatarNascimento={formatarNascimento}
+        />
+      )}
     </div>
   );
 }

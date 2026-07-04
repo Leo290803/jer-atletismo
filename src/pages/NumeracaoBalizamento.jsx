@@ -147,6 +147,53 @@ function gerarLinhaProvas(atleta) {
   return atleta.provas?.map((prova) => prova.nome).join(" / ") || "Sem prova";
 }
 
+function chaveAtletaNumeracao(nome, escola, categoria) {
+  return [normalizarTexto(nome), normalizarTexto(escola), normalizarTexto(categoria)].join("|");
+}
+
+function pegarValorLinha(linha, chaves) {
+  if (!linha || typeof linha !== "object") return "";
+
+  const mapa = new Map(
+    Object.entries(linha).map(([chave, valor]) => [normalizarTexto(chave), valor])
+  );
+
+  for (const chave of chaves) {
+    const valor = mapa.get(normalizarTexto(chave));
+    if (valor !== undefined && valor !== null && String(valor).trim() !== "") {
+      return valor;
+    }
+  }
+
+  return "";
+}
+
+function dataEntregaPlanilha(valor) {
+  if (valor === null || valor === undefined || String(valor).trim() === "") {
+    return formatarDataBanco(new Date());
+  }
+
+  if (valor instanceof Date && !Number.isNaN(valor.getTime())) {
+    return formatarDataBanco(valor);
+  }
+
+  const texto = String(valor).trim();
+  const partesBR = texto.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (partesBR) {
+    const dia = Number(partesBR[1]);
+    const mes = Number(partesBR[2]);
+    const ano = Number(partesBR[3].length === 2 ? `20${partesBR[3]}` : partesBR[3]);
+    return formatarDataBanco(new Date(ano, mes - 1, dia));
+  }
+
+  const data = new Date(texto);
+  if (!Number.isNaN(data.getTime())) {
+    return formatarDataBanco(data);
+  }
+
+  return formatarDataBanco(new Date());
+}
+
 export default function NumeracaoBalizamento() {
   const [atletas, setAtletas] = useState([]);
   const [inscricoes, setInscricoes] = useState([]);
@@ -165,6 +212,7 @@ export default function NumeracaoBalizamento() {
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState("");
+  const [inputImportacaoKey, setInputImportacaoKey] = useState(0);
 
   const carregarDados = useCallback(async () => {
     setCarregando(true);
@@ -1086,6 +1134,30 @@ export default function NumeracaoBalizamento() {
             <button onClick={exportarExcel} disabled={carregando}>
               Exportar Excel
             </button>
+
+            <label
+              style={{
+                background: "#0f766e",
+                color: "#fff",
+                borderRadius: 8,
+                padding: "8px 12px",
+                cursor: carregando || salvando || confirmado ? "not-allowed" : "pointer",
+                opacity: carregando || salvando || confirmado ? 0.6 : 1,
+              }}
+            >
+              Importar Excel
+              <input
+                key={inputImportacaoKey}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={(evento) => {
+                  void importarExcelNumeracao(evento);
+                  setInputImportacaoKey((atual) => atual + 1);
+                }}
+                disabled={carregando || salvando || confirmado}
+                style={{ display: "none" }}
+              />
+            </label>
 
             <button onClick={imprimirRelatorio}>
               Imprimir Relatório

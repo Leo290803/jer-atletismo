@@ -47,11 +47,17 @@ export default function Telao() {
 
   useEffect(() => {
     const atualizarHora = () => setHora(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
-    void carregarDados();
+    const id = window.setTimeout(() => {
+      void carregarDados();
+    }, 0);
     atualizarHora();
     const dados = window.setInterval(() => void carregarDados(), 15000);
     const relogio = window.setInterval(atualizarHora, 1000);
-    return () => { window.clearInterval(dados); window.clearInterval(relogio); };
+    return () => {
+      window.clearTimeout(id);
+      window.clearInterval(dados);
+      window.clearInterval(relogio);
+    };
   }, [carregarDados]);
 
   function resultadoFinal(r) { return r.tempo || r.melhor_marca || r.resultado_final || "-"; }

@@ -62,7 +62,11 @@ export default function Publico() {
   }, [dataInicio, dataFim]);
 
   useEffect(() => {
-    void carregarResultados();
+    const id = window.setTimeout(() => {
+      void carregarResultados();
+    }, 0);
+
+    return () => window.clearTimeout(id);
   }, [carregarResultados]);
 
   function resultadoFinal(r) {
