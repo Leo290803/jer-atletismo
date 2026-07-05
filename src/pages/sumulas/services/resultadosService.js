@@ -12,7 +12,11 @@ export async function carregarResultadosDigitais(sumulaId) {
 }
 
 export async function salvarResultados(provaId, resultados) {
-  await supabase.from("resultados").delete().eq("prova_id", provaId);
+  const { error: erroDelete } = await supabase.from("resultados").delete().eq("prova_id", provaId);
+  if (erroDelete) {
+    return { error: erroDelete };
+  }
+
   return supabase.from("resultados").insert(resultados);
 }
 

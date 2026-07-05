@@ -265,7 +265,7 @@ export default function Boletins() {
       return;
     }
 
-    const resultadosCarregados = data || [];
+    const resultadosCarregados = deduplicarResultadosBoletim(data || []);
     const idsProvas = [...new Set(resultadosCarregados.map((r) => r.provas?.id).filter(Boolean))];
     const mapaProximasFases = {};
 
@@ -395,13 +395,54 @@ export default function Boletins() {
     return inicio === fim ? inicio : `${inicio} ate ${fim}`;
   }
 
+  function resultadoTemValor(r) {
+    return [
+      r.tempo,
+      r.melhor_marca,
+      r.resultado_final,
+      r.marca,
+      r.colocacao,
+      r.qualificacao,
+      r.tentativa1,
+      r.tentativa2,
+      r.tentativa3,
+      r.tentativa4,
+      r.tentativa5,
+      r.tentativa6,
+      r.status && r.status !== "OK" ? r.status : "",
+    ].filter((valor) => valor !== null && valor !== undefined && valor !== "").length;
+  }
+
+  function deduplicarResultadosBoletim(lista) {
+    const mapa = new Map();
+
+    (lista || []).forEach((r) => {
+      const atleta = r.inscricoes?.atletas;
+      const chave = [
+        r.prova_id || r.provas?.id || "sem-prova",
+        r.serie_id || r.series?.numero_serie || "sem-serie",
+        r.inscricao_id || getNumeroAtleta(atleta) || atleta?.nome || "sem-atleta",
+        r.data_resultado || "sem-data",
+      ].join("|");
+
+      const atual = mapa.get(chave);
+
+      if (!atual || resultadoTemValor(r) >= resultadoTemValor(atual)) {
+        mapa.set(chave, r);
+      }
+    });
+
+    return Array.from(mapa.values());
+  }
+
   function agruparPorProva(lista) {
     const grupos = {};
 
     lista.forEach((r) => {
       const p = r.provas;
+      const idProva = p?.id || r.prova_id || "sem-prova";
 
-      const chave = `${r.data_resultado} | ${p?.nome} | ${p?.categoria} | ${p?.naipe} | ${
+      const chave = `${r.data_resultado} | ${idProva} | ${p?.nome} | ${p?.categoria} | ${p?.naipe} | ${
         p?.fase || "QUALIFICAÇÃO"
       }`;
 
@@ -431,7 +472,7 @@ export default function Boletins() {
     const grupos = {};
 
     lista.forEach((r) => {
-      const numeroSerie = r.series?.numero_serie || 1;
+      const numeroSerie = r.series?.numero_serie || "Sem serie";
       const chave = `Série ${numeroSerie}`;
 
       if (!grupos[chave]) {
@@ -447,6 +488,35 @@ export default function Boletins() {
     return Object.values(grupos).sort(
       (a, b) => Number(a.numeroSerie) - Number(b.numeroSerie)
     );
+  }
+
+  function agruparPorSerieBoletim(lista) {
+    const grupos = {};
+
+    lista.forEach((r) => {
+      const numeroSerie = r.series?.numero_serie || "Sem serie";
+      const chave = String(numeroSerie);
+
+      if (!grupos[chave]) {
+        grupos[chave] = {
+          numeroSerie,
+          resultados: [],
+        };
+      }
+
+      grupos[chave].resultados.push(r);
+    });
+
+    return Object.values(grupos).sort((a, b) => {
+      const serieA = Number(a.numeroSerie);
+      const serieB = Number(b.numeroSerie);
+
+      if (Number.isFinite(serieA) && Number.isFinite(serieB)) {
+        return serieA - serieB;
+      }
+
+      return String(a.numeroSerie).localeCompare(String(b.numeroSerie));
+    });
   }
 
   function ordenarResultados(lista, final) {
@@ -568,7 +638,7 @@ export default function Boletins() {
       const fase = grupo.prova?.fase || 'QUALIFICACAO';
       const final = ehFinalDaProva(fase);
       const resultadosOrdenados = ordenarResultados(grupo.resultados, final);
-      const seriesDaProva = agruparPorSerie(resultadosOrdenados);
+      const seriesDaProva = agruparPorSerieBoletim(resultadosOrdenados);
       const titulo = formatarData(grupo.data) + ' - ' +
         (grupo.prova?.nome || '') + ' - ' +
         (grupo.prova?.categoria || '') + ' - ' +
@@ -2167,7 +2237,7 @@ export default function Boletins() {
             const fase = grupo.prova?.fase || "QUALIFICAÇÃO";
             const final = ehFinalDaProva(fase);
             const resultadosOrdenados = ordenarResultados(grupo.resultados, final);
-            const seriesDaProva = agruparPorSerie(resultadosOrdenados);
+            const seriesDaProva = agruparPorSerieBoletim(resultadosOrdenados);
             const classificadosProximaFase = obterClassificadosProximaFase(resultadosOrdenados);
 
             return (
