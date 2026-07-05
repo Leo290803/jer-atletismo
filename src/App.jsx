@@ -14,6 +14,7 @@ import {
   Users,
   BookOpen,
   LogOut,
+  CalendarDays,
 } from "lucide-react";
 import { AuthProvider } from "./auth/AuthContext";
 import { useAuth } from "./auth/useAuth";
@@ -22,6 +23,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Importacao = lazy(() => import("./pages/Importacao"));
 const Provas = lazy(() => import("./pages/Provas"));
+const Programacao = lazy(() => import("./pages/Programacao"));
 const Sumulas = lazy(() => import("./pages/Sumulas"));
 const Resultados = lazy(() => import("./pages/Resultados"));
 const Boletins = lazy(() => import("./pages/Boletins"));
@@ -84,6 +86,10 @@ function AdminLayout() {
 
           <MenuItem to="/provas" icon={ClipboardList}>
             Provas
+          </MenuItem>
+
+          <MenuItem to="/programacao" icon={CalendarDays}>
+            Programacao
           </MenuItem>
 
           <MenuItem to="/secretaria-tecnica" icon={Users}>
@@ -186,6 +192,7 @@ function AdminLayout() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/importacao" element={<Importacao />} />
             <Route path="/provas" element={<Provas />} />
+            <Route path="/programacao" element={<Programacao />} />
             <Route path="/sumulas" element={<Sumulas />} />
             <Route path="/resultados" element={<Resultados />} />
             <Route path="/secretaria-tecnica" element={<GestaoInscricoes />} />

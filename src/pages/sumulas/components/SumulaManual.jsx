@@ -344,11 +344,6 @@ function agruparPorSerie(linhas) {
     }, {});
 }
 
-function nomeProvaNaLista(prova, indice) {
-  const nome = prova.prova || `Prova manual ${indice + 1}`;
-  return `${nome} - ${prova.categoria} - ${prova.naipe} - ${prova.fase}`;
-}
-
 function nomeCompeticaoNaLista(competicao, indice) {
   return competicao.nomeEvento || `Competicao manual ${indice + 1}`;
 }
@@ -539,9 +534,12 @@ export default function SumulaManual({ config, imprimir }) {
 
 
   useEffect(() => {
-    setPortalSumulaManual(criarPortalSumulaManualRoot());
+    const timer = window.setTimeout(() => {
+      setPortalSumulaManual(criarPortalSumulaManualRoot());
+    }, 0);
 
     return () => {
+      window.clearTimeout(timer);
       document.body.classList.remove("imprimindo-sumula-manual");
     };
   }, []);
@@ -585,7 +583,6 @@ export default function SumulaManual({ config, imprimir }) {
     [competicaoAtual, provaAtual]
   );
 
-  const linhasPorSerie = useMemo(() => agruparPorSerie(rascunho.linhas), [rascunho.linhas]);
   const ehCampo = rascunho.tipo === "campo";
 
   const provasParaImpressaoManual = useMemo(() => {
@@ -953,6 +950,7 @@ export default function SumulaManual({ config, imprimir }) {
     setIdsProvasImpressaoManual(idsValidos);
     setTipoImpressaoManual("sumula");
 
+    document.documentElement.classList.remove("imprimindo-boletim-manual-html");
     document.body.classList.remove("imprimindo-boletim-manual");
     document.body.classList.remove("print-boletim-manual");
     document.body.classList.remove("modo-boletim-manual");

@@ -1,4 +1,5 @@
 import { supabase } from "../../../lib/supabase";
+import { normalizarFaseProva, podeSobrescreverFaseAutomaticamente } from "../../../data/fasesProvas";
 import {
   contarConflitosEscola,
   distribuirSimples,
@@ -216,13 +217,18 @@ export async function gerarSeriesDaProva({ provaSelecionada, provas, config, sub
     : Number(config.quantidade_raias || 8);
 
   const faseAutomatica = inscricoes.length <= limiteFinalDireta ? "FINAL" : "QUALIFICACAO";
+  const faseAtualNormalizada = normalizarFaseProva(provaAtual.fase);
+  const deveAtualizarFase = podeSobrescreverFaseAutomaticamente(faseAtualNormalizada);
+  const faseDaProva = deveAtualizarFase ? faseAutomatica : faseAtualNormalizada;
 
-  const { error: erroAtualizarFase } = await supabase
-    .from("provas")
-    .update({ fase: faseAutomatica })
-    .eq("id", provaSelecionada);
+  if (deveAtualizarFase) {
+    const { error: erroAtualizarFase } = await supabase
+      .from("provas")
+      .update({ fase: faseAutomatica })
+      .eq("id", provaSelecionada);
 
-  if (erroAtualizarFase) return { ok: false, message: erroAtualizarFase.message };
+    if (erroAtualizarFase) return { ok: false, message: erroAtualizarFase.message };
+  }
 
   const quantidadePorSerie = ehCampo
     ? Number(config.atletas_por_serie_campo || 15)
@@ -232,7 +238,7 @@ export async function gerarSeriesDaProva({ provaSelecionada, provas, config, sub
   const { data: novasSeries, error: erroCriarSeries } = await criarSeries(provaSelecionada, totalSeries);
   if (erroCriarSeries) return { ok: false, message: erroCriarSeries.message };
 
-  const deveEvitarMesmaEscola = faseAutomatica !== "FINAL" && totalSeries > 1;
+  const deveEvitarMesmaEscola = !faseDaProva.includes("FINAL") && totalSeries > 1;
   const inscricoesEmbaralhadas = embaralhar(inscricoes);
 
   const distribuicaoPorSerie = deveEvitarMesmaEscola
@@ -274,9 +280,14 @@ export async function gerarSeriesDaProva({ provaSelecionada, provas, config, sub
   return {
     ok: true,
     faseAutomatica,
+    fase: faseDaProva,
     totalSeries,
     totalAtletas: inscricoes.length,
     conflitosRestantes,
-    message: `Series geradas com sucesso: ${totalSeries} serie(s), ${inscricoes.length} atleta(s). Fase definida automaticamente como ${faseAutomatica}. ${msgEscola}`.trim(),
+    message: `Series geradas com sucesso: ${totalSeries} serie(s), ${inscricoes.length} atleta(s). ${
+      deveAtualizarFase
+        ? `Fase definida automaticamente como ${faseAutomatica}.`
+        : `Fase manual mantida como ${faseDaProva}.`
+    } ${msgEscola}`.trim(),
   };
 }

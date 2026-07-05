@@ -109,7 +109,18 @@ export function TabelaRevezamento({ serie, mudarCampo, inputTabela }) {
 
 export function TabelaPista({ serie, mudarCampo, inputTabela, formatarNascimento }) {
   return (
-    <table width="100%" cellPadding="10">
+    <table className="tabela-pista-oficial" width="100%" cellPadding="10">
+      <colgroup>
+        <col className="pista-col-raia" />
+        <col className="pista-col-numero" />
+        <col className="pista-col-atleta" />
+        <col className="pista-col-escola" />
+        <col className="pista-col-nascimento" />
+        <col className="pista-col-tempo" />
+        <col className="pista-col-colocacao" />
+        <col className="pista-col-q" />
+        <col className="nao-imprimir" />
+      </colgroup>
       <thead>
         <tr>
           <th>Raia</th>
@@ -189,7 +200,25 @@ export function TabelaCampo({
   formatarNascimento,
 }) {
   return (
-    <table width="100%" cellPadding="10">
+    <table className="tabela-campo-oficial" width="100%" cellPadding="10">
+      <colgroup>
+        <col className="campo-col-numero" />
+        <col className="campo-col-atleta" />
+        <col className="campo-col-escola" />
+        <col className="campo-col-nascimento" />
+        <col className="campo-col-tentativa" />
+        <col className="campo-col-tentativa" />
+        <col className="campo-col-tentativa" />
+        <col className="campo-col-parcial" />
+        <col className="campo-col-classificacao" />
+        <col className="campo-col-tentativa" />
+        <col className="campo-col-tentativa" />
+        <col className="campo-col-classificacao-parcial" />
+        <col className="campo-col-tentativa" />
+        <col className="campo-col-resultado" />
+        <col className="campo-col-colocacao" />
+        <col className="campo-col-q" />
+      </colgroup>
       <thead>
         <tr>
           <th>Nº</th>
@@ -203,9 +232,9 @@ export function TabelaCampo({
           <th>Class.</th>
           <th>4ª</th>
           <th>5ª</th>
-          <th>Classs. Parcial</th>
+          <th>Class. Parc.</th>
           <th>6ª</th>
-          <th>Resultado Final</th>
+          <th>Resultado</th>
           <th>Colocação</th>
           <th>Q</th>
         </tr>

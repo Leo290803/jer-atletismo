@@ -17,7 +17,10 @@ import { useSeries } from "./sumulas/hooks/useSeries";
 import { useSumulaDigital } from "./sumulas/hooks/useSumulaDigital";
 import { useSumulas } from "./sumulas/hooks/useSumulas";
 import { buscarCombinadaPorCategoriaNaipe, ehProvaCombinada } from "../data/provasCombinadas";
+import { FASES_PROVA_PADRAO, normalizarFaseProva } from "../data/fasesProvas";
+import { supabase } from "../lib/supabase";
 import { formatarNascimento } from "./sumulas/utils/formatadores";
+import { getNumeroAtleta } from "../utils/getNumeroAtleta";
 import "./sumulas/styles/printSumulas.css";
 
 
@@ -44,6 +47,549 @@ const inputMiniAlturaLancamento = {
   textAlign: "center",
   fontWeight: 700,
 };
+
+const STATUS_SUMULA_DIGITAL_ATIVA = new Set(["ABERTA", "EM_ANDAMENTO", "ENVIADA"]);
+
+function textoBusca(valor) {
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+}
+
+function provaEhCombinadaOficial(prova) {
+  return prova?.tipo === "combinada" || ehProvaCombinada(prova?.nome);
+}
+
+function provaEhRevezamentoOficial(prova) {
+  const nome = textoBusca(prova?.nome);
+
+  return (
+    prova?.tipo === "revezamento" ||
+    prova?.subtipo === "revezamento" ||
+    nome.includes("REVEZAMENTO") ||
+    nome.includes("4X100") ||
+    nome.includes("4 X 100") ||
+    nome.includes("5X80") ||
+    nome.includes("5 X 80") ||
+    nome.includes("4X400") ||
+    nome.includes("4 X 400")
+  );
+}
+
+function provaEhSaltoAlturaOficial(prova) {
+  const nome = textoBusca(prova?.nome);
+  return prova?.subtipo === "salto_altura" || nome.includes("SALTO EM ALTURA");
+}
+
+function provaEhCampoTentativasOficial(prova) {
+  if (!prova || provaEhCombinadaOficial(prova) || provaEhSaltoAlturaOficial(prova) || provaEhRevezamentoOficial(prova)) {
+    return false;
+  }
+
+  const nome = textoBusca(prova.nome);
+
+  return (
+    prova.tipo === "campo" ||
+    prova.subtipo === "campo_tentativas" ||
+    nome.includes("ARREMESSO") ||
+    nome.includes("LANCAMENTO") ||
+    nome.includes("SALTO EM DISTANCIA") ||
+    nome.includes("SALTO TRIPLO") ||
+    nome.includes("DARDO") ||
+    nome.includes("DISCO") ||
+    nome.includes("MARTELO") ||
+    nome.includes("PESO")
+  );
+}
+
+function dataParaArquivo() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function montarDatasCombinadaLote(provaId, dataPadrao) {
+  const padrao = { dia1: dataPadrao || "", dia2: "" };
+
+  try {
+    const salvo = window.localStorage.getItem("sumula-combinada-datas-" + provaId);
+    if (!salvo) return padrao;
+
+    const datas = JSON.parse(salvo);
+    return {
+      dia1: datas.dia1 || dataPadrao || "",
+      dia2: datas.dia2 || "",
+    };
+  } catch {
+    return padrao;
+  }
+}
+
+function aplicarResultadosNasSeries(seriesBase = [], resultadosSalvos = [], resultadosDigitais = []) {
+  const mapaResultados = {};
+  (resultadosSalvos || []).forEach((resultado) => {
+    mapaResultados[resultado.inscricao_id] = resultado;
+  });
+
+  const mapaResultadosDigitais = {};
+  (resultadosDigitais || []).forEach((resultado) => {
+    mapaResultadosDigitais[resultado.atleta_id] = resultado;
+  });
+
+  return (seriesBase || []).map((serie) => ({
+    ...serie,
+    raias: (serie.raias || []).map((raia) => {
+      const resultado = mapaResultados[raia.inscricoes?.id];
+      const resultadoDigital = mapaResultadosDigitais[raia.inscricoes?.atleta_id];
+
+      return {
+        ...raia,
+        tempo: resultado?.tempo || resultadoDigital?.tempo || "",
+        colocacao: resultado?.colocacao || resultadoDigital?.classificacao || "",
+        status: resultado?.status || resultadoDigital?.observacao || "OK",
+        tentativa1: resultado?.tentativa1 || "",
+        tentativa2: resultado?.tentativa2 || "",
+        tentativa3: resultado?.tentativa3 || "",
+        tentativa4: resultado?.tentativa4 || "",
+        tentativa5: resultado?.tentativa5 || "",
+        tentativa6: resultado?.tentativa6 || "",
+        melhor_marca: resultado?.melhor_marca || resultadoDigital?.marca || "",
+        classificacao_parcial: resultado?.classificacao_parcial || resultadoDigital?.classificacao || "",
+        classificacao_parcial_final: resultado?.classificacao_parcial_final || "",
+        finalista: resultado?.finalista || false,
+        alturas: resultado?.alturas || [],
+        resultado_final: resultado?.resultado_final || resultadoDigital?.resultado || "",
+        publicado: resultado?.publicado || false,
+        qualificacao: resultado?.qualificacao || "",
+      };
+    }),
+  }));
+}
+
+function primeiroResultadoComData(resultados = []) {
+  return (resultados || []).find((resultado) => resultado?.data_resultado)?.data_resultado || "";
+}
+
+function valorTexto(valor) {
+  return valor === null || valor === undefined ? "" : valor;
+}
+
+function abreviarCategoria(categoria) {
+  return String(categoria || "")
+    .replace(/\s*anos?/gi, "")
+    .replace(/\s+a\s+/gi, "-")
+    .trim();
+}
+
+function abreviarNaipe(naipe) {
+  const texto = textoBusca(naipe);
+  if (texto.includes("FEM")) return "FEM";
+  if (texto.includes("MASC")) return "MASC";
+  if (texto.includes("MIST")) return "MISTO";
+  return String(naipe || "").trim();
+}
+
+function abreviarFase(fase) {
+  const texto = textoBusca(fase || "QUALIFICACAO");
+  if (texto.includes("SEMI")) return "SEMI";
+  if (texto.includes("FINAL")) return "FINAL";
+  if (texto.includes("QUAL")) return "QUAL";
+  return String(fase || "").trim();
+}
+
+function limparNomeAbaExcel(nome) {
+  return String(nome || "Sumula")
+    .replace(/[\\/?*[\]:]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 31) || "Sumula";
+}
+
+function nomeAbaExcelUnico(item, usados) {
+  const base = limparNomeAbaExcel([
+    item.prova?.nome || "Prova",
+    abreviarCategoria(item.prova?.categoria),
+    abreviarNaipe(item.prova?.naipe),
+    abreviarFase(item.prova?.fase),
+  ].filter(Boolean).join(" "));
+
+  let nome = base;
+  let contador = 2;
+
+  while (usados.has(nome.toUpperCase())) {
+    const sufixo = " " + contador;
+    nome = limparNomeAbaExcel(base.slice(0, 31 - sufixo.length) + sufixo);
+    contador += 1;
+  }
+
+  usados.add(nome.toUpperCase());
+  return nome;
+}
+
+function dataParaTextoExcel(data) {
+  if (!data) return "";
+  const partes = String(data).split("-");
+  if (partes.length !== 3) return data;
+  const [ano, mes, dia] = partes;
+  return `${dia}/${mes}/${ano}`;
+}
+
+function textoCelulaExcel(valor) {
+  return valorTexto(valor);
+}
+
+function atletaDaRaia(raia) {
+  return raia?.inscricoes?.atletas || {};
+}
+
+function ordenarRaiasSumulaExcel(serie, usarRaia = false) {
+  return [...(serie.raias || [])].sort((a, b) => {
+    const valorA = usarRaia ? a.raia || a.ordem || 0 : a.ordem || a.raia || 0;
+    const valorB = usarRaia ? b.raia || b.ordem || 0 : b.ordem || b.raia || 0;
+    return valorA - valorB;
+  });
+}
+
+function valorTentativaCombinadaExcel(raia, ordem) {
+  return textoCelulaExcel(raia?.["tentativa" + ordem]);
+}
+
+function montarColunasSumulaExcel(item, opcoes) {
+  const colunasBase = [
+    { label: "No", width: 8, align: "center", value: (raia) => getNumeroAtleta(atletaDaRaia(raia)) },
+    { label: "ATLETA", width: 28, align: "left", value: (raia) => atletaDaRaia(raia)?.nome || "" },
+    { label: "ESCOLA", width: 30, align: "left", value: (raia) => atletaDaRaia(raia)?.escolas?.nome || "" },
+    {
+      label: "NASCIMENTO",
+      width: 13,
+      align: "center",
+      value: (raia) => opcoes.formatarNascimento(atletaDaRaia(raia)?.data_nascimento),
+    },
+  ];
+
+  if (item.ehCombinada && item.combinadaInfo?.subprovas?.length) {
+    const subprovas = [...item.combinadaInfo.subprovas].sort((a, b) => (a?.ordem || 0) - (b?.ordem || 0));
+
+    return [
+      ...colunasBase,
+      ...subprovas.map((subprova) => ({
+        label: `${subprova.ordem}. ${subprova.nome}`,
+        width: 14,
+        align: "center",
+        value: (raia) => valorTentativaCombinadaExcel(raia, subprova.ordem),
+      })),
+      { label: "TOTAL", width: 12, align: "center", value: (raia) => textoCelulaExcel(raia.resultado_final) },
+      { label: "COLOCACAO", width: 12, align: "center", value: (raia) => textoCelulaExcel(raia.colocacao) },
+      { label: "STATUS", width: 10, align: "center", value: (raia) => textoCelulaExcel(raia.status || "OK") },
+    ];
+  }
+
+  if (item.ehSaltoAltura) {
+    const alturas = (opcoes.config?.alturas_salto_altura || []).slice(0, 10);
+
+    return [
+      ...colunasBase,
+      ...alturas.map((altura) => ({
+        label: String(altura),
+        width: 8,
+        align: "center",
+        value: (raia) => {
+          const dados = Array.isArray(raia.alturas) ? raia.alturas : [];
+          const registro = dados.find((itemAltura) => String(itemAltura?.altura) === String(altura));
+          return textoCelulaExcel(registro?.valor);
+        },
+      })),
+      { label: "RESULTADO", width: 12, align: "center", value: (raia) => textoCelulaExcel(raia.resultado_final) },
+      { label: "COLOCACAO", width: 12, align: "center", value: (raia) => textoCelulaExcel(raia.colocacao) },
+      { label: "Q", width: 6, align: "center", value: (raia) => textoCelulaExcel(raia.qualificacao) },
+    ];
+  }
+
+  if (item.ehCampoTentativas) {
+    return [
+      ...colunasBase,
+      { label: "1a", width: 8, align: "center", value: (raia) => textoCelulaExcel(raia.tentativa1) },
+      { label: "2a", width: 8, align: "center", value: (raia) => textoCelulaExcel(raia.tentativa2) },
+      { label: "3a", width: 8, align: "center", value: (raia) => textoCelulaExcel(raia.tentativa3) },
+      { label: "PARCIAL", width: 10, align: "center", value: (raia) => opcoes.melhorDasTresPrimeiras(raia) },
+      { label: "CLASS.", width: 9, align: "center", value: (raia) => textoCelulaExcel(raia.classificacao_parcial) },
+      { label: "4a", width: 8, align: "center", value: (raia) => textoCelulaExcel(raia.tentativa4) },
+      { label: "5a", width: 8, align: "center", value: (raia) => textoCelulaExcel(raia.tentativa5) },
+      { label: "CLASS. PARC.", width: 12, align: "center", value: (raia) => textoCelulaExcel(raia.classificacao_parcial_final) },
+      { label: "6a", width: 8, align: "center", value: (raia) => textoCelulaExcel(raia.tentativa6) },
+      {
+        label: "RESULTADO",
+        width: 12,
+        align: "center",
+        value: (raia) => textoCelulaExcel(raia.resultado_final || raia.melhor_marca || opcoes.melhorDasTentativas(raia)),
+      },
+      { label: "COLOCACAO", width: 12, align: "center", value: (raia) => textoCelulaExcel(raia.colocacao) },
+      { label: "Q", width: 6, align: "center", value: (raia) => textoCelulaExcel(raia.qualificacao) },
+    ];
+  }
+
+  if (item.ehRevezamento) {
+    return [
+      { label: "RAIA", width: 8, align: "center", value: (raia) => textoCelulaExcel(raia.raia) },
+      ...colunasBase,
+      { label: "TEMPO", width: 12, align: "center", value: (raia) => textoCelulaExcel(raia.tempo) },
+      { label: "COLOCACAO", width: 12, align: "center", value: (raia) => textoCelulaExcel(raia.colocacao) },
+      { label: "Q", width: 6, align: "center", value: (raia) => textoCelulaExcel(raia.qualificacao) },
+    ];
+  }
+
+  return [
+    { label: "RAIA", width: 8, align: "center", value: (raia) => textoCelulaExcel(raia.raia) },
+    ...colunasBase,
+    { label: "TEMPO", width: 12, align: "center", value: (raia) => textoCelulaExcel(raia.tempo) },
+    { label: "COLOCACAO", width: 12, align: "center", value: (raia) => textoCelulaExcel(raia.colocacao) },
+    { label: "Q", width: 6, align: "center", value: (raia) => textoCelulaExcel(raia.qualificacao) },
+  ];
+}
+
+function escaparXmlExcel(valor) {
+  return String(valor ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function celulaExcelXml(valor = "", estilo = "CellCenter", opcoes = {}) {
+  const atributos = [`ss:StyleID="${estilo}"`];
+  if (opcoes.mergeAcross) atributos.push(`ss:MergeAcross="${opcoes.mergeAcross}"`);
+  if (opcoes.index) atributos.push(`ss:Index="${opcoes.index}"`);
+
+  return `<Cell ${atributos.join(" ")}><Data ss:Type="String">${escaparXmlExcel(valor)}</Data></Cell>`;
+}
+
+function linhaExcelXml(celulas = [], altura = null) {
+  const atributoAltura = altura ? ` ss:Height="${altura}"` : "";
+  return `<Row${atributoAltura}>${celulas.join("")}</Row>`;
+}
+
+function colunaExcelXml(coluna) {
+  const largura = Math.max(34, Math.min(230, Number(coluna.width || 10) * 6.2));
+  return `<Column ss:AutoFitWidth="0" ss:Width="${largura.toFixed(0)}"/>`;
+}
+
+function linhaValoresExcelXml(valores, colunas, estiloPadrao = "CellCenter") {
+  return linhaExcelXml(
+    colunas.map((coluna, indice) => {
+      const estilo = estiloPadrao === "CellCenter" && coluna.align === "left" ? "CellText" : estiloPadrao;
+      return celulaExcelXml(valores[indice] ?? "", estilo);
+    }),
+    28
+  );
+}
+
+function estilosWorkbookExcelXml() {
+  const bordas = `
+    <Borders>
+      <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
+      <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
+      <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
+      <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
+    </Borders>`;
+
+  return `
+    <Styles>
+      <Style ss:ID="Default" ss:Name="Normal">
+        <Alignment ss:Vertical="Center"/>
+        <Font ss:FontName="Calibri" ss:Size="11"/>
+      </Style>
+      <Style ss:ID="Title">
+        <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
+        <Font ss:FontName="Calibri" ss:Size="16" ss:Bold="1" ss:Color="#003366"/>
+        <Interior ss:Color="#D9EAF7" ss:Pattern="Solid"/>
+      </Style>
+      <Style ss:ID="Meta">
+        <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
+        <Font ss:FontName="Calibri" ss:Size="9" ss:Bold="1" ss:Color="#000000"/>
+      </Style>
+      <Style ss:ID="Section">
+        <Alignment ss:Horizontal="Left" ss:Vertical="Center" ss:WrapText="1"/>
+        ${bordas}
+        <Font ss:FontName="Calibri" ss:Size="10" ss:Bold="1" ss:Color="#003366"/>
+        <Interior ss:Color="#EAF2F8" ss:Pattern="Solid"/>
+      </Style>
+      <Style ss:ID="Header">
+        <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
+        ${bordas}
+        <Font ss:FontName="Calibri" ss:Size="9" ss:Bold="1" ss:Color="#FFFFFF"/>
+        <Interior ss:Color="#0057A8" ss:Pattern="Solid"/>
+      </Style>
+      <Style ss:ID="CellCenter">
+        <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
+        ${bordas}
+        <Font ss:FontName="Calibri" ss:Size="9"/>
+      </Style>
+      <Style ss:ID="CellText">
+        <Alignment ss:Horizontal="Left" ss:Vertical="Center" ss:WrapText="1"/>
+        ${bordas}
+        <Font ss:FontName="Calibri" ss:Size="9"/>
+      </Style>
+      <Style ss:ID="Signature">
+        <Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>
+        <Font ss:FontName="Calibri" ss:Size="10"/>
+      </Style>
+    </Styles>`;
+}
+
+function criarWorksheetSumulaExcel(nomeAba, item, opcoes) {
+  const colunas = montarColunasSumulaExcel(item, opcoes);
+  const totalColunas = colunas.length;
+  const linhas = [];
+
+  const titulo = opcoes.config?.texto_cabecalho || "SUMULA OFICIAL DE ATLETISMO - JER 2026";
+  linhas.push(linhaExcelXml([celulaExcelXml(titulo, "Title", { mergeAcross: totalColunas - 1 })], 26));
+
+  const meta = [
+    `Prova: ${item.prova?.nome || ""}`,
+    `Categoria: ${item.prova?.categoria || ""}`,
+    `Naipe: ${item.prova?.naipe || ""}`,
+    `Fase: ${item.prova?.fase || "QUALIFICACAO"}`,
+    `Data: ${dataParaTextoExcel(item.dataProva)}`,
+  ].join(" | ");
+  linhas.push(linhaExcelXml([celulaExcelXml(meta, "Meta", { mergeAcross: totalColunas - 1 })], 18));
+
+  if (opcoes.config?.local_evento) {
+    linhas.push(
+      linhaExcelXml([celulaExcelXml(`Local: ${opcoes.config.local_evento}`, "Meta", { mergeAcross: totalColunas - 1 })], 18)
+    );
+  }
+
+  linhas.push(linhaExcelXml([], 8));
+
+  item.series.forEach((serie) => {
+    const usarRaia = !item.ehCampoTentativas && !item.ehCombinada && !item.ehSaltoAltura;
+    const raiasOrdenadas = ordenarRaiasSumulaExcel(serie, usarRaia);
+    const tituloSerie = item.ehCampoTentativas
+      ? `CLASSIFICACAO / QUALIFICACAO - SERIE ${serie.numero_serie || ""}`
+      : item.ehCombinada
+      ? `COMBINADAS - SERIE ${serie.numero_serie || ""}`
+      : item.ehRevezamento
+      ? `REVEZAMENTO - SERIE ${serie.numero_serie || ""}`
+      : `SERIE ${serie.numero_serie || ""}`;
+
+    linhas.push(linhaExcelXml([celulaExcelXml(tituloSerie, "Section", { mergeAcross: totalColunas - 1 })], 20));
+    linhas.push(linhaExcelXml(colunas.map((coluna) => celulaExcelXml(coluna.label, "Header")), 24));
+
+    raiasOrdenadas.forEach((raia) => {
+      linhas.push(linhaValoresExcelXml(
+        colunas.map((coluna) => coluna.value(raia, serie)),
+        colunas
+      ));
+    });
+
+    linhas.push(linhaExcelXml([], 12));
+
+    if (opcoes.config?.mostrar_assinaturas !== false) {
+      const metade = Math.max(1, Math.floor(totalColunas / 2));
+      linhas.push(
+        linhaExcelXml(
+          [
+            celulaExcelXml("____________________________", "Signature", { index: 1 }),
+            celulaExcelXml("____________________________", "Signature", { index: metade + 1 }),
+          ],
+          22
+        )
+      );
+      linhas.push(
+        linhaExcelXml(
+          [
+            celulaExcelXml("Arbitro da Prova", "Signature", { index: 1 }),
+            celulaExcelXml("Coordenacao de Atletismo", "Signature", { index: metade + 1 }),
+          ],
+          20
+        )
+      );
+      linhas.push(linhaExcelXml([], 14));
+    }
+  });
+
+  const orientacao = totalColunas > 10 ? "Landscape" : "Portrait";
+
+  return `
+    <Worksheet ss:Name="${escaparXmlExcel(nomeAba)}">
+      <Table ss:DefaultRowHeight="18">
+        ${colunas.map(colunaExcelXml).join("")}
+        ${linhas.join("")}
+      </Table>
+      <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+        <PageSetup>
+          <Layout x:Orientation="${orientacao}"/>
+          <PageMargins x:Bottom="0.25" x:Left="0.25" x:Right="0.25" x:Top="0.35"/>
+        </PageSetup>
+        <FitToPage/>
+        <Print>
+          <FitWidth>1</FitWidth>
+          <FitHeight>0</FitHeight>
+          <ValidPrinterInfo/>
+        </Print>
+      </WorksheetOptions>
+    </Worksheet>`;
+}
+
+function criarWorksheetResumoExcel(nomeAba, resumo) {
+  const colunas = [
+    { label: "PROVA", width: 28, align: "left" },
+    { label: "CATEGORIA", width: 14, align: "center" },
+    { label: "NAIPE", width: 12, align: "center" },
+    { label: "FASE", width: 16, align: "center" },
+    { label: "TIPO", width: 12, align: "center" },
+    { label: "DATA", width: 12, align: "center" },
+    { label: "SERIES", width: 10, align: "center" },
+    { label: "ATLETAS", width: 10, align: "center" },
+  ];
+
+  const linhas = [
+    linhaExcelXml([celulaExcelXml("RESUMO DAS SUMULAS OFICIAIS", "Title", { mergeAcross: colunas.length - 1 })], 26),
+    linhaExcelXml(colunas.map((coluna) => celulaExcelXml(coluna.label, "Header")), 24),
+    ...resumo.map((item) =>
+      linhaValoresExcelXml(
+        [item.Prova, item.Categoria, item.Naipe, item.Fase, item.Tipo, dataParaTextoExcel(item.Data), item.Series, item.Atletas],
+        colunas
+      )
+    ),
+  ];
+
+  return `
+    <Worksheet ss:Name="${escaparXmlExcel(nomeAba)}">
+      <Table ss:DefaultRowHeight="18">
+        ${colunas.map(colunaExcelXml).join("")}
+        ${linhas.join("")}
+      </Table>
+    </Worksheet>`;
+}
+
+function montarWorkbookExcelXml(planilhas) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+    <?mso-application progid="Excel.Sheet"?>
+    <Workbook
+      xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+      xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel"
+      xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+      xmlns:html="http://www.w3.org/TR/REC-html40">
+      ${estilosWorkbookExcelXml()}
+      ${planilhas.join("")}
+    </Workbook>`;
+}
+
+function baixarWorkbookExcelXml(xml, nomeArquivo) {
+  const blob = new Blob(["\ufeff" + xml], {
+    type: "application/vnd.ms-excel;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nomeArquivo;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
 
 function LancamentoOficialTela({
   series,
@@ -309,6 +855,7 @@ export default function Sumulas() {
   const {
     config,
     provas,
+    setProvas,
     provaSelecionada,
     setProvaSelecionada,
     carregarProvas,
@@ -320,6 +867,11 @@ export default function Sumulas() {
   const [filtroFase, setFiltroFase] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
   const [datasCombinada, setDatasCombinada] = useState({ dia1: "", dia2: "" });
+  const [sumulasParaImpressao, setSumulasParaImpressao] = useState([]);
+  const [imprimindoTodasSumulas, setImprimindoTodasSumulas] = useState(false);
+  const [carregandoAcoesLote, setCarregandoAcoesLote] = useState(false);
+  const [faseEditadaPorProva, setFaseEditadaPorProva] = useState({});
+  const [salvandoFaseId, setSalvandoFaseId] = useState("");
 
   const seriesState = useSeries({
     provaSelecionada,
@@ -399,9 +951,269 @@ export default function Sumulas() {
     setFiltroTipo("");
   }
 
+  function alterarFaseProva(provaId, valor) {
+    setFaseEditadaPorProva((atual) => ({
+      ...atual,
+      [provaId]: valor,
+    }));
+  }
+
+  async function salvarFaseProva(prova) {
+    if (!prova?.id) return;
+
+    const fase = normalizarFaseProva(faseEditadaPorProva[prova.id] ?? prova.fase);
+
+    setSalvandoFaseId(prova.id);
+
+    const { error } = await supabase
+      .from("provas")
+      .update({ fase })
+      .eq("id", prova.id);
+
+    setSalvandoFaseId("");
+
+    if (error) {
+      setMensagem("Erro ao salvar fase: " + error.message);
+      return;
+    }
+
+    setProvas((atuais) =>
+      atuais.map((item) => (item.id === prova.id ? { ...item, fase } : item))
+    );
+    setFaseEditadaPorProva((atual) => {
+      const copia = { ...atual };
+      delete copia[prova.id];
+      return copia;
+    });
+    setMensagem(`Fase da prova atualizada para ${fase}.`);
+  }
+
   function imprimir() {
     window.print();
   }
+
+  async function carregarPacoteSumulasOficiais() {
+    if (!provas.length) {
+      return [];
+    }
+
+    setCarregandoAcoesLote(true);
+    setMensagem("Carregando todas as sumulas oficiais...");
+
+    try {
+      const idsProvas = provas.map((prova) => prova.id).filter(Boolean);
+      const pacote = [];
+
+      const [seriesResp, resultadosResp, sumulasDigitaisResp] = await Promise.all([
+        supabase
+          .from("series")
+          .select("id,prova_id,numero_serie,raias(id,raia,ordem,inscricoes(id,evento_id,atleta_id,atletas(id,numero,numero_competicao,nome,municipio,data_nascimento,escolas(nome))))")
+          .in("prova_id", idsProvas)
+          .order("numero_serie", { ascending: true }),
+        supabase.from("resultados").select("*").in("prova_id", idsProvas),
+        supabase
+          .from("sumulas_digitais")
+          .select("*")
+          .in("prova_id", idsProvas)
+          .order("criada_em", { ascending: false }),
+      ]);
+
+      if (seriesResp.error) {
+        throw new Error("Erro ao carregar series: " + seriesResp.error.message);
+      }
+
+      if (resultadosResp.error) {
+        throw new Error("Erro ao carregar resultados: " + resultadosResp.error.message);
+      }
+
+      if (sumulasDigitaisResp.error) {
+        throw new Error("Erro ao carregar sumulas digitais: " + sumulasDigitaisResp.error.message);
+      }
+
+      const seriesPorProva = new Map();
+      (seriesResp.data || []).forEach((serie) => {
+        const chave = String(serie.prova_id);
+        const lista = seriesPorProva.get(chave) || [];
+        lista.push(serie);
+        seriesPorProva.set(chave, lista);
+      });
+
+      const resultadosPorProva = new Map();
+      (resultadosResp.data || []).forEach((resultado) => {
+        const chave = String(resultado.prova_id);
+        const lista = resultadosPorProva.get(chave) || [];
+        lista.push(resultado);
+        resultadosPorProva.set(chave, lista);
+      });
+
+      const sumulaDigitalAtivaPorProva = new Map();
+      (sumulasDigitaisResp.data || []).forEach((sumula) => {
+        const chave = String(sumula.prova_id);
+        if (!STATUS_SUMULA_DIGITAL_ATIVA.has(sumula.status) || sumulaDigitalAtivaPorProva.has(chave)) {
+          return;
+        }
+
+        sumulaDigitalAtivaPorProva.set(chave, sumula);
+      });
+
+      const idsSumulasAtivas = [...sumulaDigitalAtivaPorProva.values()].map((sumula) => sumula.id).filter(Boolean);
+      const resultadosDigitaisPorSumula = new Map();
+
+      if (idsSumulasAtivas.length) {
+        const { data: resultadosDigitais, error: erroDigitais } = await supabase
+          .from("sumula_resultados")
+          .select("sumula_id,atleta_id,tempo,marca,resultado,observacao,classificacao")
+          .in("sumula_id", idsSumulasAtivas);
+
+        if (erroDigitais) {
+          throw new Error("Erro ao carregar resultados digitais: " + erroDigitais.message);
+        }
+
+        (resultadosDigitais || []).forEach((resultado) => {
+          const chave = String(resultado.sumula_id);
+          const lista = resultadosDigitaisPorSumula.get(chave) || [];
+          lista.push(resultado);
+          resultadosDigitaisPorSumula.set(chave, lista);
+        });
+      }
+
+      for (const prova of provas) {
+        const chaveProva = String(prova.id);
+        const seriesBase = seriesPorProva.get(chaveProva) || [];
+        const resultadosSalvos = resultadosPorProva.get(chaveProva) || [];
+        const sumulaDigitalAtiva = sumulaDigitalAtivaPorProva.get(chaveProva);
+        const resultadosDigitais = sumulaDigitalAtiva?.id
+          ? resultadosDigitaisPorSumula.get(String(sumulaDigitalAtiva.id)) || []
+          : [];
+
+        const seriesTratadas = aplicarResultadosNasSeries(
+          seriesBase || [],
+          resultadosSalvos || [],
+          resultadosDigitais
+        );
+
+        const totalAtletas = seriesTratadas.reduce(
+          (total, serie) => total + (serie.raias?.length || 0),
+          0
+        );
+
+        if (!totalAtletas) continue;
+
+        const dataDaProva = primeiroResultadoComData(resultadosSalvos) || dataProva;
+        const ehCombinadaItem = provaEhCombinadaOficial(prova);
+
+        pacote.push({
+          prova,
+          series: seriesTratadas,
+          dataProva: dataDaProva,
+          ehCombinada: ehCombinadaItem,
+          ehSaltoAltura: provaEhSaltoAlturaOficial(prova),
+          ehRevezamento: provaEhRevezamentoOficial(prova),
+          ehCampoTentativas: provaEhCampoTentativasOficial(prova),
+          combinadaInfo: ehCombinadaItem
+            ? buscarCombinadaPorCategoriaNaipe(prova?.categoria, prova?.naipe)
+            : null,
+          datasCombinada: ehCombinadaItem
+            ? montarDatasCombinadaLote(prova.id, dataDaProva)
+            : { dia1: "", dia2: "" },
+        });
+      }
+
+      return pacote;
+    } finally {
+      setCarregandoAcoesLote(false);
+    }
+  }
+
+  async function imprimirTodasSumulasOficiais() {
+    try {
+      const pacote = await carregarPacoteSumulasOficiais();
+
+      if (!pacote.length) {
+        setMensagem("Nenhuma sumula com series foi encontrada para imprimir.");
+        return;
+      }
+
+      setSumulasParaImpressao(pacote);
+      setImprimindoTodasSumulas(true);
+      setMensagem(`Pacote pronto: ${pacote.length} prova(s) carregada(s) para impressao.`);
+    } catch (erro) {
+      setMensagem(erro.message || "Erro ao carregar todas as sumulas.");
+    }
+  }
+
+  async function exportarTodasSumulasExcel() {
+    try {
+      const pacote = await carregarPacoteSumulasOficiais();
+
+      const resumo = pacote.map((item) => ({
+        Prova: item.prova?.nome || "",
+        Categoria: item.prova?.categoria || "",
+        Naipe: item.prova?.naipe || "",
+        Fase: item.prova?.fase || "QUALIFICACAO",
+        Tipo: item.prova?.subtipo || item.prova?.tipo || "",
+        Data: item.dataProva || "",
+        Series: item.series.length,
+        Atletas: item.series.reduce((total, serie) => total + (serie.raias?.length || 0), 0),
+      }));
+
+      const planilhas = [criarWorksheetResumoExcel("Resumo", resumo)];
+      const nomesUsados = new Set(["RESUMO"]);
+      let totalLinhas = 0;
+
+      pacote.forEach((item) => {
+        const totalAtletasDaProva = item.series.reduce((total, serie) => total + (serie.raias?.length || 0), 0);
+        if (!totalAtletasDaProva) return;
+
+        totalLinhas += totalAtletasDaProva;
+        const nomeAba = nomeAbaExcelUnico(item, nomesUsados);
+
+        planilhas.push(
+          criarWorksheetSumulaExcel(nomeAba, item, {
+            config,
+            formatarNascimento,
+            melhorDasTresPrimeiras,
+            melhorDasTentativas,
+          })
+        );
+      });
+
+      if (!totalLinhas) {
+        setMensagem("Nenhuma linha de sumula foi encontrada para exportar.");
+        return;
+      }
+
+      baixarWorkbookExcelXml(
+        montarWorkbookExcelXml(planilhas),
+        `sumulas-oficiais-modelo-${dataParaArquivo()}.xls`
+      );
+
+      setMensagem(
+        `Excel gerado em formato de sumula, com ${totalLinhas} atleta(s) em ${planilhas.length - 1} aba(s) de prova.`
+      );
+    } catch (erro) {
+      setMensagem(erro.message || "Erro ao exportar sumulas para Excel.");
+    }
+  }
+
+  useEffect(() => {
+    if (!imprimindoTodasSumulas || !sumulasParaImpressao.length) return undefined;
+
+    const id = window.setTimeout(() => {
+      window.print();
+    }, 350);
+
+    return () => window.clearTimeout(id);
+  }, [imprimindoTodasSumulas, sumulasParaImpressao]);
+
+  useEffect(() => {
+    function limparImpressaoEmLote() {
+      setImprimindoTodasSumulas(false);
+    }
+
+    window.addEventListener("afterprint", limparImpressaoEmLote);
+    return () => window.removeEventListener("afterprint", limparImpressaoEmLote);
+  }, []);
 
   const provaAtual = useMemo(
     () => provas.find((p) => p.id === provaSelecionada),
@@ -492,7 +1304,7 @@ export default function Sumulas() {
 
   const categorias = [...new Set(provas.map((p) => p.categoria).filter(Boolean))];
   const naipes = [...new Set(provas.map((p) => p.naipe).filter(Boolean))];
-  const fases = [...new Set(provas.map((p) => p.fase || "QUALIFICACAO"))];
+  const fases = [...new Set([...FASES_PROVA_PADRAO, ...provas.map((p) => p.fase || "QUALIFICACAO")])];
   const tipos = [...new Set(provas.map((p) => p.subtipo || p.tipo).filter(Boolean))];
 
   const provasFiltradas = provas.filter((p) => {
@@ -590,6 +1402,10 @@ export default function Sumulas() {
           carregandoInscritos={inscritos.carregandoInscritos}
           dataProva={dataProva}
           setDataProva={setDataProva}
+          faseEditadaPorProva={faseEditadaPorProva}
+          alterarFaseProva={alterarFaseProva}
+          salvarFaseProva={salvarFaseProva}
+          salvandoFaseId={salvandoFaseId}
         />
 
         <EtapaLancamento
@@ -597,6 +1413,50 @@ export default function Sumulas() {
           classificarAutomaticamente={classificarAutomaticamente}
           imprimir={imprimir}
         />
+
+        <div className="card" style={{ marginBottom: 20 }}>
+          <h3 style={{ marginTop: 0 }}>Acoes em lote das sumulas oficiais</h3>
+          <p style={{ color: "#64748b", fontWeight: 700, marginTop: 0 }}>
+            Le as series e resultados oficiais ja salvos para imprimir tudo de uma vez ou baixar uma copia em Excel.
+          </p>
+
+          <button
+            onClick={imprimirTodasSumulasOficiais}
+            disabled={carregandoAcoesLote}
+            style={{
+              background: "#0ea5e9",
+              border: "none",
+              borderRadius: 10,
+              color: "#020617",
+              cursor: carregandoAcoesLote ? "not-allowed" : "pointer",
+              fontWeight: "bold",
+              marginRight: 10,
+              marginBottom: 10,
+              opacity: carregandoAcoesLote ? 0.65 : 1,
+              padding: "12px 18px",
+            }}
+          >
+            {carregandoAcoesLote ? "Carregando..." : "Imprimir todas as sumulas"}
+          </button>
+
+          <button
+            onClick={exportarTodasSumulasExcel}
+            disabled={carregandoAcoesLote}
+            style={{
+              background: "#22c55e",
+              border: "none",
+              borderRadius: 10,
+              color: "#020617",
+              cursor: carregandoAcoesLote ? "not-allowed" : "pointer",
+              fontWeight: "bold",
+              marginBottom: 10,
+              opacity: carregandoAcoesLote ? 0.65 : 1,
+              padding: "12px 18px",
+            }}
+          >
+            Exportar sumulas para Excel
+          </button>
+        </div>
 
         <LancamentoOficialTela
           series={series}
@@ -683,7 +1543,7 @@ export default function Sumulas() {
         <SumulaManual config={config} imprimir={imprimir} />
       )}
 
-      {modoSumula === "oficial" && (
+      {modoSumula === "oficial" && !imprimindoTodasSumulas && (
         <SumulaImpressao
           series={series}
           ehSaltoAltura={ehSaltoAltura}
@@ -703,6 +1563,33 @@ export default function Sumulas() {
           melhorDasTentativas={melhorDasTentativas}
           formatarNascimento={formatarNascimento}
         />
+      )}
+
+      {modoSumula === "oficial" && imprimindoTodasSumulas && (
+        <>
+          {sumulasParaImpressao.map((item) => (
+            <SumulaImpressao
+              key={item.prova?.id}
+              series={item.series}
+              ehSaltoAltura={item.ehSaltoAltura}
+              ehCampoTentativas={item.ehCampoTentativas}
+              ehRevezamento={item.ehRevezamento}
+              ehCombinada={item.ehCombinada}
+              combinadaInfo={item.combinadaInfo}
+              config={config}
+              provaAtual={item.prova}
+              dataProva={item.dataProva}
+              datasCombinada={item.datasCombinada}
+              pegarValorAltura={pegarValorAltura}
+              mudarTentativaAltura={() => {}}
+              mudarCampo={() => {}}
+              calcularResultadoAltura={calcularResultadoAltura}
+              melhorDasTresPrimeiras={melhorDasTresPrimeiras}
+              melhorDasTentativas={melhorDasTentativas}
+              formatarNascimento={formatarNascimento}
+            />
+          ))}
+        </>
       )}
     </div>
   );

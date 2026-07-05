@@ -2,6 +2,7 @@ import Etapa from "./Etapa";
 import Filtro from "./Filtro";
 import EtapaSumulaDigital from "./EtapaSumulaDigital";
 import GerenciarInscritos from "./GerenciarInscritos";
+import { FASES_PROVA_PADRAO } from "../../../data/fasesProvas";
 
 const baseBotao = {
   padding: "12px 18px",
@@ -58,6 +59,14 @@ const inputData = {
   width: 220,
 };
 
+const inputFase = {
+  border: "1px solid #cbd5e1",
+  borderRadius: 8,
+  flex: "1 1 170px",
+  minWidth: 0,
+  padding: "9px 10px",
+};
+
 export default function EtapaSelecaoProva(props) {
   const {
     buscaProva,
@@ -102,6 +111,10 @@ export default function EtapaSelecaoProva(props) {
     carregandoInscritos,
     dataProva,
     setDataProva,
+    faseEditadaPorProva,
+    alterarFaseProva,
+    salvarFaseProva,
+    salvandoFaseId,
   } = props;
 
   return (
@@ -121,6 +134,12 @@ export default function EtapaSelecaoProva(props) {
         <Filtro label="Fase" value={filtroFase} setValue={setFiltroFase} itens={fases} />
         <Filtro label="Tipo" value={filtroTipo} setValue={setFiltroTipo} itens={tipos} />
       </div>
+
+      <datalist id="fases-provas-sumulas">
+        {FASES_PROVA_PADRAO.map((fase) => (
+          <option key={fase} value={fase} />
+        ))}
+      </datalist>
 
       <button onClick={limparFiltros} style={botaoCinza}>
         Limpar filtros
@@ -157,6 +176,36 @@ export default function EtapaSelecaoProva(props) {
               <button onClick={() => selecionarProva(p.id)} style={selecionada ? botaoVerde : botaoAzul}>
                 {selecionada ? "Selecionada" : "Selecionar"}
               </button>
+
+              {selecionada && (
+                <div style={{ marginTop: 12 }}>
+                  <label style={{ display: "block", fontWeight: 700, marginBottom: 6 }}>
+                    Fase da prova
+                  </label>
+
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    <input
+                      list="fases-provas-sumulas"
+                      value={faseEditadaPorProva?.[p.id] ?? p.fase ?? "QUALIFICACAO"}
+                      onChange={(e) => alterarFaseProva?.(p.id, e.target.value)}
+                      style={inputFase}
+                    />
+
+                    <button
+                      onClick={() => salvarFaseProva?.(p)}
+                      disabled={salvandoFaseId === p.id}
+                      style={{
+                        ...botaoCinza,
+                        margin: 0,
+                        cursor: salvandoFaseId === p.id ? "not-allowed" : "pointer",
+                        opacity: salvandoFaseId === p.id ? 0.7 : 1,
+                      }}
+                    >
+                      {salvandoFaseId === p.id ? "Salvando..." : "Salvar fase"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}

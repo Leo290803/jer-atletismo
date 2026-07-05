@@ -363,6 +363,244 @@ font-size: 12px !important;
 }
 
 /* ============================================================
+   GRADE DAS SUMULAS OFICIAIS
+   Mantem o layout atual, mas imprime tabela com bordas visiveis.
+   ============================================================ */
+
+@media print {
+  .sumula-print table {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    table-layout: auto !important;
+    border: 1.2px solid #111827 !important;
+    background: #ffffff !important;
+  }
+
+  .sumula-print thead {
+    display: table-header-group !important;
+  }
+
+  .sumula-print tbody {
+    display: table-row-group !important;
+  }
+
+  .sumula-print tr {
+    display: table-row !important;
+  }
+
+  .sumula-print th,
+  .sumula-print td {
+    display: table-cell !important;
+    border: 1px solid #111827 !important;
+    color: #000000 !important;
+    vertical-align: middle !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .sumula-print th {
+    background: #e8eef4 !important;
+    font-weight: 900 !important;
+    text-align: center !important;
+  }
+
+  .sumula-print td {
+    background: #ffffff !important;
+  }
+
+  .sumula-print .nao-imprimir {
+    display: none !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    max-width: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+  }
+
+  .sumula-pista .tabela-pista-oficial {
+    table-layout: fixed !important;
+  }
+
+  .sumula-pista .tabela-pista-oficial col.pista-col-raia {
+    width: 7% !important;
+  }
+
+  .sumula-pista .tabela-pista-oficial col.pista-col-numero {
+    width: 8% !important;
+  }
+
+  .sumula-pista .tabela-pista-oficial col.pista-col-atleta {
+    width: 30% !important;
+  }
+
+  .sumula-pista .tabela-pista-oficial col.pista-col-escola {
+    width: 28% !important;
+  }
+
+  .sumula-pista .tabela-pista-oficial col.pista-col-nascimento {
+    width: 12% !important;
+  }
+
+  .sumula-pista .tabela-pista-oficial col.pista-col-tempo {
+    width: 7% !important;
+  }
+
+  .sumula-pista .tabela-pista-oficial col.pista-col-colocacao {
+    width: 6% !important;
+  }
+
+  .sumula-pista .tabela-pista-oficial col.pista-col-q {
+    width: 2% !important;
+  }
+
+  .sumula-pista .tabela-pista-oficial th,
+  .sumula-pista .tabela-pista-oficial td {
+    padding: 4px 5px !important;
+    font-size: 9px !important;
+    line-height: 1.12 !important;
+  }
+
+  .sumula-pista .tabela-pista-oficial th:nth-child(3),
+  .sumula-pista .tabela-pista-oficial th:nth-child(4),
+  .sumula-pista .tabela-pista-oficial td:nth-child(3),
+  .sumula-pista .tabela-pista-oficial td:nth-child(4) {
+    text-align: left !important;
+  }
+
+  .sumula-pista .tabela-pista-oficial th:not(:nth-child(3)):not(:nth-child(4)),
+  .sumula-pista .tabela-pista-oficial td:not(:nth-child(3)):not(:nth-child(4)) {
+    text-align: center !important;
+  }
+}
+
+/* ============================================================
+   SUMULA OFICIAL DE CAMPO
+   Campo tem muitas colunas; compacta so a impressao de campo
+   para nao cortar a direita nem quebrar uma serie em branco.
+   ============================================================ */
+
+@media print {
+  .sumula-campo {
+    padding: 4mm 5mm !important;
+  }
+
+  .sumula-campo h2 {
+    font-size: 22px !important;
+    line-height: 1.12 !important;
+    margin-bottom: 4px !important;
+    padding-bottom: 4px !important;
+  }
+
+  .sumula-campo p {
+    font-size: 12.5px !important;
+    line-height: 1.2 !important;
+    margin-bottom: 4px !important;
+  }
+
+  .sumula-campo p strong {
+    font-size: 12.5px !important;
+  }
+
+  .sumula-campo h3 {
+    font-size: 10.5px !important;
+    line-height: 1.08 !important;
+    margin: 5px 0 4px !important;
+  }
+
+  .sumula-campo .tabela-campo-oficial {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+  }
+
+  .sumula-campo .tabela-campo-oficial col.campo-col-numero {
+    width: 4.2% !important;
+  }
+
+  .sumula-campo .tabela-campo-oficial col.campo-col-atleta {
+    width: 18% !important;
+  }
+
+  .sumula-campo .tabela-campo-oficial col.campo-col-escola {
+    width: 18% !important;
+  }
+
+  .sumula-campo .tabela-campo-oficial col.campo-col-nascimento {
+    width: 6.5% !important;
+  }
+
+  .sumula-campo .tabela-campo-oficial col.campo-col-tentativa {
+    width: 4.2% !important;
+  }
+
+  .sumula-campo .tabela-campo-oficial col.campo-col-parcial {
+    width: 4.8% !important;
+  }
+
+  .sumula-campo .tabela-campo-oficial col.campo-col-classificacao {
+    width: 4% !important;
+  }
+
+  .sumula-campo .tabela-campo-oficial col.campo-col-classificacao-parcial {
+    width: 5.5% !important;
+  }
+
+  .sumula-campo .tabela-campo-oficial col.campo-col-resultado {
+    width: 5.8% !important;
+  }
+
+  .sumula-campo .tabela-campo-oficial col.campo-col-colocacao {
+    width: 4.5% !important;
+  }
+
+  .sumula-campo .tabela-campo-oficial col.campo-col-q {
+    width: 2.5% !important;
+  }
+
+  .sumula-campo .tabela-campo-oficial th,
+  .sumula-campo .tabela-campo-oficial td {
+    padding: 4px 3px !important;
+    font-size: 8.2px !important;
+    line-height: 1.08 !important;
+    vertical-align: middle !important;
+    overflow: hidden !important;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+  }
+
+  .sumula-campo .tabela-campo-oficial th {
+    height: 20px !important;
+    font-size: 7.2px !important;
+    line-height: 1.02 !important;
+  }
+
+  .sumula-campo .tabela-campo-oficial td {
+    height: 36px !important;
+    min-height: 36px !important;
+  }
+
+  .sumula-campo .assinaturas-sumula {
+    margin-top: 22mm !important;
+  }
+
+  .sumula-campo .tabela-campo-oficial th:nth-child(2),
+  .sumula-campo .tabela-campo-oficial th:nth-child(3),
+  .sumula-campo .tabela-campo-oficial td:nth-child(2),
+  .sumula-campo .tabela-campo-oficial td:nth-child(3) {
+    text-align: left !important;
+  }
+
+  .sumula-campo .tabela-campo-oficial th:not(:nth-child(2)):not(:nth-child(3)),
+  .sumula-campo .tabela-campo-oficial td:not(:nth-child(2)):not(:nth-child(3)) {
+    text-align: center !important;
+  }
+}
+
+/* ============================================================
    BOLETIM MANUAL - CORES ESTILO CAPA
    Azul, verde e amarelo, sem arte/imagem
    ============================================================ */
@@ -536,6 +774,32 @@ font-size: 12px !important;
   width: 10%;
   text-align: center;
   font-weight: 800;
+}
+
+.boletim-manual-table.com-tentativas .col-pos {
+  width: 8%;
+}
+
+.boletim-manual-table.com-tentativas .col-num {
+  width: 7%;
+}
+
+.boletim-manual-table.com-tentativas .col-atleta {
+  width: 27%;
+}
+
+.boletim-manual-table.com-tentativas .col-escola {
+  width: 27%;
+}
+
+.boletim-manual-table.com-tentativas .col-tentativa {
+  width: 7%;
+  text-align: center;
+  font-weight: 800;
+}
+
+.boletim-manual-table.com-tentativas .col-resultado {
+  width: 10%;
 }
 
 .boletim-manual-vazio {
