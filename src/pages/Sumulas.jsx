@@ -4,6 +4,13 @@ import EtapaProximaFase from "./sumulas/components/EtapaProximaFase";
 import EtapaSelecaoProva from "./sumulas/components/EtapaSelecaoProva";
 import SumulaManual from "./sumulas/components/SumulaManual";
 import SumulaImpressao from "./sumulas/components/SumulaImpressao";
+import {
+  TabelaCampo,
+  TabelaCombinadaFinal,
+  TabelaCombinadaProva,
+  TabelaPista,
+  TabelaRevezamento,
+} from "./sumulas/components/TabelasSumula";
 import { useGerenciarInscritos } from "./sumulas/hooks/useGerenciarInscritos";
 import { useProximaFase } from "./sumulas/hooks/useProximaFase";
 import { useSeries } from "./sumulas/hooks/useSeries";
@@ -12,6 +19,287 @@ import { useSumulas } from "./sumulas/hooks/useSumulas";
 import { buscarCombinadaPorCategoriaNaipe, ehProvaCombinada } from "../data/provasCombinadas";
 import { formatarNascimento } from "./sumulas/utils/formatadores";
 import "./sumulas/styles/printSumulas.css";
+
+
+const inputTabelaLancamento = {
+  width: "100%",
+  minWidth: 70,
+  border: "1px solid #cbd5e1",
+  borderRadius: 8,
+  padding: "7px 8px",
+  background: "#ffffff",
+  color: "#0f172a",
+  textAlign: "center",
+  fontWeight: 700,
+};
+
+const inputMiniAlturaLancamento = {
+  width: 28,
+  minWidth: 28,
+  border: "1px solid #cbd5e1",
+  borderRadius: 6,
+  padding: "5px 4px",
+  background: "#ffffff",
+  color: "#0f172a",
+  textAlign: "center",
+  fontWeight: 700,
+};
+
+function LancamentoOficialTela({
+  series,
+  provaAtual,
+  dataProva,
+  ehSaltoAltura,
+  ehCampoTentativas,
+  ehRevezamento,
+  ehCombinada,
+  combinadaInfo,
+  config,
+  datasCombinada,
+  pegarValorAltura,
+  mudarTentativaAltura,
+  mudarCampo,
+  calcularResultadoAltura,
+  melhorDasTresPrimeiras,
+  melhorDasTentativas,
+  formatarNascimento,
+}) {
+  const subprovasCombinada = [...(combinadaInfo?.subprovas || [])].sort(
+    (a, b) => (a?.ordem || 0) - (b?.ordem || 0)
+  );
+
+  if (!provaAtual) {
+    return null;
+  }
+
+  if (!series.length) {
+    return (
+      <div className="card" style={{ marginBottom: 20 }}>
+        <h3 style={{ marginTop: 0 }}>Lançamento de resultados</h3>
+        <p style={{ color: "#64748b", fontWeight: 700, margin: 0 }}>
+          Nenhuma série carregada. Selecione uma prova e clique em “Gerar Séries desta Prova” ou “Recarregar Séries”.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 20, overflowX: "auto" }}>
+      <div
+        style={{
+          alignItems: "center",
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+          marginBottom: 12,
+        }}
+      >
+        <div>
+          <h3 style={{ margin: 0 }}>Lançamento de resultados da súmula oficial</h3>
+          <p style={{ color: "#64748b", fontWeight: 700, margin: "4px 0 0" }}>
+            Preencha aqui o resultado, colocação e status. Depois clique em “Salvar Rascunho” ou “Publicar no Boletim”.
+          </p>
+        </div>
+
+        <span
+          style={{
+            background: "#dbeafe",
+            borderRadius: 999,
+            color: "#1e3a8a",
+            fontWeight: 800,
+            padding: "8px 12px",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {series.length} série(s) • {series.reduce((total, serie) => total + (serie.raias?.length || 0), 0)} atleta(s)
+        </span>
+      </div>
+
+      <div
+        style={{
+          background: "#eff6ff",
+          border: "1px solid #bfdbfe",
+          borderRadius: 12,
+          color: "#0f2744",
+          fontWeight: 800,
+          marginBottom: 14,
+          padding: 12,
+        }}
+      >
+        {provaAtual.nome} • {provaAtual.categoria} • {provaAtual.naipe} • {provaAtual.fase || "QUALIFICAÇÃO"} • {dataProva}
+      </div>
+
+      {series.map((serie) => {
+        if (ehCombinada) {
+          return (
+            <div key={serie.id + "-combinada-lancamento"} style={{ display: "grid", gap: 16 }}>
+              {subprovasCombinada.map((subprova) => (
+                <div key={serie.id + "-subprova-lancamento-" + subprova.ordem}>
+                  <h4 style={{ margin: "10px 0 8px", color: "#0f2744" }}>
+                    {subprova.nome} {subprova.implemento ? "- " + subprova.implemento : ""} • Dia {subprova.dia} • {datasCombinada["dia" + subprova.dia] || "Data a definir"}
+                  </h4>
+                  <TabelaCombinadaProva
+                    serie={serie}
+                    subprova={subprova}
+                    subprovas={subprovasCombinada}
+                    dataSubprova={datasCombinada["dia" + subprova.dia]}
+                    mudarCampo={mudarCampo}
+                    inputTabela={inputTabelaLancamento}
+                    formatarNascimento={formatarNascimento}
+                  />
+                </div>
+              ))}
+
+              <div>
+                <h4 style={{ margin: "10px 0 8px", color: "#0f2744" }}>Resultado final da combinada</h4>
+                <TabelaCombinadaFinal
+                  serie={serie}
+                  subprovas={subprovasCombinada}
+                  mudarCampo={mudarCampo}
+                  inputTabela={inputTabelaLancamento}
+                  formatarNascimento={formatarNascimento}
+                />
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div key={serie.id} style={{ marginBottom: 18 }}>
+            <h4
+              style={{
+                background: "#e2e8f0",
+                borderRadius: "12px 12px 0 0",
+                color: "#0f2744",
+                margin: 0,
+                padding: "10px 12px",
+              }}
+            >
+              Série {serie.numero_serie}
+            </h4>
+
+            <div style={{ border: "1px solid #e2e8f0", borderRadius: "0 0 12px 12px", overflowX: "auto" }}>
+              {ehSaltoAltura && (
+                <table width="100%" cellPadding="10" style={{ borderCollapse: "collapse", minWidth: 980 }}>
+                  <thead>
+                    <tr>
+                      <th rowSpan="2">Nº</th>
+                      <th rowSpan="2">Atleta</th>
+                      <th rowSpan="2">Escola</th>
+                      <th rowSpan="2">Nascimento</th>
+                      {(config.alturas_salto_altura || []).map((altura) => (
+                        <th key={altura} colSpan="3">{altura}</th>
+                      ))}
+                      <th rowSpan="2">Resultado</th>
+                      <th rowSpan="2">Colocação</th>
+                      <th rowSpan="2">Q</th>
+                    </tr>
+                    <tr>
+                      {(config.alturas_salto_altura || []).flatMap((altura) => [
+                        <th key={`${altura}-t1`}></th>,
+                        <th key={`${altura}-t2`}></th>,
+                        <th key={`${altura}-t3`}></th>,
+                      ])}
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {[...(serie.raias || [])]
+                      .sort((a, b) => (a.ordem || 0) - (b.ordem || 0))
+                      .map((r) => {
+                        const atleta = r.inscricoes?.atletas;
+                        return (
+                          <tr key={r.id}>
+                            <td>{atleta?.numero_competicao || atleta?.numero || ""}</td>
+                            <td>{atleta?.nome || ""}</td>
+                            <td>{atleta?.escolas?.nome || ""}</td>
+                            <td>{formatarNascimento(atleta?.data_nascimento)}</td>
+                            {(config.alturas_salto_altura || []).flatMap((altura) => {
+                              const valor = String(pegarValorAltura(r, altura) || "")
+                                .toUpperCase()
+                                .padEnd(3, " ");
+
+                              return [
+                                <td key={`${r.id}-${altura}-1`}>
+                                  <input
+                                    value={valor[0].trim()}
+                                    onChange={(e) => mudarTentativaAltura(serie.id, r.id, altura, 0, e.target.value)}
+                                    style={inputMiniAlturaLancamento}
+                                  />
+                                </td>,
+                                <td key={`${r.id}-${altura}-2`}>
+                                  <input
+                                    value={valor[1].trim()}
+                                    onChange={(e) => mudarTentativaAltura(serie.id, r.id, altura, 1, e.target.value)}
+                                    style={inputMiniAlturaLancamento}
+                                  />
+                                </td>,
+                                <td key={`${r.id}-${altura}-3`}>
+                                  <input
+                                    value={valor[2].trim()}
+                                    onChange={(e) => mudarTentativaAltura(serie.id, r.id, altura, 2, e.target.value)}
+                                    style={inputMiniAlturaLancamento}
+                                  />
+                                </td>,
+                              ];
+                            })}
+                            <td>
+                              <input
+                                value={r.resultado_final || calcularResultadoAltura(r)}
+                                onChange={(e) => mudarCampo(serie.id, r.id, "resultado_final", e.target.value)}
+                                style={inputTabelaLancamento}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                value={r.colocacao || ""}
+                                onChange={(e) => mudarCampo(serie.id, r.id, "colocacao", e.target.value)}
+                                style={inputTabelaLancamento}
+                              />
+                            </td>
+                            <td style={{ fontWeight: "bold", textAlign: "center" }}>{r.qualificacao || ""}</td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              )}
+
+              {ehCampoTentativas && !ehSaltoAltura && !ehRevezamento && (
+                <TabelaCampo
+                  serie={serie}
+                  mudarCampo={mudarCampo}
+                  melhorDasTresPrimeiras={melhorDasTresPrimeiras}
+                  melhorDasTentativas={melhorDasTentativas}
+                  inputTabela={inputTabelaLancamento}
+                  formatarNascimento={formatarNascimento}
+                />
+              )}
+
+              {ehRevezamento && !ehSaltoAltura && (
+                <TabelaRevezamento
+                  serie={serie}
+                  mudarCampo={mudarCampo}
+                  inputTabela={inputTabelaLancamento}
+                />
+              )}
+
+              {!ehCampoTentativas && !ehSaltoAltura && !ehRevezamento && (
+                <TabelaPista
+                  serie={serie}
+                  mudarCampo={mudarCampo}
+                  inputTabela={inputTabelaLancamento}
+                  formatarNascimento={formatarNascimento}
+                />
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function Sumulas() {
   const [mensagem, setMensagem] = useState("");
@@ -308,6 +596,26 @@ export default function Sumulas() {
           salvarResultados={salvarResultados}
           classificarAutomaticamente={classificarAutomaticamente}
           imprimir={imprimir}
+        />
+
+        <LancamentoOficialTela
+          series={series}
+          provaAtual={provaAtual}
+          dataProva={dataProva}
+          ehSaltoAltura={ehSaltoAltura}
+          ehCampoTentativas={ehCampoTentativas}
+          ehRevezamento={ehRevezamento}
+          ehCombinada={ehCombinada}
+          combinadaInfo={combinadaInfo}
+          config={config}
+          datasCombinada={datasCombinada}
+          pegarValorAltura={pegarValorAltura}
+          mudarTentativaAltura={mudarTentativaAltura}
+          mudarCampo={mudarCampo}
+          calcularResultadoAltura={calcularResultadoAltura}
+          melhorDasTresPrimeiras={melhorDasTresPrimeiras}
+          melhorDasTentativas={melhorDasTentativas}
+          formatarNascimento={formatarNascimento}
         />
 
         {ehCombinada && combinadaInfo && (

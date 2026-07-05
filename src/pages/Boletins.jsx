@@ -696,7 +696,18 @@ export default function Boletins() {
   }
 
   function imprimir() {
-    window.print();
+    document.body.classList.add("imprimindo-boletim-oficial");
+
+    const limparClasse = () => {
+      document.body.classList.remove("imprimindo-boletim-oficial");
+      window.removeEventListener("afterprint", limparClasse);
+    };
+
+    window.addEventListener("afterprint", limparClasse);
+
+    window.setTimeout(() => {
+      window.print();
+    }, 150);
   }
 
   const grupos = agruparPorProva(resultados);
@@ -1579,6 +1590,161 @@ export default function Boletins() {
               display: none !important;
             }
           }
+        
+
+          /* ============================================================
+             CORREÇÃO FINAL - IMPRESSÃO DO BOLETIM OFICIAL
+             Isola o boletim oficial das regras de impressão das súmulas
+             ============================================================ */
+
+          @media print {
+            body.imprimindo-boletim-oficial {
+              background: white !important;
+              color: black !important;
+            }
+
+            body.imprimindo-boletim-oficial .sidebar,
+            body.imprimindo-boletim-oficial .topbar,
+            body.imprimindo-boletim-oficial .nao-imprimir {
+              display: none !important;
+              visibility: hidden !important;
+            }
+
+            body.imprimindo-boletim-oficial .app,
+            body.imprimindo-boletim-oficial .content,
+            body.imprimindo-boletim-oficial .boletim-pagina,
+            body.imprimindo-boletim-oficial .boletim-pagina > .card {
+              display: block !important;
+              visibility: visible !important;
+              width: 100% !important;
+              max-width: none !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: white !important;
+              color: black !important;
+              overflow: visible !important;
+              box-shadow: none !important;
+              border: none !important;
+            }
+
+            body.imprimindo-boletim-oficial .boletim-pagina * {
+              visibility: visible !important;
+            }
+
+            body.imprimindo-boletim-oficial .pagina-inicial,
+            body.imprimindo-boletim-oficial .pagina-institucional {
+              display: flex !important;
+              visibility: visible !important;
+              width: 210mm !important;
+              height: 297mm !important;
+              min-height: 297mm !important;
+              margin: 0 !important;
+              padding: 18mm ${layoutBoletim.margemInternaMm || 16}mm 20mm !important;
+              box-sizing: border-box !important;
+              background-color: white !important;
+              color: black !important;
+              overflow: hidden !important;
+              break-after: page !important;
+              page-break-after: always !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+
+            body.imprimindo-boletim-oficial .pagina-institucional {
+              display: block !important;
+            }
+
+            body.imprimindo-boletim-oficial .cabecalho-boletim,
+            body.imprimindo-boletim-oficial .boletim-resumo,
+            body.imprimindo-boletim-oficial .quebra-pagina {
+              display: block !important;
+              visibility: visible !important;
+              background-color: white !important;
+              color: black !important;
+            }
+
+            body.imprimindo-boletim-oficial .cabecalho-boletim {
+              width: 210mm !important;
+              box-sizing: border-box !important;
+              border: 1px solid black !important;
+              border-radius: 0 !important;
+              padding: 10px !important;
+              margin: 0 0 8px 0 !important;
+            }
+
+            body.imprimindo-boletim-oficial .resumo-titulo,
+            body.imprimindo-boletim-oficial .boletim-resumo {
+              display: block !important;
+              visibility: visible !important;
+            }
+
+            body.imprimindo-boletim-oficial .quebra-pagina {
+              width: 210mm !important;
+              min-height: 297mm !important;
+              box-sizing: border-box !important;
+              padding: 7mm 8mm 10mm !important;
+              page-break-after: always !important;
+              break-after: page !important;
+            }
+
+            body.imprimindo-boletim-oficial .quebra-pagina:last-child {
+              page-break-after: auto !important;
+              break-after: auto !important;
+            }
+
+            body.imprimindo-boletim-oficial table,
+            body.imprimindo-boletim-oficial .boletim-table {
+              display: table !important;
+              visibility: visible !important;
+              width: 100% !important;
+              border-collapse: collapse !important;
+              table-layout: fixed !important;
+              background: white !important;
+              color: black !important;
+            }
+
+            body.imprimindo-boletim-oficial thead {
+              display: table-header-group !important;
+            }
+
+            body.imprimindo-boletim-oficial tbody {
+              display: table-row-group !important;
+            }
+
+            body.imprimindo-boletim-oficial tr {
+              display: table-row !important;
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+            }
+
+            body.imprimindo-boletim-oficial th,
+            body.imprimindo-boletim-oficial td {
+              display: table-cell !important;
+              visibility: visible !important;
+              border: 1px solid black !important;
+              color: black !important;
+              padding: 3px !important;
+              font-size: ${layoutBoletim.fonteTabelaPx || 8}px !important;
+              line-height: 1.15 !important;
+              word-break: break-word !important;
+            }
+
+            body.imprimindo-boletim-oficial th {
+              background: #e2e8f0 !important;
+              font-weight: 900 !important;
+              text-transform: uppercase !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+
+            body.imprimindo-boletim-oficial .sumula-print,
+            body.imprimindo-boletim-oficial .boletim-manual-print,
+            body.imprimindo-boletim-oficial .area-impressao-manual {
+              display: none !important;
+              visibility: hidden !important;
+            }
+          }
+
         `}
       </style>
 
