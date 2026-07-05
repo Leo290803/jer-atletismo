@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { getNumeroAtleta } from "../utils/getNumeroAtleta";
+import { agruparResultadosEquipe, ehRevezamento } from "./sumulas/utils/revezamento";
 
 export default function Resultados() {
   const [provas, setProvas] = useState([]);
@@ -54,7 +55,10 @@ export default function Resultados() {
       return;
     }
 
-    const ordenados = [...(data || [])].sort((a, b) => {
+    const prova = (provas || []).find((p) => String(p.id) === String(provaId));
+    const lista = ehRevezamento(prova) ? agruparResultadosEquipe(data || []) : data || [];
+
+    const ordenados = [...lista].sort((a, b) => {
       if (a.colocacao && b.colocacao) {
         return a.colocacao - b.colocacao;
       }
@@ -183,6 +187,7 @@ export default function Resultados() {
             <tbody>
               {resultados.map((r, index) => {
                 const atleta = r.inscricoes?.atletas;
+                const ehEquipe = !!r.equipe;
 
                 return (
                   <tr key={r.id}>
@@ -194,9 +199,26 @@ export default function Resultados() {
                       {medalha(r.colocacao)}
                     </td>
 
-                    <td>{getNumeroAtleta(atleta)}</td>
+                    <td>{ehEquipe ? "" : getNumeroAtleta(atleta)}</td>
 
-                    <td>{atleta?.nome}</td>
+                    <td>
+                      {ehEquipe ? (
+                        <div style={{ textAlign: "left" }}>
+                          {(r.equipeAtletas || []).map((a, i) => (
+                            <div key={i}>
+                              {getNumeroAtleta(a)} - {a?.nome}
+                            </div>
+                          ))}
+                          {(r.equipeReservas || []).map((a, i) => (
+                            <div key={`res-${i}`} style={{ fontStyle: "italic", opacity: 0.8 }}>
+                              {getNumeroAtleta(a)} - {a?.nome} (reserva)
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        atleta?.nome
+                      )}
+                    </td>
 
                     <td>{atleta?.escolas?.nome}</td>
 

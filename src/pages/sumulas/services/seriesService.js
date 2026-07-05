@@ -7,6 +7,11 @@ import {
   escolaDaInscricao,
 } from "../utils/balizamentoUtils";
 import { apagarResultadosDaProva } from "./resultadosService";
+import {
+  chaveEquipeRevezamento,
+  ehRevezamento,
+  numeroCompeticaoOrdenavel,
+} from "../utils/revezamento";
 
 export async function carregarSeries(provaId) {
   return supabase
@@ -179,6 +184,89 @@ function distribuirSemRepetirEscola(listaInscricoes, totalSeries, quantidadePorS
   return melhorarDistribuicaoPorEscola(grupos);
 }
 
+// Agrupa as inscricoes de um revezamento em equipes (escola + municipio).
+function agruparEquipesRevezamento(inscricoes) {
+  const equipesMap = new Map();
+
+  (inscricoes || []).forEach((inscricao) => {
+    const chave = chaveEquipeRevezamento(inscricao);
+    if (!equipesMap.has(chave)) equipesMap.set(chave, []);
+    equipesMap.get(chave).push(inscricao);
+  });
+
+  // Ordena os atletas dentro de cada equipe pelo numero de competicao.
+  return Array.from(equipesMap.values()).map((atletas) =>
+    [...atletas].sort((a, b) => numeroCompeticaoOrdenavel(a) - numeroCompeticaoOrdenavel(b))
+  );
+}
+
+// Geracao de series para revezamento: a unidade e a EQUIPE (escola), nao o atleta.
+// Cada equipe ocupa uma unica raia; todos os atletas da equipe ficam na mesma serie.
+async function gerarSeriesRevezamento({ provaSelecionada, inscricoes, config }) {
+  const equipes = agruparEquipesRevezamento(inscricoes);
+
+  if (equipes.length === 0) {
+    return { ok: false, message: "Essa prova nao tem equipes inscritas." };
+  }
+
+  const equipesEmbaralhadas = embaralhar(equipes);
+  const equipesPorSerie = Math.max(1, Number(config.quantidade_raias || 8));
+  const totalSeries = Math.max(1, Math.ceil(equipesEmbaralhadas.length / equipesPorSerie));
+
+  // Fase automatica com base na quantidade de EQUIPES.
+  const faseAutomatica = equipesEmbaralhadas.length <= equipesPorSerie ? "FINAL" : "QUALIFICACAO";
+  const faseAtualNormalizada = normalizarFaseProva(provaSelecionada?.fase);
+  const deveAtualizarFase = podeSobrescreverFaseAutomaticamente(faseAtualNormalizada);
+  const faseDaProva = deveAtualizarFase ? faseAutomatica : faseAtualNormalizada;
+
+  if (deveAtualizarFase) {
+    const { error: erroAtualizarFase } = await supabase
+      .from("provas")
+      .update({ fase: faseAutomatica })
+      .eq("id", provaSelecionada.id);
+
+    if (erroAtualizarFase) return { ok: false, message: erroAtualizarFase.message };
+  }
+
+  const { data: novasSeries, error: erroCriarSeries } = await criarSeries(provaSelecionada.id, totalSeries);
+  if (erroCriarSeries) return { ok: false, message: erroCriarSeries.message };
+
+  const raiasParaCriar = [];
+
+  equipesEmbaralhadas.forEach((equipe, indiceEquipe) => {
+    const serieIndex = Math.floor(indiceEquipe / equipesPorSerie);
+    const serieCriada = novasSeries[serieIndex];
+    const raiaDaEquipe = (indiceEquipe % equipesPorSerie) + 1;
+
+    // Todos os atletas da equipe compartilham a mesma raia (a raia da equipe).
+    equipe.forEach((inscricao, posicaoNaEquipe) => {
+      raiasParaCriar.push({
+        serie_id: serieCriada.id,
+        inscricao_id: inscricao.id,
+        raia: raiaDaEquipe,
+        ordem: posicaoNaEquipe + 1,
+      });
+    });
+  });
+
+  const { error: erroRaias } = await criarRaias(raiasParaCriar);
+  if (erroRaias) return { ok: false, message: erroRaias.message };
+
+  return {
+    ok: true,
+    faseAutomatica,
+    fase: faseDaProva,
+    totalSeries,
+    totalEquipes: equipesEmbaralhadas.length,
+    totalAtletas: inscricoes.length,
+    message: `Series de revezamento geradas: ${totalSeries} serie(s), ${equipesEmbaralhadas.length} equipe(s), ${inscricoes.length} atleta(s). ${
+      deveAtualizarFase
+        ? `Fase definida automaticamente como ${faseAutomatica}.`
+        : `Fase manual mantida como ${faseDaProva}.`
+    }`.trim(),
+  };
+}
+
 export async function gerarSeriesDaProva({ provaSelecionada, provas, config, substituirSeries = false }) {
   const provaAtual = (provas || []).find((p) => p.id === provaSelecionada);
   if (!provaAtual) {
@@ -205,6 +293,11 @@ export async function gerarSeriesDaProva({ provaSelecionada, provas, config, sub
   if ((seriesExistentes || []).length > 0 && substituirSeries) {
     const { error: erroApagar } = await apagarSeriesExistentes(provaSelecionada);
     if (erroApagar) return { ok: false, message: erroApagar.message };
+  }
+
+  // Revezamento: geracao por equipe (escola), nao por atleta individual.
+  if (ehRevezamento(provaAtual)) {
+    return gerarSeriesRevezamento({ provaSelecionada: provaAtual, inscricoes, config });
   }
 
   const ehCampo =

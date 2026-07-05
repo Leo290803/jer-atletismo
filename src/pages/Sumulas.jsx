@@ -20,6 +20,7 @@ import { buscarCombinadaPorCategoriaNaipe, ehProvaCombinada } from "../data/prov
 import { FASES_PROVA_PADRAO, normalizarFaseProva } from "../data/fasesProvas";
 import { supabase } from "../lib/supabase";
 import { formatarNascimento } from "./sumulas/utils/formatadores";
+import { titularesDoRevezamento } from "./sumulas/utils/revezamento";
 import { getNumeroAtleta } from "../utils/getNumeroAtleta";
 import "./sumulas/styles/printSumulas.css";
 
@@ -828,6 +829,7 @@ function LancamentoOficialTela({
                   serie={serie}
                   mudarCampo={mudarCampo}
                   inputTabela={inputTabelaLancamento}
+                  titulares={titularesDoRevezamento(provaAtual)}
                 />
               )}
 

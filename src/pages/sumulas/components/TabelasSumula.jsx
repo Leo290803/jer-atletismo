@@ -1,15 +1,18 @@
 import { getNumeroAtleta } from "../../../utils/getNumeroAtleta";
 import { marcaParaNumero, tempoParaNumero } from "../utils/formatadores";
 
-export function TabelaRevezamento({ serie, mudarCampo, inputTabela }) {
+export function TabelaRevezamento({ serie, mudarCampo, inputTabela, titulares = 4 }) {
   function chaveEscola(raia) {
-    return raia.inscricoes?.atletas?.escolas?.nome || "SEM ESCOLA";
+    const atleta = raia.inscricoes?.atletas;
+    const escola = atleta?.escolas?.nome || "SEM ESCOLA";
+    const municipio = atleta?.municipio || "";
+    return municipio ? `${escola} - ${municipio}` : escola;
   }
 
   const gruposPorEscola = {};
 
   [...(serie.raias || [])]
-    .sort((a, b) => (a.raia || 0) - (b.raia || 0))
+    .sort((a, b) => (a.raia || 0) - (b.raia || 0) || (a.ordem || 0) - (b.ordem || 0))
     .forEach((raia) => {
       const escola = chaveEscola(raia);
 
@@ -20,14 +23,28 @@ export function TabelaRevezamento({ serie, mudarCampo, inputTabela }) {
       gruposPorEscola[escola].push(raia);
     });
 
-  const grupos = Object.entries(gruposPorEscola).map(([escola, raias]) => ({
-    escola,
-    raias: raias.slice(0, 8),
-    representante: raias[0],
-  }));
+  const grupos = Object.entries(gruposPorEscola).map(([escola, raias]) => {
+    const ordenadas = [...raias].sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+    const titularesEquipe = ordenadas.filter((r) => !r.reserva);
+    const reservasEquipe = ordenadas.filter((r) => r.reserva);
+
+    return {
+      escola,
+      // Representante da equipe = atleta de menor ordem (ancora do tempo/colocacao).
+      representante: ordenadas[0],
+      linhas: [
+        ...titularesEquipe.map((r) => ({ raia: r, reserva: false })),
+        ...reservasEquipe.map((r) => ({ raia: r, reserva: true })),
+      ],
+    };
+  });
 
   return (
     <table width="100%" cellPadding="10">
+      <caption style={{ captionSide: "top", textAlign: "left", fontSize: 12, opacity: 0.7, paddingBottom: 6 }}>
+        Titulares por equipe: {titulares}. Marque os atletas excedentes como reserva.
+      </caption>
+
       <thead>
         <tr>
           <th>Nº</th>
@@ -36,23 +53,30 @@ export function TabelaRevezamento({ serie, mudarCampo, inputTabela }) {
           <th>Tempo</th>
           <th>Raia</th>
           <th>Classificação</th>
+          <th className="nao-imprimir">Reserva</th>
         </tr>
       </thead>
 
       <tbody>
         {grupos.map((grupo, grupoIndex) => {
           const representante = grupo.representante;
-          const quantidadeLinhas = Math.max(grupo.raias.length, 4);
-          const linhas = Array.from({ length: quantidadeLinhas }, (_, index) => grupo.raias[index] || null);
+          const quantidadeLinhas = Math.max(grupo.linhas.length, 1);
 
-          return linhas.map((r, index) => {
+          return grupo.linhas.map((linha, index) => {
+            const r = linha.raia;
             const atleta = r?.inscricoes?.atletas;
             const chaveLinha = r?.id || `${grupo.escola}-${grupoIndex}-${index}`;
 
             return (
-              <tr key={chaveLinha}>
+              <tr
+                key={chaveLinha}
+                style={linha.reserva ? { fontStyle: "italic", opacity: 0.85 } : undefined}
+              >
                 <td>{getNumeroAtleta(atleta)}</td>
-                <td>{atleta?.nome || ""}</td>
+                <td>
+                  {atleta?.nome || ""}
+                  {linha.reserva ? " (reserva)" : ""}
+                </td>
 
                 {index === 0 && (
                   <td rowSpan={quantidadeLinhas} style={{ fontWeight: "bold", textAlign: "center" }}>
@@ -74,9 +98,9 @@ export function TabelaRevezamento({ serie, mudarCampo, inputTabela }) {
                 )}
 
                 {index === 0 && (
-                  <td rowSpan={quantidadeLinhas}>
+                  <td rowSpan={quantidadeLinhas} style={{ textAlign: "center" }}>
                     <input
-                      value={representante?.raia || ""}
+                      value={representante?.raia ?? ""}
                       onChange={(e) =>
                         mudarCampo(serie.id, representante.id, "raia", e.target.value)
                       }
@@ -87,7 +111,7 @@ export function TabelaRevezamento({ serie, mudarCampo, inputTabela }) {
                 )}
 
                 {index === 0 && (
-                  <td rowSpan={quantidadeLinhas}>
+                  <td rowSpan={quantidadeLinhas} style={{ textAlign: "center" }}>
                     <input
                       value={representante?.colocacao || ""}
                       onChange={(e) =>
@@ -98,6 +122,14 @@ export function TabelaRevezamento({ serie, mudarCampo, inputTabela }) {
                     />
                   </td>
                 )}
+
+                <td className="nao-imprimir" style={{ textAlign: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={!!r?.reserva}
+                    onChange={(e) => mudarCampo(serie.id, r.id, "reserva", e.target.checked)}
+                  />
+                </td>
               </tr>
             );
           });

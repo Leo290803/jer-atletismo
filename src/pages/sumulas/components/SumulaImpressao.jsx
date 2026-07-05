@@ -6,6 +6,7 @@ import {
   TabelaPista,
   TabelaRevezamento,
 } from "./TabelasSumula";
+import { titularesDoRevezamento } from "../utils/revezamento";
 
 const inputTabela = {
   width: 80,
@@ -308,7 +309,12 @@ export default function SumulaImpressao({
               <>
                 <h3 className="sumula-titulo-serie">Revezamento - Série {serie.numero_serie}</h3>
 
-                <TabelaRevezamento serie={serie} mudarCampo={mudarCampo} inputTabela={inputTabela} />
+                <TabelaRevezamento
+                  serie={serie}
+                  mudarCampo={mudarCampo}
+                  inputTabela={inputTabela}
+                  titulares={titularesDoRevezamento(provaAtual)}
+                />
               </>
             )}
 

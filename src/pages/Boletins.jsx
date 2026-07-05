@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
 import { getNumeroAtleta } from "../utils/getNumeroAtleta";
+import { agruparResultadosEquipe, ehRevezamento } from "./sumulas/utils/revezamento";
 
 const COMITE_HONRA = [
   ["Francisco dos Santos Sampaio", "Governador do Estado de Roraima"],
@@ -457,37 +458,21 @@ export default function Boletins() {
       grupos[chave].resultados.push(r);
     });
 
-    return Object.values(grupos).sort((a, b) => {
-      if (a.data !== b.data) {
-        return String(a.data).localeCompare(String(b.data));
-      }
+    return Object.values(grupos)
+      .map((grupo) =>
+        ehRevezamento(grupo.prova)
+          ? { ...grupo, resultados: agruparResultadosEquipe(grupo.resultados) }
+          : grupo
+      )
+      .sort((a, b) => {
+        if (a.data !== b.data) {
+          return String(a.data).localeCompare(String(b.data));
+        }
 
-      return String(a.prova?.nome || "").localeCompare(
-        String(b.prova?.nome || "")
-      );
-    });
-  }
-
-  function agruparPorSerie(lista) {
-    const grupos = {};
-
-    lista.forEach((r) => {
-      const numeroSerie = r.series?.numero_serie || "Sem serie";
-      const chave = `Série ${numeroSerie}`;
-
-      if (!grupos[chave]) {
-        grupos[chave] = {
-          numeroSerie,
-          resultados: [],
-        };
-      }
-
-      grupos[chave].resultados.push(r);
-    });
-
-    return Object.values(grupos).sort(
-      (a, b) => Number(a.numeroSerie) - Number(b.numeroSerie)
-    );
+        return String(a.prova?.nome || "").localeCompare(
+          String(b.prova?.nome || "")
+        );
+      });
   }
 
   function agruparPorSerieBoletim(lista) {
@@ -587,6 +572,18 @@ export default function Boletins() {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
+  }
+
+  function htmlListaAtletasEquipe(r) {
+    const titulares = (r.equipeAtletas || []).map(
+      (a) => `${escaparHtml(getNumeroAtleta(a))} - ${escaparHtml(a?.nome || "")}`
+    );
+    const reservas = (r.equipeReservas || []).map(
+      (a) =>
+        `<span style="font-style:italic">${escaparHtml(getNumeroAtleta(a))} - ${escaparHtml(a?.nome || "")} (reserva)</span>`
+    );
+
+    return [...titulares, ...reservas].join("<br/>");
   }
 
   function campoPaginaWord() {
@@ -718,13 +715,14 @@ export default function Boletins() {
           ${resultadosTabela
             .map((r, i) => {
               const atleta = r.inscricoes?.atletas;
+              const ehEquipe = !!r.equipe;
               return `
                 <tr>
                   <td class="col-pos">${r.colocacao ? `${r.colocacao}&ordm;` : `${i + 1}&ordm;`}</td>
-                  <td class="col-num">${getNumeroAtleta(atleta)}</td>
-                  <td class="col-atleta">${atleta?.nome || ""}</td>
-                  <td class="col-escola">${atleta?.escolas?.nome || ""}</td>
-                  <td class="col-municipio">${atleta?.municipio || ""}</td>
+                  <td class="col-num">${ehEquipe ? "" : getNumeroAtleta(atleta)}</td>
+                  <td class="col-atleta">${ehEquipe ? htmlListaAtletasEquipe(r) : escaparHtml(atleta?.nome || "")}</td>
+                  <td class="col-escola">${escaparHtml(atleta?.escolas?.nome || "")}</td>
+                  <td class="col-municipio">${escaparHtml(atleta?.municipio || "")}</td>
                   <td class="col-resultado">${resultadoFinal(r)}</td>
                   ${temStatusDiferenteOk ? `<td class="col-extra">${r.status && r.status !== "OK" ? r.status : ""}</td>` : ""}
                   ${temQualificacao ? `<td class="col-extra">${r.qualificacao || ""}</td>` : ""}
@@ -751,10 +749,11 @@ export default function Boletins() {
           ${classificados
             .map((r) => {
               const atleta = r.inscricoes?.atletas;
+              const ehEquipe = !!r.equipe;
               return `
                 <tr>
-                  <td class="col-num">${escaparHtml(getNumeroAtleta(atleta))}</td>
-                  <td class="col-atleta">${escaparHtml(atleta?.nome || "")}</td>
+                  <td class="col-num">${ehEquipe ? "" : escaparHtml(getNumeroAtleta(atleta))}</td>
+                  <td class="col-atleta">${ehEquipe ? htmlListaAtletasEquipe(r) : escaparHtml(atleta?.nome || "")}</td>
                   <td class="col-escola">${escaparHtml(atleta?.escolas?.nome || "")}</td>
                 </tr>
               `;
@@ -2272,13 +2271,14 @@ export default function Boletins() {
                           .filter((r) => r.colocacao >= 1 && r.colocacao <= 3)
                           .map((r) => {
                             const atleta = r.inscricoes?.atletas;
+                            const ehEquipe = !!r.equipe;
 
                             return (
                               <tr key={r.id}>
                                 <td>{medalha(r.colocacao)}</td>
                                 <td>{r.colocacao}º</td>
-                                <td>{getNumeroAtleta(atleta)}</td>
-                                <td>{atleta?.nome}</td>
+                                <td>{ehEquipe ? "" : getNumeroAtleta(atleta)}</td>
+                                <td>{ehEquipe ? <ListaAtletasEquipe resultado={r} /> : atleta?.nome}</td>
                                 <td>{atleta?.escolas?.nome}</td>
                                 <td>{atleta?.municipio}</td>
                                 <td>{resultadoFinal(r)}</td>
@@ -2520,17 +2520,36 @@ function TabelaClassificadosProximaFase({ classificados }) {
       <tbody>
         {classificados.map((r) => {
           const atleta = r.inscricoes?.atletas;
+          const ehEquipe = !!r.equipe;
 
           return (
             <tr key={r.id}>
-              <td>{getNumeroAtleta(atleta)}</td>
-              <td>{atleta?.nome}</td>
+              <td>{ehEquipe ? "" : getNumeroAtleta(atleta)}</td>
+              <td>{ehEquipe ? <ListaAtletasEquipe resultado={r} /> : atleta?.nome}</td>
               <td>{atleta?.escolas?.nome}</td>
             </tr>
           );
         })}
       </tbody>
     </table>
+  );
+}
+
+function ListaAtletasEquipe({ resultado }) {
+  return (
+    <div style={{ textAlign: "left" }}>
+      {(resultado.equipeAtletas || []).map((a, i) => (
+        <div key={i}>
+          {getNumeroAtleta(a)} - {a?.nome}
+        </div>
+      ))}
+
+      {(resultado.equipeReservas || []).map((a, i) => (
+        <div key={`res-${i}`} style={{ fontStyle: "italic", opacity: 0.8 }}>
+          {getNumeroAtleta(a)} - {a?.nome} (reserva)
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -2559,12 +2578,13 @@ function TabelaResultados({ resultados, resultadoFinal }) {
       <tbody>
         {resultados.map((r, i) => {
           const atleta = r.inscricoes?.atletas;
+          const ehEquipe = !!r.equipe;
 
           return (
             <tr key={r.id}>
               <td>{r.colocacao ? `${r.colocacao}º` : `${i + 1}º`}</td>
-              <td>{getNumeroAtleta(atleta)}</td>
-              <td>{atleta?.nome}</td>
+              <td>{ehEquipe ? "" : getNumeroAtleta(atleta)}</td>
+              <td>{ehEquipe ? <ListaAtletasEquipe resultado={r} /> : atleta?.nome}</td>
               <td>{atleta?.escolas?.nome}</td>
               <td>{atleta?.municipio}</td>
               <td>{resultadoFinal(r)}</td>

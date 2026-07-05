@@ -204,6 +204,7 @@ export function useSeries({
           resultado_final: resultado?.resultado_final || resultadoDigital?.resultado || "",
           publicado: resultado?.publicado || false,
           qualificacao: resultado?.qualificacao || "",
+          reserva: resultado?.reserva || false,
         };
       }),
     }));
@@ -409,6 +410,7 @@ export function useSeries({
           resultado_final: r.resultado_final || null,
           publicado: publicar,
           qualificacao: r.qualificacao || null,
+          reserva: !!r.reserva,
         });
       });
     });
