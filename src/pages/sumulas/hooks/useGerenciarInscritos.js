@@ -16,6 +16,7 @@ export function useGerenciarInscritos({
   provas,
   carregarSeries,
   setMensagem,
+  config,
 }) {
   const [mostrarGerenciarInscritos, setMostrarGerenciarInscritos] = useState(false);
   const [inscricoesProva, setInscricoesProva] = useState([]);
@@ -266,7 +267,10 @@ export function useGerenciarInscritos({
     setMensagem?.("Criando e adicionando atleta na serie...");
 
     const { error, atleta, raia } = await criarAtletaEAdicionarNaSerieService({
-      dadosAtleta,
+      dadosAtleta: {
+        ...dadosAtleta,
+        total_raias: Number(config?.quantidade_raias) || 8,
+      },
       provaAtual,
       serie,
     });

@@ -940,6 +940,7 @@ export default function Sumulas() {
     provas,
     carregarSeries,
     setMensagem,
+    config,
   });
 
   const proximaFase = useProximaFase({

@@ -130,9 +130,25 @@ export async function criarAtletaEAdicionarNaSerie({ dadosAtleta, provaAtual, se
     return { error: erroRaias, atleta: atletaCriado };
   }
 
-  const numerosRaia = (raiasExistentes || []).map((r) => Number(r.raia) || 0);
+  const numerosRaia = new Set((raiasExistentes || []).map((r) => Number(r.raia) || 0));
   const ordens = (raiasExistentes || []).map((r) => Number(r.ordem) || 0);
-  const proximaRaia = (numerosRaia.length ? Math.max(...numerosRaia) : 0) + 1;
+  const totalRaias = Math.max(1, Number(dadosAtleta?.total_raias) || 8);
+
+  // Primeira raia LIVRE dentro do limite (1..totalRaias). Preenche buracos
+  // (ex.: se a raia 1 esta vazia, usa a 1) em vez de "maior + 1".
+  let proximaRaia = null;
+  for (let n = 1; n <= totalRaias; n += 1) {
+    if (!numerosRaia.has(n)) {
+      proximaRaia = n;
+      break;
+    }
+  }
+  // Se todas as raias ate o limite estao ocupadas, cai para a proxima acima
+  // (serie cheia — situacao excepcional).
+  if (proximaRaia === null) {
+    proximaRaia = (numerosRaia.size ? Math.max(...numerosRaia) : 0) + 1;
+  }
+
   const proximaOrdem = (ordens.length ? Math.max(...ordens) : 0) + 1;
 
   // 4) Criar a raia
