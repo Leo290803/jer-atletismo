@@ -743,6 +743,7 @@ function LancamentoOficialTela({
                       <th rowSpan="2">Resultado</th>
                       <th rowSpan="2">Colocação</th>
                       <th rowSpan="2">Q</th>
+                      {onRemoverAtleta && <th rowSpan="2" className="nao-imprimir">Ações</th>}
                     </tr>
                     <tr>
                       {(config.alturas_salto_altura || []).flatMap((altura) => [
@@ -808,6 +809,26 @@ function LancamentoOficialTela({
                               />
                             </td>
                             <td style={{ fontWeight: "bold", textAlign: "center" }}>{r.qualificacao || ""}</td>
+                            {onRemoverAtleta && (
+                              <td className="nao-imprimir" style={{ textAlign: "center" }}>
+                                <button
+                                  type="button"
+                                  onClick={() => onRemoverAtleta({ raia: r, serie })}
+                                  title="Remover atleta da série (desistência)"
+                                  style={{
+                                    background: "#ef4444",
+                                    color: "#fff",
+                                    border: "none",
+                                    borderRadius: 8,
+                                    padding: "6px 10px",
+                                    fontWeight: "bold",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Remover
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
