@@ -1530,6 +1530,7 @@ export default function Sumulas() {
           quantidadeClassificados={proximaFase.quantidadeClassificados}
           setQuantidadeClassificados={proximaFase.setQuantidadeClassificados}
           setRegraPreviewProximaFase={proximaFase.setRegraPreviewProximaFase}
+          statusBoletimProximaFase={proximaFase.statusBoletimProximaFase}
         />
 
         {mensagem && (

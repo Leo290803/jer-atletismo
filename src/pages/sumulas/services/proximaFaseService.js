@@ -104,6 +104,30 @@ export async function salvarQualificacoesDaFaseAtual(provaId, series = []) {
   return { error: null };
 }
 
+export async function verificarQualificacoesNoBoletim(provaOrigemId) {
+  // Confere, direto no banco, se as qualificacoes da fase de origem foram
+  // gravadas e publicadas — que e a condicao para o bloco "ATLETAS
+  // QUALIFICADOS" aparecer no boletim oficial.
+  const { data, error } = await supabase
+    .from("resultados")
+    .select("qualificacao, publicado")
+    .eq("prova_id", provaOrigemId)
+    .not("qualificacao", "is", null);
+
+  if (error) return { ok: false, error };
+
+  const linhas = data || [];
+  const totalQualificados = linhas.length;
+  const totalPublicados = linhas.filter((r) => r.publicado === true).length;
+
+  return {
+    ok: true,
+    totalQualificados,
+    totalPublicados,
+    tudoPublicado: totalQualificados > 0 && totalPublicados === totalQualificados,
+  };
+}
+
 export async function gerarProximaFaseNoBanco({
   provaAtual,
   fase,

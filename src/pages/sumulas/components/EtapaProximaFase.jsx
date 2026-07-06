@@ -57,6 +57,7 @@ export default function EtapaProximaFase(props) {
     quantidadeClassificados,
     setQuantidadeClassificados,
     setRegraPreviewProximaFase,
+    statusBoletimProximaFase,
   } = props;
 
   return (
@@ -272,6 +273,46 @@ export default function EtapaProximaFase(props) {
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+
+          {statusBoletimProximaFase && (
+            <div
+              style={{
+                marginTop: 14,
+                padding: 14,
+                borderRadius: 12,
+                border: `1px solid ${statusBoletimProximaFase.tudoPublicado ? "#22c55e" : "#f59e0b"}`,
+                background: statusBoletimProximaFase.tudoPublicado ? "#ecfdf5" : "#fffbeb",
+                color: statusBoletimProximaFase.tudoPublicado ? "#052e16" : "#78350f",
+              }}
+            >
+              <strong>
+                {statusBoletimProximaFase.tudoPublicado
+                  ? "✓ Classificados prontos no boletim"
+                  : "⚠ Verifique antes de publicar o boletim"}
+              </strong>
+              <div style={{ marginTop: 6 }}>
+                Qualificacoes gravadas: <strong>{statusBoletimProximaFase.totalQualificados}</strong>
+                {" • "}
+                Publicadas: <strong>{statusBoletimProximaFase.totalPublicados}</strong>
+              </div>
+
+              {statusBoletimProximaFase.tudoPublicado ? (
+                <div style={{ marginTop: 6 }}>
+                  O bloco <strong>ATLETAS QUALIFICADOS</strong> ja aparece no boletim oficial da fase de origem.
+                </div>
+              ) : statusBoletimProximaFase.totalQualificados === 0 ? (
+                <div style={{ marginTop: 6 }}>
+                  Nenhuma qualificacao foi gravada — o boletim <strong>nao</strong> mostrara os classificados.
+                  Confira o casamento das raias na fase classificatoria.
+                </div>
+              ) : (
+                <div style={{ marginTop: 6 }}>
+                  Ha qualificacoes ainda <strong>nao publicadas</strong>. Publique os resultados desta fase
+                  (aba Boletins) para os classificados aparecerem.
+                </div>
+              )}
             </div>
           )}
         </div>

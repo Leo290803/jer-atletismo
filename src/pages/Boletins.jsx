@@ -88,7 +88,7 @@ const LAYOUT_BOLETIM_PADRAO = {
   mostrarPaginasIniciais: false,
   boletimCompactoImpressao: true,
   margemInternaMm: 8,
-  fonteTabelaPx: 7.2,
+  fonteTabelaPx: 9.5,
   tituloCapaPx: 42,
   tituloJogosPx: 23,
   cabecalhoTitulo: "JOGOS ESCOLARES DE RORAIMA - JER 2026",
@@ -374,6 +374,28 @@ export default function Boletins() {
     return r.tempo || r.melhor_marca || r.resultado_final || r.marca || "-";
   }
 
+  // Resultado esportivo REAL: tempo, marca ou tentativas lancadas.
+  // Colocacao e qualificacao sozinhas NAO contam — evita mostrar serie
+  // "classificada" no boletim antes de existir tempo/marca de verdade.
+  function temResultadoReal(r) {
+    return [
+      r.tempo,
+      r.melhor_marca,
+      r.resultado_final,
+      r.marca,
+      r.tentativa1,
+      r.tentativa2,
+      r.tentativa3,
+      r.tentativa4,
+      r.tentativa5,
+      r.tentativa6,
+    ].some((valor) => valor !== null && valor !== undefined && String(valor).trim() !== "" && String(valor).trim() !== "-");
+  }
+
+  function serieTemResultadoReal(serie) {
+    return (serie?.resultados || []).some(temResultadoReal);
+  }
+
   function medalha(pos) {
     if (pos === 1) return "OURO";
     if (pos === 2) return "PRATA";
@@ -646,11 +668,11 @@ export default function Boletins() {
       const conteudoSeries = seriesDaProva.map((serie) => (
         '<div class="serie-bloco">' +
           '<h4>Serie ' + serie.numeroSerie + '</h4>' +
-          gerarTabelaResultados(serie.resultados) +
+          gerarTabelaResultados(serie.resultados, serieTemResultadoReal(serie)) +
         '</div>'
       )).join('');
       const classificadosProximaFase = obterClassificadosProximaFase(resultadosOrdenados);
-      const conteudoClassificados = !final && classificadosProximaFase.length
+      const conteudoClassificados = !final && classificadosProximaFase.length && resultadosOrdenados.some(temResultadoReal)
         ? '<div class="classificados-bloco"><div class="titulo-classificados-word">' +
           escaparHtml(tituloClassificadosProximaFase(grupo)) +
           '</div>' +
@@ -692,7 +714,7 @@ export default function Boletins() {
     setMensagem('Word com resultados gerado sem capa e com numeracao de paginas.');
   }
 
-  function gerarTabelaResultados(resultadosTabela) {
+  function gerarTabelaResultados(resultadosTabela, mostrarColocacao = true) {
     if (!resultadosTabela.length) {
       return '<div class="resultado-nao-publicado">Resultado ainda nao publicado.</div>';
     }
@@ -714,8 +736,10 @@ export default function Boletins() {
             .map((r, i) => {
               const atleta = r.inscricoes?.atletas;
               const ehEquipe = !!r.equipe;
-              const colocacao = r.colocacao ? `${r.colocacao}&ordm;` : `${i + 1}&ordm;`;
-              const classificacao = r.qualificacao ? ` <strong>${escaparHtml(r.qualificacao)}</strong>` : "";
+              const colocacao = mostrarColocacao
+                ? (r.colocacao ? `${r.colocacao}&ordm;` : `${i + 1}&ordm;`)
+                : "-";
+              const classificacao = mostrarColocacao && r.qualificacao ? ` <strong>${escaparHtml(r.qualificacao)}</strong>` : "";
               return `
                 <tr>
                   <td class="col-pos">${colocacao}${classificacao}</td>
@@ -785,6 +809,9 @@ export default function Boletins() {
   }
 
   const grupos = agruparPorProva(resultados);
+
+  // Fonte de tabela na impressão: nunca abaixo de 9px (~6.8pt) para manter legibilidade no papel.
+  const fonteTabelaImpressao = Math.max(9, Number(layoutBoletim.fonteTabelaPx) || 9.5);
 
   return (
     <div className={`boletim-pagina ${layoutBoletim.boletimCompactoImpressao ? "boletim-compacto" : ""}`}>
@@ -1696,7 +1723,7 @@ export default function Boletins() {
             }
 
             .boletim-table {
-              font-size: ${layoutBoletim.fonteTabelaPx || 8}px !important;
+              font-size: ${fonteTabelaImpressao}px !important;
               table-layout: fixed;
               width: 100% !important;
             }
@@ -1911,7 +1938,7 @@ export default function Boletins() {
               border: 1px solid black !important;
               color: black !important;
               padding: 3px !important;
-              font-size: ${layoutBoletim.fonteTabelaPx || 8}px !important;
+              font-size: ${fonteTabelaImpressao}px !important;
               line-height: 1.15 !important;
               word-break: break-word !important;
             }
@@ -2052,7 +2079,7 @@ export default function Boletins() {
             body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table {
               margin: 0 0 1.6mm !important;
               table-layout: fixed !important;
-              font-size: ${layoutBoletim.fonteTabelaPx || 7.2}px !important;
+              font-size: ${fonteTabelaImpressao}px !important;
               page-break-inside: auto !important;
               break-inside: auto !important;
             }
@@ -2073,31 +2100,47 @@ export default function Boletins() {
             body.imprimindo-boletim-oficial.boletim-compacto-impressao th,
             body.imprimindo-boletim-oficial.boletim-compacto-impressao td {
               padding: 1.2mm 1.3mm !important;
-              font-size: ${layoutBoletim.fonteTabelaPx || 7.2}px !important;
+              font-size: ${fonteTabelaImpressao}px !important;
               line-height: 1.06 !important;
               border: 0.6px solid #111 !important;
               vertical-align: middle !important;
             }
 
             body.imprimindo-boletim-oficial.boletim-compacto-impressao th {
-              font-size: ${Math.max(6.4, Number(layoutBoletim.fonteTabelaPx || 7.2) - 0.4)}px !important;
+              font-size: ${Math.max(8.2, fonteTabelaImpressao - 0.6)}px !important;
               padding-top: 1mm !important;
               padding-bottom: 1mm !important;
               letter-spacing: 0 !important;
             }
 
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table th:nth-child(1),
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table td:nth-child(1) { width: 13mm !important; text-align: center !important; }
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table th:nth-child(2),
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table td:nth-child(2) { width: 10mm !important; text-align: center !important; }
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table th:nth-child(3),
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table td:nth-child(3) { width: 39% !important; }
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table th:nth-child(4),
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table td:nth-child(4) { width: 31% !important; }
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table th:nth-child(5),
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table td:nth-child(5) { width: 18mm !important; }
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table th:nth-child(6),
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table td:nth-child(6) { width: 18mm !important; text-align: center !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) th:nth-child(1),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) td:nth-child(1) { width: 13mm !important; text-align: center !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) th:nth-child(2),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) td:nth-child(2) { width: 10mm !important; text-align: center !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) th:nth-child(3),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) td:nth-child(3) { width: 39% !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) th:nth-child(4),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) td:nth-child(4) { width: 31% !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) th:nth-child(5),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) td:nth-child(5) { width: 18mm !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) th:nth-child(6),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) td:nth-child(6) { width: 18mm !important; text-align: center !important; }
+
+            /* Medalhistas: 7 colunas (Medalha + colunas padrão) */
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-medalhistas th:nth-child(1),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-medalhistas td:nth-child(1) { width: 12mm !important; text-align: center !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-medalhistas th:nth-child(2),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-medalhistas td:nth-child(2) { width: 13mm !important; text-align: center !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-medalhistas th:nth-child(3),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-medalhistas td:nth-child(3) { width: 10mm !important; text-align: center !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-medalhistas th:nth-child(4),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-medalhistas td:nth-child(4) { width: 35% !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-medalhistas th:nth-child(5),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-medalhistas td:nth-child(5) { width: 29% !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-medalhistas th:nth-child(6),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-medalhistas td:nth-child(6) { width: 18mm !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-medalhistas th:nth-child(7),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-medalhistas td:nth-child(7) { width: 18mm !important; text-align: center !important; }
 
             body.imprimindo-boletim-oficial.boletim-compacto-impressao .titulo-classificados {
               width: auto !important;
@@ -2111,6 +2154,113 @@ export default function Boletins() {
             body.imprimindo-boletim-oficial.boletim-compacto-impressao .pagina-institucional {
               page-break-after: always !important;
               break-after: page !important;
+            }
+          }
+
+          /* ============================================================
+             TABELA-WRAPPER DE FLUXO: cabeçalho essencial repetido por página
+             ============================================================ */
+
+          .tabela-fluxo-impressao {
+            width: 100%;
+            border-collapse: collapse;
+          }
+
+          .tabela-fluxo-impressao > thead {
+            display: none;
+          }
+
+          .tabela-fluxo-impressao > thead > tr > td,
+          .tabela-fluxo-impressao > tbody > tr > td {
+            border: none;
+            padding: 0;
+          }
+
+          @media print {
+            .tabela-fluxo-impressao,
+            body.imprimindo-boletim-oficial .tabela-fluxo-impressao,
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-fluxo-impressao {
+              width: 100% !important;
+              border-collapse: collapse !important;
+              table-layout: auto !important;
+              margin: 0 !important;
+              background: white !important;
+            }
+
+            .tabela-fluxo-impressao > thead > tr > td,
+            .tabela-fluxo-impressao > tbody > tr > td,
+            body.imprimindo-boletim-oficial .tabela-fluxo-impressao > thead > tr > td,
+            body.imprimindo-boletim-oficial .tabela-fluxo-impressao > tbody > tr > td,
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-fluxo-impressao > thead > tr > td,
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-fluxo-impressao > tbody > tr > td {
+              display: table-cell !important;
+              border: none !important;
+              padding: 0 !important;
+              background: white !important;
+              font-size: inherit !important;
+              line-height: inherit !important;
+            }
+
+            .tabela-fluxo-impressao > tbody > tr,
+            body.imprimindo-boletim-oficial .tabela-fluxo-impressao > tbody > tr,
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-fluxo-impressao > tbody > tr {
+              page-break-inside: auto !important;
+              break-inside: auto !important;
+            }
+
+            /* Fora do modo compacto o cabeçalho grande continua no fluxo; o mini some */
+            body.imprimindo-boletim-oficial:not(.boletim-compacto-impressao) .tabela-fluxo-impressao > thead {
+              display: none !important;
+            }
+
+            /* Modo compacto: mini cabeçalho repetido em toda página, cabeçalho grande oculto */
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-fluxo-impressao > thead {
+              display: table-header-group !important;
+            }
+
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .cabecalho-boletim {
+              display: none !important;
+            }
+
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .cabecalho-fluxo {
+              display: flex !important;
+              visibility: visible !important;
+              align-items: center !important;
+              justify-content: space-between !important;
+              gap: 4mm !important;
+              border: 0.7px solid #111 !important;
+              background: white !important;
+              padding: 1.6mm 3mm !important;
+              margin: 0 0 2mm !important;
+            }
+
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .cabecalho-fluxo img {
+              height: 8mm !important;
+              width: auto !important;
+              max-width: 26mm !important;
+              object-fit: contain !important;
+              visibility: visible !important;
+            }
+
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .cabecalho-fluxo-texto {
+              flex: 1 !important;
+              text-align: center !important;
+              line-height: 1.12 !important;
+              visibility: visible !important;
+            }
+
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .cabecalho-fluxo-texto strong {
+              display: block !important;
+              font-size: 9pt !important;
+              text-transform: uppercase !important;
+              color: #111 !important;
+            }
+
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .cabecalho-fluxo-texto span {
+              display: block !important;
+              margin-top: 0.6mm !important;
+              font-size: 7pt !important;
+              color: #111 !important;
             }
           }
 
@@ -2521,6 +2671,28 @@ export default function Boletins() {
             </>
           )}
 
+          {/* Tabela-wrapper: o thead repete o cabeçalho essencial em toda página impressa (modo compacto) */}
+          <table className="tabela-fluxo-impressao">
+            <thead>
+              <tr>
+                <td>
+                  <div className="cabecalho-fluxo">
+                    <img src={layoutBoletim.logoCabecalhoEsquerda} alt="" />
+                    <div className="cabecalho-fluxo-texto">
+                      <strong>{layoutBoletim.cabecalhoTitulo}</strong>
+                      <span>
+                        {layoutBoletim.cabecalhoSubtitulo} • {layoutBoletim.numeroPrefixo} {numeroBoletim || "0001"} • {layoutBoletim.cabecalhoModalidade} • {periodoFormatado()}
+                      </span>
+                    </div>
+                    <img src={layoutBoletim.logoCabecalhoDireita} alt="" />
+                  </div>
+                </td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+
           <div className="cabecalho-boletim">
             <div className="cabecalho-logos">
               <EditableImage src={layoutBoletim.logoCabecalhoEsquerda} campo="logoCabecalhoEsquerda" alt="Jogos Escolares" editando={editarNoDocumento} onImagem={trocarImagemLayout} altura={layoutBoletim.alturaLogoResultadoPx} />
@@ -2588,7 +2760,7 @@ export default function Boletins() {
                   <>
                     <h4>Medalhistas</h4>
 
-                    <table className="boletim-table" width="100%" cellPadding="10">
+                    <table className="boletim-table tabela-medalhistas" width="100%" cellPadding="10">
                       <thead>
                         <tr>
                           <th>Medalha</th>
@@ -2649,11 +2821,12 @@ export default function Boletins() {
                         <TabelaResultados
                           resultados={serie.resultados}
                           resultadoFinal={resultadoFinal}
+                          mostrarColocacao={serieTemResultadoReal(serie)}
                         />
                       </div>
                     ))}
 
-                    {classificadosProximaFase.length > 0 && (
+                    {classificadosProximaFase.length > 0 && resultadosOrdenados.some(temResultadoReal) && (
                       <div className="evitar-quebra" style={{ marginTop: layoutBoletim.boletimCompactoImpressao ? 6 : 18 }}>
                         <div className="titulo-classificados">
                           {tituloClassificadosProximaFase(grupo)}
@@ -2669,6 +2842,11 @@ export default function Boletins() {
               </div>
             );
           })}
+
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -2888,7 +3066,7 @@ function ListaAtletasEquipe({ resultado }) {
   );
 }
 
-function TabelaResultados({ resultados, resultadoFinal }) {
+function TabelaResultados({ resultados, resultadoFinal, mostrarColocacao = true }) {
   if (!resultados.length) {
     return <div className="resultado-nao-publicado">Resultado ainda não publicado.</div>;
   }
@@ -2914,8 +3092,14 @@ function TabelaResultados({ resultados, resultadoFinal }) {
           return (
             <tr key={r.id}>
               <td>
-                {r.colocacao ? `${r.colocacao}º` : `${i + 1}º`}
-                {r.qualificacao && <span className="qualificacao-inline">{r.qualificacao}</span>}
+                {mostrarColocacao ? (
+                  <>
+                    {r.colocacao ? `${r.colocacao}º` : `${i + 1}º`}
+                    {r.qualificacao && <span className="qualificacao-inline">{r.qualificacao}</span>}
+                  </>
+                ) : (
+                  "-"
+                )}
               </td>
               <td>{ehEquipe ? "" : getNumeroAtleta(atleta)}</td>
               <td>{ehEquipe ? <ListaAtletasEquipe resultado={r} /> : atleta?.nome}</td>

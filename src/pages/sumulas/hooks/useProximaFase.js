@@ -3,6 +3,7 @@ import {
   buscarProvaFaseExistente,
   gerarProximaFaseNoBanco,
   salvarQualificacoesDaFaseAtual,
+  verificarQualificacoesNoBoletim,
 } from "../services/proximaFaseService";
 import {
   aplicarQualificacaoEmSeries,
@@ -35,6 +36,7 @@ export function useProximaFase({
   const [mostrarOpcoesAvancadas, setMostrarOpcoesAvancadas] = useState(false);
   const [previaClassificados, setPreviaClassificados] = useState([]);
   const [regraPreviewProximaFase, setRegraPreviewProximaFase] = useState(null);
+  const [statusBoletimProximaFase, setStatusBoletimProximaFase] = useState(null);
 
   const provaAtual = useMemo(
     () => (provas || []).find((p) => p.id === provaSelecionada),
@@ -189,9 +191,29 @@ export function useProximaFase({
     setRegraPreviewProximaFase(null);
     await carregarProvas?.();
 
-    setMensagem?.(
-      `${fase} gerada com sucesso com ${resultado.totalClassificados} atleta(s), ${resultado.totalSeries} serie(s) e sorteio oficial de raias.`
-    );
+    let mensagemBase = `${fase} gerada com sucesso com ${resultado.totalClassificados} atleta(s), ${resultado.totalSeries} serie(s) e sorteio oficial de raias.`;
+
+    // Confirma no banco se os qualificados vao aparecer no boletim.
+    const verificacao = await verificarQualificacoesNoBoletim(provaAtual.id);
+
+    if (verificacao.ok) {
+      setStatusBoletimProximaFase(verificacao);
+
+      if (verificacao.tudoPublicado) {
+        mensagemBase +=
+          ` Boletim: ${verificacao.totalQualificados} qualificacao(oes) gravada(s) e publicada(s) — o bloco "ATLETAS QUALIFICADOS" ja aparece no boletim oficial.`;
+      } else if (verificacao.totalQualificados === 0) {
+        mensagemBase +=
+          ` ATENCAO: nenhuma qualificacao foi gravada na fase de origem. O boletim NAO vai mostrar os classificados. Verifique o casamento das raias.`;
+      } else {
+        mensagemBase +=
+          ` ATENCAO: ${verificacao.totalQualificados} qualificacao(oes) gravada(s), mas apenas ${verificacao.totalPublicados} publicada(s). Publique os resultados desta fase para os classificados aparecerem no boletim.`;
+      }
+    } else {
+      setStatusBoletimProximaFase(null);
+    }
+
+    setMensagem?.(mensagemBase);
 
     return true;
   }
@@ -261,6 +283,8 @@ export function useProximaFase({
     montarPreviewProximaFase: calcularPreviaProximaFase,
     confirmarGerarProximaFase,
     gerarProximaFase,
+    statusBoletimProximaFase,
+    setStatusBoletimProximaFase,
     setRegraPreviewProximaFase,
     regraPreviewProximaFase,
     formatarValorClassificacao,
