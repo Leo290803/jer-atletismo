@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import EtapaLancamento from "./sumulas/components/EtapaLancamento";
+import AcrescentarAtleta from "./sumulas/components/AcrescentarAtleta";
 import EtapaProximaFase from "./sumulas/components/EtapaProximaFase";
 import EtapaSelecaoProva from "./sumulas/components/EtapaSelecaoProva";
 import SumulaManual from "./sumulas/components/SumulaManual";
@@ -610,6 +611,7 @@ function LancamentoOficialTela({
   melhorDasTresPrimeiras,
   melhorDasTentativas,
   formatarNascimento,
+  onRemoverAtleta,
 }) {
   const subprovasCombinada = [...(combinadaInfo?.subprovas || [])].sort(
     (a, b) => (a?.ordem || 0) - (b?.ordem || 0)
@@ -821,6 +823,8 @@ function LancamentoOficialTela({
                   melhorDasTentativas={melhorDasTentativas}
                   inputTabela={inputTabelaLancamento}
                   formatarNascimento={formatarNascimento}
+                  fase={provaAtual?.fase}
+                  onRemover={onRemoverAtleta}
                 />
               )}
 
@@ -839,6 +843,8 @@ function LancamentoOficialTela({
                   mudarCampo={mudarCampo}
                   inputTabela={inputTabelaLancamento}
                   formatarNascimento={formatarNascimento}
+                  fase={provaAtual?.fase}
+                  onRemover={onRemoverAtleta}
                 />
               )}
             </div>
@@ -1416,6 +1422,42 @@ export default function Sumulas() {
           imprimir={imprimir}
         />
 
+        {provaSelecionada && series.length > 0 && (
+          <div className="card" style={{ marginBottom: 20 }}>
+            <h3 style={{ marginTop: 0 }}>Faltou alguém na súmula?</h3>
+            <p style={{ color: "#64748b", fontWeight: 700, marginTop: 0 }}>
+              Cadastre um atleta que não está na lista e adicione direto numa série, sem regerar as séries.
+            </p>
+            <button
+              onClick={() => {
+                inscritos.setEscolasEncontradas?.([]);
+                inscritos.setMostrarAcrescentarAtleta(true);
+              }}
+              style={{
+                background: "#a78bfa",
+                border: "none",
+                borderRadius: 10,
+                color: "#1e1b4b",
+                cursor: "pointer",
+                fontWeight: "bold",
+                padding: "12px 18px",
+              }}
+            >
+              + Acrescentar atleta na súmula
+            </button>
+          </div>
+        )}
+
+        {inscritos.mostrarAcrescentarAtleta && (
+          <AcrescentarAtleta
+            series={series}
+            escolasEncontradas={inscritos.escolasEncontradas}
+            buscarEscolas={inscritos.buscarEscolas}
+            acrescentarAtletaNaSerie={inscritos.acrescentarAtletaNaSerie}
+            onFechar={() => inscritos.setMostrarAcrescentarAtleta(false)}
+          />
+        )}
+
         <div className="card" style={{ marginBottom: 20 }}>
           <h3 style={{ marginTop: 0 }}>Acoes em lote das sumulas oficiais</h3>
           <p style={{ color: "#64748b", fontWeight: 700, marginTop: 0 }}>
@@ -1478,6 +1520,7 @@ export default function Sumulas() {
           melhorDasTresPrimeiras={melhorDasTresPrimeiras}
           melhorDasTentativas={melhorDasTentativas}
           formatarNascimento={formatarNascimento}
+          onRemoverAtleta={inscritos.removerAtletaDaSerie}
         />
 
         {ehCombinada && combinadaInfo && (

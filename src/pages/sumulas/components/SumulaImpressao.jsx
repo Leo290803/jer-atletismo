@@ -301,6 +301,8 @@ export default function SumulaImpressao({
                   melhorDasTentativas={melhorDasTentativas}
                   inputTabela={inputTabela}
                   formatarNascimento={formatarNascimento}
+                  fase={provaAtual?.fase}
+                  modoImpressao
                 />
               </>
             )}
@@ -327,6 +329,8 @@ export default function SumulaImpressao({
                   mudarCampo={mudarCampo}
                   inputTabela={inputTabela}
                   formatarNascimento={formatarNascimento}
+                  fase={provaAtual?.fase}
+                  modoImpressao
                 />
               </>
             )}

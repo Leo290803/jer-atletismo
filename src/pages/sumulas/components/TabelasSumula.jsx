@@ -139,7 +139,13 @@ export function TabelaRevezamento({ serie, mudarCampo, inputTabela, titulares = 
   );
 }
 
-export function TabelaPista({ serie, mudarCampo, inputTabela, formatarNascimento }) {
+export function TabelaPista({ serie, mudarCampo, inputTabela, formatarNascimento, fase, modoImpressao = false, onRemover }) {
+  // Coluna "Q" nunca aparece na impressao da sumula (o arbitro preenche em
+  // branco; qualificacao so e definida depois, ao gerar a proxima fase).
+  // Na tela de edicao, aparece apenas em fase classificatoria.
+  const faseNormalizada = String(fase || "QUALIFICACAO").toUpperCase();
+  const mostrarColunaQ = !modoImpressao && !["FINAL", "FINAL POR TEMPO"].includes(faseNormalizada);
+
   return (
     <table className="tabela-pista-oficial" width="100%" cellPadding="10">
       <colgroup>
@@ -150,8 +156,9 @@ export function TabelaPista({ serie, mudarCampo, inputTabela, formatarNascimento
         <col className="pista-col-nascimento" />
         <col className="pista-col-tempo" />
         <col className="pista-col-colocacao" />
-        <col className="pista-col-q" />
+        {mostrarColunaQ && <col className="pista-col-q" />}
         <col className="nao-imprimir" />
+        {onRemover && <col className="nao-imprimir" />}
       </colgroup>
       <thead>
         <tr>
@@ -161,9 +168,10 @@ export function TabelaPista({ serie, mudarCampo, inputTabela, formatarNascimento
           <th>Escola</th>
           <th>Nascimento</th>
           <th>Tempo</th>
-          <th>Colocação</th>
-          <th>Q</th>
+          <th>Col.</th>
+          {mostrarColunaQ && <th>Q</th>}
           <th className="nao-imprimir">Status</th>
+          {onRemover && <th className="nao-imprimir">Ações</th>}
         </tr>
       </thead>
 
@@ -198,9 +206,11 @@ export function TabelaPista({ serie, mudarCampo, inputTabela, formatarNascimento
                   />
                 </td>
 
-                <td style={{ fontWeight: "bold", textAlign: "center" }}>
-                  {r.qualificacao || ""}
-                </td>
+                {mostrarColunaQ && (
+                  <td style={{ fontWeight: "bold", textAlign: "center" }}>
+                    {r.qualificacao || ""}
+                  </td>
+                )}
 
                 <td className="nao-imprimir">
                   <select
@@ -215,6 +225,27 @@ export function TabelaPista({ serie, mudarCampo, inputTabela, formatarNascimento
                     <option value="NM">NM</option>
                   </select>
                 </td>
+
+                {onRemover && (
+                  <td className="nao-imprimir" style={{ textAlign: "center" }}>
+                    <button
+                      type="button"
+                      onClick={() => onRemover({ raia: r, serie })}
+                      title="Remover atleta da série (desistência)"
+                      style={{
+                        background: "#ef4444",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 8,
+                        padding: "6px 10px",
+                        fontWeight: "bold",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Remover
+                    </button>
+                  </td>
+                )}
               </tr>
             );
           })}
@@ -230,7 +261,13 @@ export function TabelaCampo({
   melhorDasTentativas,
   inputTabela,
   formatarNascimento,
+  fase,
+  modoImpressao = false,
+  onRemover,
 }) {
+  const faseNormalizada = String(fase || "QUALIFICACAO").toUpperCase();
+  const mostrarColunaQ = !modoImpressao && !["FINAL", "FINAL POR TEMPO"].includes(faseNormalizada);
+
   return (
     <table className="tabela-campo-oficial" width="100%" cellPadding="10">
       <colgroup>
@@ -249,7 +286,8 @@ export function TabelaCampo({
         <col className="campo-col-tentativa" />
         <col className="campo-col-resultado" />
         <col className="campo-col-colocacao" />
-        <col className="campo-col-q" />
+        {mostrarColunaQ && <col className="campo-col-q" />}
+        {onRemover && <col className="nao-imprimir" />}
       </colgroup>
       <thead>
         <tr>
@@ -267,8 +305,9 @@ export function TabelaCampo({
           <th>Class. Parc.</th>
           <th>6ª</th>
           <th>Resultado</th>
-          <th>Colocação</th>
-          <th>Q</th>
+          <th>Col.</th>
+          {mostrarColunaQ && <th>Q</th>}
+          {onRemover && <th className="nao-imprimir">Ações</th>}
         </tr>
       </thead>
 
@@ -369,9 +408,32 @@ export function TabelaCampo({
                   />
                 </td>
 
-                <td style={{ fontWeight: "bold", textAlign: "center" }}>
-                  {r.qualificacao || ""}
-                </td>
+                {mostrarColunaQ && (
+                  <td style={{ fontWeight: "bold", textAlign: "center" }}>
+                    {r.qualificacao || ""}
+                  </td>
+                )}
+
+                {onRemover && (
+                  <td className="nao-imprimir" style={{ textAlign: "center" }}>
+                    <button
+                      type="button"
+                      onClick={() => onRemover({ raia: r, serie })}
+                      title="Remover atleta da série (desistência)"
+                      style={{
+                        background: "#ef4444",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 8,
+                        padding: "6px 10px",
+                        fontWeight: "bold",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Remover
+                    </button>
+                  </td>
+                )}
               </tr>
             );
           })}

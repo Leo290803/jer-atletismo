@@ -268,6 +268,31 @@ export default function Boletins() {
     }
 
     const resultadosCarregados = deduplicarResultadosBoletim(data || []);
+
+    // Enriquecer com o numero da RAIA (tabela raias liga por serie_id + inscricao_id).
+    const idsSeries = [...new Set(resultadosCarregados.map((r) => r.serie_id).filter(Boolean))];
+
+    if (idsSeries.length > 0) {
+      const { data: raiasData, error: erroRaias } = await supabase
+        .from("raias")
+        .select("serie_id, inscricao_id, raia")
+        .in("serie_id", idsSeries);
+
+      if (!erroRaias && raiasData) {
+        const mapaRaia = {};
+        raiasData.forEach((item) => {
+          mapaRaia[`${item.serie_id}|${item.inscricao_id}`] = item.raia;
+        });
+
+        resultadosCarregados.forEach((r) => {
+          const chave = `${r.serie_id}|${r.inscricao_id}`;
+          if (r.raia === undefined || r.raia === null) {
+            r.raia = mapaRaia[chave] ?? null;
+          }
+        });
+      }
+    }
+
     const idsProvas = [...new Set(resultadosCarregados.map((r) => r.provas?.id).filter(Boolean))];
     const mapaProximasFases = {};
 
@@ -394,6 +419,27 @@ export default function Boletins() {
 
   function serieTemResultadoReal(serie) {
     return (serie?.resultados || []).some(temResultadoReal);
+  }
+
+  // Prova de campo (salto/arremesso) => tem tentativas para exibir.
+  function ehProvaDeCampo(prova) {
+    return (
+      prova?.tipo === "campo" ||
+      prova?.subtipo === "campo_tentativas" ||
+      prova?.subtipo === "salto_altura"
+    );
+  }
+
+  // Linha compacta das tentativas: "T: 5.20 · 5.45 · X · 5.51 · - · -"
+  function tentativasCompactas(r) {
+    const brutas = [r.tentativa1, r.tentativa2, r.tentativa3, r.tentativa4, r.tentativa5, r.tentativa6];
+    const valores = brutas.map((v) => {
+      const t = String(v ?? "").trim();
+      return t === "" ? "-" : t;
+    });
+    // So mostra se houver ao menos uma tentativa preenchida
+    if (!valores.some((v) => v !== "-")) return "";
+    return "T: " + valores.join(" · ");
   }
 
   function medalha(pos) {
@@ -640,12 +686,14 @@ export default function Boletins() {
       'th, td { border: 0.6px solid #334155; padding: 1px 2px; vertical-align: middle; word-wrap: break-word; line-height: 1.02; }',
       'th { background: #e5edf7; color: #0f172a; font-size: 6.8pt; font-weight: bold; text-transform: uppercase; }',
       'td { font-size: 7pt; }',
-      '.col-pos { width: 8%; text-align: center; }',
+      '.col-pos { width: 7%; text-align: center; }',
+      '.col-raia { width: 6%; text-align: center; }',
       '.col-num { width: 7%; text-align: center; }',
-      '.col-atleta { width: 29%; }',
-      '.col-escola { width: 29%; }',
+      '.col-atleta { width: 28%; }',
+      '.col-escola { width: 27%; }',
       '.col-municipio { width: 13%; }',
       '.col-resultado { width: 10%; text-align: center; }',
+      '.linha-tentativas-word { font-size: 0.85em; color: #334155; margin-top: 2px; }',
       '.col-extra { width: 10%; text-align: center; }',
       '.classificados-word .col-num { width: 8%; }',
       '.classificados-word .col-atleta { width: 42%; }',
@@ -668,7 +716,7 @@ export default function Boletins() {
       const conteudoSeries = seriesDaProva.map((serie) => (
         '<div class="serie-bloco">' +
           '<h4>Serie ' + serie.numeroSerie + '</h4>' +
-          gerarTabelaResultados(serie.resultados, serieTemResultadoReal(serie)) +
+          gerarTabelaResultados(serie.resultados, serieTemResultadoReal(serie), ehProvaDeCampo(grupo.prova)) +
         '</div>'
       )).join('');
       const classificadosProximaFase = obterClassificadosProximaFase(resultadosOrdenados);
@@ -680,7 +728,7 @@ export default function Boletins() {
           '</div>'
         : '';
       const conteudo = final
-        ? '<h4>Classificacao geral</h4>' + gerarTabelaResultados(resultadosOrdenados)
+        ? '<h4>Classificacao geral</h4>' + gerarTabelaResultados(resultadosOrdenados, true, ehProvaDeCampo(grupo.prova))
         : conteudoSeries + conteudoClassificados;
 
       return '<div class="secao"><h3>' + escaparHtml(titulo) + '</h3>' + conteudo + '</div>';
@@ -714,7 +762,7 @@ export default function Boletins() {
     setMensagem('Word com resultados gerado sem capa e com numeracao de paginas.');
   }
 
-  function gerarTabelaResultados(resultadosTabela, mostrarColocacao = true) {
+  function gerarTabelaResultados(resultadosTabela, mostrarColocacao = true, provaDeCampo = false) {
     if (!resultadosTabela.length) {
       return '<div class="resultado-nao-publicado">Resultado ainda nao publicado.</div>';
     }
@@ -724,6 +772,7 @@ export default function Boletins() {
         <thead>
           <tr>
             <th class="col-pos">Colocacao</th>
+            <th class="col-raia">Raia</th>
             <th class="col-num">N&ordm;</th>
             <th class="col-atleta">Atleta / Equipe</th>
             <th class="col-escola">Escola</th>
@@ -740,11 +789,18 @@ export default function Boletins() {
                 ? (r.colocacao ? `${r.colocacao}&ordm;` : `${i + 1}&ordm;`)
                 : "-";
               const classificacao = mostrarColocacao && r.qualificacao ? ` <strong>${escaparHtml(r.qualificacao)}</strong>` : "";
+              const nomeCol = ehEquipe ? htmlListaAtletasEquipe(r) : escaparHtml(atleta?.nome || "");
+              const tentativas = provaDeCampo ? tentativasCompactas(r) : "";
+              const nomeComTentativas = tentativas
+                ? nomeCol + '<div class="linha-tentativas-word">' + escaparHtml(tentativas) + '</div>'
+                : nomeCol;
+              const raiaValor = (r.raia === null || r.raia === undefined) ? "-" : r.raia;
               return `
                 <tr>
                   <td class="col-pos">${colocacao}${classificacao}</td>
+                  <td class="col-raia">${raiaValor}</td>
                   <td class="col-num">${ehEquipe ? "" : getNumeroAtleta(atleta)}</td>
-                  <td class="col-atleta">${ehEquipe ? htmlListaAtletasEquipe(r) : escaparHtml(atleta?.nome || "")}</td>
+                  <td class="col-atleta">${nomeComTentativas}</td>
                   <td class="col-escola">${escaparHtml(atleta?.escolas?.nome || "")}</td>
                   <td class="col-municipio">${escaparHtml(atleta?.municipio || "")}</td>
                   <td class="col-resultado">${resultadoFinal(r)}</td>
@@ -1486,6 +1542,14 @@ export default function Boletins() {
             font-weight: 900;
           }
 
+          .linha-tentativas {
+            margin-top: 3px;
+            font-size: 0.82em;
+            color: #475569;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+          }
+
           .resultado-nao-publicado {
             margin: 4px 0 8px;
             padding: 5px 7px;
@@ -2113,18 +2177,20 @@ export default function Boletins() {
               letter-spacing: 0 !important;
             }
 
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) th:nth-child(1),
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) td:nth-child(1) { width: 13mm !important; text-align: center !important; }
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) th:nth-child(2),
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) td:nth-child(2) { width: 10mm !important; text-align: center !important; }
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) th:nth-child(3),
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) td:nth-child(3) { width: 39% !important; }
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) th:nth-child(4),
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) td:nth-child(4) { width: 31% !important; }
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) th:nth-child(5),
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) td:nth-child(5) { width: 18mm !important; }
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) th:nth-child(6),
-            body.imprimindo-boletim-oficial.boletim-compacto-impressao .boletim-table:not(.tabela-medalhistas) td:nth-child(6) { width: 18mm !important; text-align: center !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-resultados-full th:nth-child(1),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-resultados-full td:nth-child(1) { width: 12mm !important; text-align: center !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-resultados-full th:nth-child(2),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-resultados-full td:nth-child(2) { width: 8mm !important; text-align: center !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-resultados-full th:nth-child(3),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-resultados-full td:nth-child(3) { width: 9mm !important; text-align: center !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-resultados-full th:nth-child(4),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-resultados-full td:nth-child(4) { width: 37% !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-resultados-full th:nth-child(5),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-resultados-full td:nth-child(5) { width: 30% !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-resultados-full th:nth-child(6),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-resultados-full td:nth-child(6) { width: 18mm !important; }
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-resultados-full th:nth-child(7),
+            body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-resultados-full td:nth-child(7) { width: 18mm !important; text-align: center !important; }
 
             /* Medalhistas: 7 colunas (Medalha + colunas padrão) */
             body.imprimindo-boletim-oficial.boletim-compacto-impressao .tabela-medalhistas th:nth-child(1),
@@ -2804,6 +2870,8 @@ export default function Boletins() {
                     <TabelaResultados
                       resultados={resultadosOrdenados}
                       resultadoFinal={resultadoFinal}
+                      provaDeCampo={ehProvaDeCampo(grupo.prova)}
+                      formatarTentativas={tentativasCompactas}
                     />
                   </>
                 ) : (
@@ -2822,6 +2890,8 @@ export default function Boletins() {
                           resultados={serie.resultados}
                           resultadoFinal={resultadoFinal}
                           mostrarColocacao={serieTemResultadoReal(serie)}
+                          provaDeCampo={ehProvaDeCampo(grupo.prova)}
+                          formatarTentativas={tentativasCompactas}
                         />
                       </div>
                     ))}
@@ -3066,16 +3136,17 @@ function ListaAtletasEquipe({ resultado }) {
   );
 }
 
-function TabelaResultados({ resultados, resultadoFinal, mostrarColocacao = true }) {
+function TabelaResultados({ resultados, resultadoFinal, mostrarColocacao = true, provaDeCampo = false, formatarTentativas }) {
   if (!resultados.length) {
     return <div className="resultado-nao-publicado">Resultado ainda não publicado.</div>;
   }
 
   return (
-    <table className="boletim-table" width="100%" cellPadding="10">
+    <table className="boletim-table tabela-resultados-full" width="100%" cellPadding="10">
       <thead>
         <tr>
           <th>Colocação</th>
+          <th>Raia</th>
           <th>N&ordm;</th>
           <th>Atleta / Equipe</th>
           <th>Escola</th>
@@ -3088,6 +3159,7 @@ function TabelaResultados({ resultados, resultadoFinal, mostrarColocacao = true 
         {resultados.map((r, i) => {
           const atleta = r.inscricoes?.atletas;
           const ehEquipe = !!r.equipe;
+          const linhaTentativas = provaDeCampo && formatarTentativas ? formatarTentativas(r) : "";
 
           return (
             <tr key={r.id}>
@@ -3101,8 +3173,14 @@ function TabelaResultados({ resultados, resultadoFinal, mostrarColocacao = true 
                   "-"
                 )}
               </td>
+              <td style={{ textAlign: "center" }}>{r.raia ?? "-"}</td>
               <td>{ehEquipe ? "" : getNumeroAtleta(atleta)}</td>
-              <td>{ehEquipe ? <ListaAtletasEquipe resultado={r} /> : atleta?.nome}</td>
+              <td>
+                {ehEquipe ? <ListaAtletasEquipe resultado={r} /> : atleta?.nome}
+                {linhaTentativas && (
+                  <div className="linha-tentativas">{linhaTentativas}</div>
+                )}
+              </td>
               <td>{atleta?.escolas?.nome}</td>
               <td>{atleta?.municipio}</td>
               <td>{resultadoFinal(r)}</td>

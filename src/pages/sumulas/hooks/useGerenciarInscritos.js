@@ -2,8 +2,11 @@ import { useState } from "react";
 import {
   adicionarAtletaNaProva as adicionarService,
   buscarAtletas as buscarService,
+  buscarEscolas as buscarEscolasService,
   carregarInscricoesDaProva as carregarService,
+  criarAtletaEAdicionarNaSerie as criarAtletaEAdicionarNaSerieService,
   criarAtletaESubstituir as criarAtletaESubstituirService,
+  removerAtletaDaSerie as removerAtletaDaSerieService,
   removerInscricaoDaProva as removerService,
   substituirInscricaoDaProva as substituirService,
 } from "../services/atletasService";
@@ -19,6 +22,8 @@ export function useGerenciarInscritos({
   const [buscaAtleta, setBuscaAtleta] = useState("");
   const [atletasEncontrados, setAtletasEncontrados] = useState([]);
   const [carregandoInscritos, setCarregandoInscritos] = useState(false);
+  const [mostrarAcrescentarAtleta, setMostrarAcrescentarAtleta] = useState(false);
+  const [escolasEncontradas, setEscolasEncontradas] = useState([]);
 
   async function carregarInscricoesDaProva(provaId = provaSelecionada) {
     if (!provaId) {
@@ -197,6 +202,91 @@ export function useGerenciarInscritos({
     );
   }
 
+  // Remove um atleta de uma serie (desistencia): apaga raia + resultado +
+  // inscricao, sem regerar as series.
+  async function removerAtletaDaSerie({ raia, serie }) {
+    const atleta = raia?.inscricoes?.atletas;
+    const nome = atleta?.nome || "atleta";
+
+    const confirmar = window.confirm(
+      `Remover ${nome} da Serie ${serie?.numero_serie || ""}? Essa acao apaga a inscricao e o resultado deste atleta.`
+    );
+    if (!confirmar) return false;
+
+    setMensagem?.("Removendo atleta da serie...");
+
+    const { error } = await removerAtletaDaSerieService({
+      raiaId: raia?.id,
+      inscricaoId: raia?.inscricoes?.id,
+    });
+
+    if (error) {
+      setMensagem?.("Erro ao remover atleta: " + error.message);
+      return false;
+    }
+
+    await carregarSeries?.(provaSelecionada);
+    setMensagem?.(`${nome} removido da Serie ${serie?.numero_serie || ""}.`);
+    return true;
+  }
+
+  async function buscarEscolas(termo = "") {
+    const { data, error } = await buscarEscolasService(termo);
+    if (error) {
+      setMensagem?.("Erro ao buscar escolas: " + error.message);
+      return;
+    }
+    setEscolasEncontradas(data || []);
+  }
+
+  // Cria um atleta novo e ja o adiciona na serie escolhida (proxima raia livre),
+  // sem regerar as series existentes.
+  async function acrescentarAtletaNaSerie({ dadosAtleta, serie }) {
+    if (!provaSelecionada) {
+      window.alert("Selecione uma prova primeiro.");
+      return false;
+    }
+
+    const provaAtual = (provas || []).find((p) => p.id === provaSelecionada);
+    if (!provaAtual) {
+      window.alert("Prova nao encontrada.");
+      return false;
+    }
+
+    if (!serie?.id) {
+      window.alert("Escolha a serie onde o atleta sera adicionado.");
+      return false;
+    }
+
+    if (!String(dadosAtleta?.nome || "").trim()) {
+      window.alert("Informe o nome do atleta.");
+      return false;
+    }
+
+    setMensagem?.("Criando e adicionando atleta na serie...");
+
+    const { error, atleta, raia } = await criarAtletaEAdicionarNaSerieService({
+      dadosAtleta,
+      provaAtual,
+      serie,
+    });
+
+    if (error) {
+      setMensagem?.("Erro ao acrescentar atleta: " + error.message);
+      return false;
+    }
+
+    await carregarInscricoesDaProva(provaSelecionada);
+    await carregarSeries?.(provaSelecionada);
+
+    setMostrarAcrescentarAtleta(false);
+    setEscolasEncontradas([]);
+    setMensagem?.(
+      `${atleta?.nome || "Atleta"} adicionado na Serie ${serie.numero_serie} (raia ${raia}).`
+    );
+    return true;
+  }
+
   return {
     mostrarGerenciarInscritos,
     setMostrarGerenciarInscritos,
@@ -212,5 +302,12 @@ export function useGerenciarInscritos({
     removerInscricaoDaProva,
     substituirInscricaoDaProva,
     criarAtletaESubstituir,
+    mostrarAcrescentarAtleta,
+    setMostrarAcrescentarAtleta,
+    escolasEncontradas,
+    setEscolasEncontradas,
+    buscarEscolas,
+    acrescentarAtletaNaSerie,
+    removerAtletaDaSerie,
   };
 }
