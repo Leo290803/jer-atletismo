@@ -363,6 +363,84 @@ export default function Boletins() {
     }
   }
 
+  // Boletim de LARGADA (start list): monta a partir de provas + series + raias,
+  // sem depender de resultados. Mostra todos os atletas com resultado vazio.
+  async function carregarStartList() {
+    setMensagem("Gerando boletim de largada (start list)...");
+
+    const { data: provasData, error: erroProvas } = await supabase
+      .from("provas")
+      .select("id,nome,categoria,naipe,fase,tipo,subtipo");
+
+    if (erroProvas) {
+      setMensagem("Erro ao carregar provas: " + erroProvas.message);
+      return;
+    }
+
+    const provaPorId = {};
+    (provasData || []).forEach((p) => {
+      provaPorId[p.id] = p;
+    });
+
+    const idsProvas = (provasData || []).map((p) => p.id);
+    if (idsProvas.length === 0) {
+      setResultados([]);
+      setMensagem("Nenhuma prova cadastrada.");
+      return;
+    }
+
+    const { data: seriesData, error: erroSeries } = await supabase
+      .from("series")
+      .select(
+        "id,numero_serie,prova_id,raias(id,raia,ordem,inscricao_id,inscricoes(id,atletas(numero,numero_competicao,nome,municipio,escolas(nome))))"
+      )
+      .in("prova_id", idsProvas);
+
+    if (erroSeries) {
+      setMensagem("Erro ao carregar séries: " + erroSeries.message);
+      return;
+    }
+
+    const registros = [];
+
+    (seriesData || []).forEach((serie) => {
+      const prova = provaPorId[serie.prova_id];
+      if (!prova) return;
+
+      (serie.raias || []).forEach((raia) => {
+        if (!raia.inscricao_id) return;
+
+        registros.push({
+          id: `startlist-${raia.id}`,
+          virtual: true,
+          prova_id: serie.prova_id,
+          serie_id: serie.id,
+          inscricao_id: raia.inscricao_id,
+          data_resultado: dataInicio,
+          publicado: true,
+          colocacao: null,
+          qualificacao: null,
+          tempo: null,
+          melhor_marca: null,
+          resultado_final: null,
+          raia: raia.raia,
+          series: { numero_serie: serie.numero_serie },
+          provas: prova,
+          inscricoes: { atletas: raia.inscricoes?.atletas },
+        });
+      });
+    });
+
+    setProximasFasesPorOrigem({});
+    setResultados(registros);
+
+    if (!registros.length) {
+      setMensagem("Nenhuma série com atletas encontrada. Gere as séries das provas primeiro.");
+    } else {
+      setMensagem(`Boletim de largada gerado com ${registros.length} atleta(s) em ${seriesData.length} série(s).`);
+    }
+  }
+
   async function publicarTudoDoPeriodo() {
     const confirmar = window.confirm(
       `Deseja publicar todos os resultados de ${dataInicio} até ${dataFim}?`
@@ -2714,6 +2792,13 @@ export default function Boletins() {
           <div style={{ marginTop: 16 }}>
             <button onClick={carregarBoletim} style={botaoVerde}>
               Gerar Boletim
+            </button>
+
+            <button
+              onClick={carregarStartList}
+              style={{ ...botaoVerde, background: "#8b5cf6", marginLeft: 10 }}
+            >
+              Gerar Start List (largada)
             </button>
 
             <button onClick={publicarTudoDoPeriodo} style={botaoAmarelo}>
