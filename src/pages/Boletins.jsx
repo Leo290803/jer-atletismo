@@ -291,9 +291,15 @@ export default function Boletins() {
 
         // Dados da prova, por id, para preencher os registros virtuais
         const provaPorId = {};
+        // Data do resultado real por prova: o virtual DEVE herdar a mesma data,
+        // senao o boletim cria um grupo separado (fantasma) com a data do filtro.
+        const dataResultadoPorProva = {};
         resultadosCarregados.forEach((r) => {
           const pid = r.prova_id || r.provas?.id;
           if (pid && r.provas && !provaPorId[pid]) provaPorId[pid] = r.provas;
+          if (pid && r.data_resultado && !dataResultadoPorProva[pid]) {
+            dataResultadoPorProva[pid] = r.data_resultado;
+          }
         });
 
         // Mapa de raia por serie+inscricao (para preencher r.raia dos resultados existentes)
@@ -312,7 +318,7 @@ export default function Boletins() {
                 prova_id: serie.prova_id,
                 serie_id: serie.id,
                 inscricao_id: raia.inscricao_id,
-                data_resultado: dataInicio,
+                data_resultado: dataResultadoPorProva[serie.prova_id] || dataInicio,
                 publicado: true,
                 colocacao: null,
                 qualificacao: null,
