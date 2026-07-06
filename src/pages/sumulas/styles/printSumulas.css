@@ -487,6 +487,142 @@ font-size: 12px !important;
 }
 
 /* ============================================================
+   SUMULA OFICIAL DE SALTO EM ALTURA
+   Cada altura tem 3 sub-colunas (tentativas). Muitas colunas,
+   entao usa paisagem, fonte legivel e alinhamento central.
+   ============================================================ */
+
+@media print {
+  .sumula-salto-altura {
+    padding: 0 4mm !important;
+  }
+
+  /* Wrapper da tabela: sem scroll/corte na impressao */
+  .sumula-salto-altura > div {
+    overflow: visible !important;
+    width: 100% !important;
+  }
+
+  .sumula-salto-altura h2 {
+    font-size: 24px !important;
+    line-height: 1.1 !important;
+    margin-bottom: 4px !important;
+    text-align: center !important;
+    text-transform: uppercase !important;
+  }
+
+  .sumula-salto-altura p {
+    font-size: 14px !important;
+    line-height: 1.2 !important;
+    font-weight: 700 !important;
+    text-align: center !important;
+  }
+
+  .sumula-salto-altura p strong {
+    font-size: 14px !important;
+    font-weight: 900 !important;
+  }
+
+  .sumula-salto-altura .sumula-titulo-serie {
+    font-size: 15px !important;
+    font-weight: 900 !important;
+    margin: 7px 0 4px !important;
+  }
+
+  .sumula-salto-altura table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+  }
+
+  .sumula-salto-altura table th,
+  .sumula-salto-altura table td {
+    border: 0.6px solid #333 !important;
+    padding: 5px 2px !important;
+    font-size: 12.5px !important;
+    line-height: 1.12 !important;
+    text-align: center !important;
+    vertical-align: middle !important;
+    /* Quebra por PALAVRA (normal), nunca letra por letra */
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+    overflow: hidden !important;
+  }
+
+  /* Cabecalhos das alturas em destaque */
+  .sumula-salto-altura table thead th {
+    background: #eef2ff !important;
+    font-weight: 800 !important;
+    font-size: 12.5px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Larguras FIXAS para as colunas de texto (impede espremer/quebrar) */
+  .sumula-salto-altura table th:nth-child(1),
+  .sumula-salto-altura table td:nth-child(1) {  /* Nº */
+    width: 7mm !important;
+  }
+  .sumula-salto-altura table th:nth-child(2),
+  .sumula-salto-altura table td:nth-child(2) {  /* Atleta */
+    width: 33mm !important;
+    text-align: left !important;
+    font-size: 12px !important;
+    white-space: normal !important;
+  }
+  .sumula-salto-altura table th:nth-child(3),
+  .sumula-salto-altura table td:nth-child(3) {  /* Escola */
+    width: 28mm !important;
+    text-align: left !important;
+    font-size: 10.5px !important;
+    white-space: normal !important;
+  }
+  .sumula-salto-altura table th:nth-child(4),
+  .sumula-salto-altura table td:nth-child(4) {  /* Nasc. */
+    width: 19mm !important;
+    white-space: nowrap !important;
+    overflow: visible !important;
+    font-size: 10px !important;
+    letter-spacing: -0.2px !important;
+  }
+
+  /* Sub-colunas de tentativa: largura FIXA e igual para todas */
+  .sumula-salto-altura table tbody td:nth-child(n+5):nth-last-child(n+3),
+  .sumula-salto-altura table thead tr:nth-child(2) th {
+    width: 4.1mm !important;
+    padding: 3px 0 !important;
+  }
+
+  /* Cabecalho das alturas (colspan 3) = 3 x 3.7mm ~ 11mm */
+  .sumula-salto-altura table thead tr:nth-child(1) th[colspan="3"] {
+    width: 12.4mm !important;
+    font-size: 10.5px !important;
+  }
+
+  /* Result. e Col. (ultimas duas colunas) */
+  .sumula-salto-altura table th:last-child,
+  .sumula-salto-altura table td:last-child,
+  .sumula-salto-altura table thead tr:first-child th:nth-last-child(2),
+  .sumula-salto-altura table tbody td:nth-last-child(2) {
+    width: 11mm !important;
+    white-space: nowrap !important;
+  }
+
+  /* Sub-colunas de tentativa: bem estreitas */
+  .sumula-salto-altura table tbody td {
+    height: 46px !important;
+  }
+
+  /* Zebrado para leitura na horizontal */
+  .sumula-salto-altura table tbody tr:nth-child(even) td {
+    background: #f8fafc !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* ============================================================
    SUMULA OFICIAL DE CAMPO
    Campo tem muitas colunas; compacta so a impressao de campo
    para nao cortar a direita nem quebrar uma serie em branco.

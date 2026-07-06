@@ -177,7 +177,7 @@ export default function SumulaImpressao({
 
             {ehSaltoAltura && (
               <>
-                <h3 className="sumula-titulo-serie">Salto em Altura</h3>
+                <h3 className="sumula-titulo-serie">Salto em Altura — Série {serie.numero_serie}</h3>
 
                 <div style={{ overflowX: "auto" }}>
                   <table width="100%" cellPadding="10">
@@ -186,7 +186,7 @@ export default function SumulaImpressao({
                         <th rowSpan="2">Nº</th>
                         <th rowSpan="2">Atleta</th>
                         <th rowSpan="2">Escola</th>
-                        <th rowSpan="2">Nascimento</th>
+                        <th rowSpan="2">Nasc.</th>
 
                         {config.alturas_salto_altura.map((altura) => (
                           <th key={altura} colSpan="3">
@@ -194,9 +194,8 @@ export default function SumulaImpressao({
                           </th>
                         ))}
 
-                        <th rowSpan="2">Resultado</th>
-                        <th rowSpan="2">Colocação</th>
-                        <th rowSpan="2">Q</th>
+                        <th rowSpan="2">Result.</th>
+                        <th rowSpan="2">Col.</th>
                       </tr>
 
                       <tr>
@@ -276,10 +275,6 @@ export default function SumulaImpressao({
                                   onChange={(e) => mudarCampo(serie.id, r.id, "colocacao", e.target.value)}
                                   style={inputMini}
                                 />
-                              </td>
-
-                              <td style={{ fontWeight: "bold", textAlign: "center" }}>
-                                {r.qualificacao || ""}
                               </td>
                             </tr>
                           );
