@@ -623,7 +623,8 @@ export default function Boletins() {
       if (final) {
         const ca = a.colocacao || 9999;
         const cb = b.colocacao || 9999;
-        return ca - cb;
+        if (ca !== cb) return ca - cb;
+        return (Number(a.raia) || 9999) - (Number(b.raia) || 9999);
       }
 
       const sa = a.series?.numero_serie || 1;
@@ -631,10 +632,16 @@ export default function Boletins() {
 
       if (sa !== sb) return sa - sb;
 
-      const ca = a.colocacao || 9999;
-      const cb = b.colocacao || 9999;
+      // Dentro da serie: se ha colocacao lancada, usa a colocacao;
+      // senao, ordena pela raia (igual a sumula: 1,2,3...).
+      const ca = a.colocacao || null;
+      const cb = b.colocacao || null;
 
-      return ca - cb;
+      if (ca && cb) return ca - cb;
+      if (ca && !cb) return -1;
+      if (!ca && cb) return 1;
+
+      return (Number(a.raia) || 9999) - (Number(b.raia) || 9999);
     });
   }
 

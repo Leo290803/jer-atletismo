@@ -86,6 +86,27 @@ export async function criarRaias(raiasParaCriar) {
   return supabase.from("raias").insert(raiasParaCriar);
 }
 
+// Retorna os numeros de raia CENTRALIZADOS para uma serie com `qtdAtletas`
+// atletas, dentro de `totalRaias` raias. Usa a ordem de preferencia oficial
+// do atletismo (raias do meio primeiro), depois ordena.
+// Ex.: 8 raias, 4 atletas -> [3,4,5,6]; 5 atletas -> [2,3,4,5,6].
+function raiasCentralizadas(qtdAtletas, totalRaias) {
+  const total = Math.max(1, Number(totalRaias) || 8);
+  const qtd = Math.min(Math.max(0, Number(qtdAtletas) || 0), total);
+
+  // Ordem de preferencia: centro para as bordas.
+  const centro = (total + 1) / 2;
+  const preferencia = Array.from({ length: total }, (_, i) => i + 1).sort((a, b) => {
+    const da = Math.abs(a - centro);
+    const db = Math.abs(b - centro);
+    if (da !== db) return da - db;
+    return a - b; // desempate: raia menor primeiro
+  });
+
+  // Pega as `qtd` melhores e ordena crescente para exibir bonito.
+  return preferencia.slice(0, qtd).sort((a, b) => a - b);
+}
+
 function grupoTemEscola(grupo, escola) {
   return (grupo || []).some((inscricao) => escolaDaInscricao(inscricao) === escola);
 }
@@ -341,16 +362,20 @@ export async function gerarSeriesDaProva({ provaSelecionada, provas, config, sub
   const conflitosRestantes = contarConflitosEscola(distribuicaoPorSerie);
 
   const totalRaiasConfig = Math.max(1, Number(config.quantidade_raias || 8));
-  const ordemRaias = embaralhar(
-    Array.from({ length: totalRaiasConfig }, (_, index) => index + 1)
-  );
   const raiasParaCriar = [];
 
   distribuicaoPorSerie.forEach((grupo, serieIndex) => {
     const serieCriada = novasSeries[serieIndex];
+    const atletasNaSerie = (grupo || []).length;
+
+    // Raias centralizadas quando a serie tem menos atletas que o total de raias.
+    // Para pista, embaralha a ordem dos atletas dentro das raias centrais
+    // (sorteio); para campo, mantem a ordem sequencial das raias centrais.
+    const raiasCentrais = raiasCentralizadas(atletasNaSerie, totalRaiasConfig);
+    const raiasAtribuidas = ehCampo ? raiasCentrais : embaralhar([...raiasCentrais]);
 
     (grupo || []).forEach((inscricao, posicaoNaSerie) => {
-      const raia = ehCampo ? posicaoNaSerie + 1 : ordemRaias[posicaoNaSerie] || posicaoNaSerie + 1;
+      const raia = raiasAtribuidas[posicaoNaSerie] || posicaoNaSerie + 1;
 
       raiasParaCriar.push({
         serie_id: serieCriada.id,
