@@ -269,21 +269,66 @@ export default function Boletins() {
 
     const resultadosCarregados = deduplicarResultadosBoletim(data || []);
 
-    // Enriquecer com o numero da RAIA (tabela raias liga por serie_id + inscricao_id).
-    const idsSeries = [...new Set(resultadosCarregados.map((r) => r.serie_id).filter(Boolean))];
+    // Para cada PROVA presente no boletim, buscar TODAS as series e raias
+    // (com atleta), para (1) preencher o numero da raia e (2) incluir atletas
+    // da serie que ainda nao tem resultado lancado — assim a serie aparece
+    // completa no boletim, igual a sumula.
+    const idsProvasParaSeries = [...new Set(resultadosCarregados.map((r) => r.prova_id || r.provas?.id).filter(Boolean))];
 
-    if (idsSeries.length > 0) {
-      const { data: raiasData, error: erroRaias } = await supabase
-        .from("raias")
-        .select("serie_id, inscricao_id, raia")
-        .in("serie_id", idsSeries);
+    if (idsProvasParaSeries.length > 0) {
+      const { data: seriesData, error: erroSeries } = await supabase
+        .from("series")
+        .select(
+          "id,numero_serie,prova_id,raias(id,raia,ordem,inscricao_id,inscricoes(id,atletas(numero,numero_competicao,nome,municipio,escolas(nome))))"
+        )
+        .in("prova_id", idsProvasParaSeries);
 
-      if (!erroRaias && raiasData) {
-        const mapaRaia = {};
-        raiasData.forEach((item) => {
-          mapaRaia[`${item.serie_id}|${item.inscricao_id}`] = item.raia;
+      if (!erroSeries && seriesData) {
+        // Mapa de resultados existentes por serie+inscricao (para nao duplicar)
+        const chavesComResultado = new Set(
+          resultadosCarregados.map((r) => `${r.serie_id}|${r.inscricao_id}`)
+        );
+
+        // Dados da prova, por id, para preencher os registros virtuais
+        const provaPorId = {};
+        resultadosCarregados.forEach((r) => {
+          const pid = r.prova_id || r.provas?.id;
+          if (pid && r.provas && !provaPorId[pid]) provaPorId[pid] = r.provas;
         });
 
+        // Mapa de raia por serie+inscricao (para preencher r.raia dos resultados existentes)
+        const mapaRaia = {};
+
+        seriesData.forEach((serie) => {
+          (serie.raias || []).forEach((raia) => {
+            const chave = `${serie.id}|${raia.inscricao_id}`;
+            mapaRaia[chave] = raia.raia;
+
+            // Se este atleta ainda nao tem resultado, cria registro virtual
+            if (!chavesComResultado.has(chave) && raia.inscricao_id) {
+              resultadosCarregados.push({
+                id: `virtual-${raia.id}`,
+                virtual: true,
+                prova_id: serie.prova_id,
+                serie_id: serie.id,
+                inscricao_id: raia.inscricao_id,
+                data_resultado: dataInicio,
+                publicado: true,
+                colocacao: null,
+                qualificacao: null,
+                tempo: null,
+                melhor_marca: null,
+                resultado_final: null,
+                raia: raia.raia,
+                series: { numero_serie: serie.numero_serie },
+                provas: provaPorId[serie.prova_id] || null,
+                inscricoes: { atletas: raia.inscricoes?.atletas },
+              });
+            }
+          });
+        });
+
+        // Preenche o numero da raia nos resultados reais
         resultadosCarregados.forEach((r) => {
           const chave = `${r.serie_id}|${r.inscricao_id}`;
           if (r.raia === undefined || r.raia === null) {
