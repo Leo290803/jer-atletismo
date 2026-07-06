@@ -2,6 +2,7 @@ import { supabase } from "../../../lib/supabase";
 import { normalizarFaseProva, podeSobrescreverFaseAutomaticamente } from "../../../data/fasesProvas";
 import {
   contarConflitosEscola,
+  distribuirEquilibrado,
   distribuirSimples,
   embaralhar,
   escolaDaInscricao,
@@ -285,6 +286,95 @@ async function gerarSeriesRevezamento({ provaSelecionada, inscricoes, config }) 
         ? `Fase definida automaticamente como ${faseAutomatica}.`
         : `Fase manual mantida como ${faseDaProva}.`
     }`.trim(),
+  };
+}
+
+// Reequilibra as series de uma prova JA EXISTENTE: mantem os mesmos atletas,
+// mas redistribui entre series de forma equilibrada (ex.: 8,8,8,1 -> 7,7,7,6,6),
+// evitando serie com 1 sozinho. Reescreve series e raias; preserva atletas.
+export async function reequilibrarSeries({ provaSelecionada, config }) {
+  const ehCampo =
+    provaSelecionada.tipo === "campo" ||
+    provaSelecionada.subtipo === "campo_tentativas" ||
+    provaSelecionada.subtipo === "salto_altura";
+
+  const quantidadePorSerie = ehCampo
+    ? Number(config.atletas_por_serie_campo || 15)
+    : Number(config.quantidade_raias || 8);
+
+  const totalRaiasConfig = Math.max(1, Number(config.quantidade_raias || 8));
+
+  // 1) Carregar as series atuais com as inscricoes (para preservar os atletas)
+  const { data: seriesAtuais, error: erroCarregar } = await supabase
+    .from("series")
+    .select("id, numero_serie, raias(id, inscricao_id, inscricoes(id))")
+    .eq("prova_id", provaSelecionada.id)
+    .order("numero_serie", { ascending: true });
+
+  if (erroCarregar) return { ok: false, message: erroCarregar.message };
+
+  // Coletar todas as inscricoes atuais (unicas)
+  const inscricoesIds = [];
+  const vistos = new Set();
+  (seriesAtuais || []).forEach((serie) => {
+    (serie.raias || []).forEach((raia) => {
+      const insId = raia.inscricao_id || raia.inscricoes?.id;
+      if (insId && !vistos.has(insId)) {
+        vistos.add(insId);
+        inscricoesIds.push({ id: insId });
+      }
+    });
+  });
+
+  if (inscricoesIds.length === 0) {
+    return { ok: false, message: "Nenhum atleta encontrado nas series desta prova." };
+  }
+
+  // 2) Distribuir de forma equilibrada
+  const embaralhadas = embaralhar(inscricoesIds);
+  const distribuicao = distribuirEquilibrado(embaralhadas, quantidadePorSerie);
+  const totalSeries = distribuicao.length;
+
+  // 3) Apagar raias e series antigas (mantendo resultados? nao — serie muda,
+  //    entao os resultados antigos deixam de fazer sentido; apagamos tambem).
+  const idsSeriesAntigas = (seriesAtuais || []).map((s) => s.id);
+  if (idsSeriesAntigas.length > 0) {
+    await supabase.from("resultados").delete().in("serie_id", idsSeriesAntigas);
+    await supabase.from("raias").delete().in("serie_id", idsSeriesAntigas);
+    await supabase.from("series").delete().in("id", idsSeriesAntigas);
+  }
+
+  // 4) Criar as novas series
+  const { data: novasSeries, error: erroCriar } = await criarSeries(provaSelecionada.id, totalSeries);
+  if (erroCriar) return { ok: false, message: erroCriar.message };
+
+  // 5) Criar as raias com raias centralizadas
+  const raiasParaCriar = [];
+  distribuicao.forEach((grupo, serieIndex) => {
+    const serieCriada = novasSeries[serieIndex];
+    const atletasNaSerie = grupo.length;
+    const raiasCentrais = raiasCentralizadas(atletasNaSerie, totalRaiasConfig);
+    const raiasAtribuidas = ehCampo ? raiasCentrais : embaralhar([...raiasCentrais]);
+
+    grupo.forEach((inscricao, posicao) => {
+      raiasParaCriar.push({
+        serie_id: serieCriada.id,
+        inscricao_id: inscricao.id,
+        raia: raiasAtribuidas[posicao] || posicao + 1,
+        ordem: posicao + 1,
+      });
+    });
+  });
+
+  const { error: erroRaias } = await criarRaias(raiasParaCriar);
+  if (erroRaias) return { ok: false, message: erroRaias.message };
+
+  const tamanhos = distribuicao.map((g) => g.length).join(", ");
+  return {
+    ok: true,
+    totalSeries,
+    totalAtletas: inscricoesIds.length,
+    message: `Series reequilibradas: ${totalSeries} serie(s) com ${tamanhos} atletas. Resultados anteriores foram apagados.`,
   };
 }
 

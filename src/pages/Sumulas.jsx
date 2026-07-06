@@ -916,7 +916,9 @@ export default function Sumulas() {
     setDataProva,
     carregarSeries,
     gerarSeriesDaProva,
+    reequilibrarSeries,
     salvarResultados,
+    salvandoResultados,
     classificarAutomaticamente,
     mudarCampo,
     mudarTentativaAltura,
@@ -1408,6 +1410,7 @@ export default function Sumulas() {
           provaSelecionada={provaSelecionada}
           selecionarProva={selecionarProva}
           gerarSeriesDaProva={gerarSeriesDaProva}
+          reequilibrarSeries={reequilibrarSeries}
           carregarSeries={carregarSeries}
           abrirGerenciarInscritos={inscritos.abrirGerenciarInscritos}
           mostrarGerenciarInscritos={inscritos.mostrarGerenciarInscritos}
@@ -1441,6 +1444,7 @@ export default function Sumulas() {
           salvarResultados={salvarResultados}
           classificarAutomaticamente={classificarAutomaticamente}
           imprimir={imprimir}
+          salvandoResultados={salvandoResultados}
         />
 
         {provaSelecionada && series.length > 0 && (

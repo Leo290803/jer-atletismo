@@ -13,6 +13,7 @@ import { classificarPista } from "../utils/classificacaoPista";
 import {
   carregarSeries as carregarSeriesService,
   gerarSeriesDaProva as gerarSeriesService,
+  reequilibrarSeries as reequilibrarSeriesService,
 } from "../services/seriesService";
 import { buscarCombinadaPorCategoriaNaipe, ehProvaCombinada } from "../../../data/provasCombinadas";
 import {
@@ -139,6 +140,7 @@ export function useSeries({
   const [series, setSeries] = useState([]);
   const [dataProva, setDataProva] = useState(hoje);
   const [hasAlteracoesLocais, setHasAlteracoesLocais] = useState(false);
+  const [salvandoResultados, setSalvandoResultados] = useState(false);
 
   async function carregarSeries(provaId = provaSelecionada) {
     if (!provaId) {
@@ -266,6 +268,39 @@ export function useSeries({
     setMensagem?.(primeiraTentativa.message);
   }
 
+  async function reequilibrarSeries() {
+    if (!provaSelecionada) {
+      window.alert("Selecione uma prova primeiro.");
+      return;
+    }
+
+    const provaAtual = (provas || []).find((p) => p.id === provaSelecionada);
+    if (!provaAtual) {
+      window.alert("Prova nao encontrada.");
+      return;
+    }
+
+    const confirmar = window.confirm(
+      "Reequilibrar as series desta prova? Os atletas serao redistribuidos igualmente entre as series (evitando serie com 1 sozinho). ATENCAO: os resultados ja lancados desta prova serao apagados."
+    );
+    if (!confirmar) return;
+
+    setMensagem?.("Reequilibrando series...");
+
+    const resultado = await reequilibrarSeriesService({
+      provaSelecionada: provaAtual,
+      config,
+    });
+
+    if (!resultado.ok) {
+      setMensagem?.("Erro ao reequilibrar: " + (resultado.message || "Erro desconhecido"));
+      return;
+    }
+
+    await carregarSeries(provaSelecionada);
+    setMensagem?.(resultado.message);
+  }
+
   function mudarCampo(serieId, raiaId, campo, valor) {
     setHasAlteracoesLocais(true);
     setSeries((old) =>
@@ -380,49 +415,65 @@ export function useSeries({
       return;
     }
 
-    const resultados = [];
+    // Trava anti-duplo-clique: impede salvar duas vezes ao mesmo tempo,
+    // o que causava duplicacao de resultados no banco.
+    if (salvandoResultados) return;
+    setSalvandoResultados(true);
 
-    (series || []).forEach((serie) => {
-      (serie.raias || []).forEach((r) => {
-        if (!r.inscricoes?.id) return;
+    try {
+      const resultados = [];
+      const chavesVistas = new Set();
 
-        resultados.push({
-          prova_id: provaSelecionada,
-          serie_id: r.serie_id || serie.id,
-          inscricao_id: r.inscricoes.id,
-          data_resultado: dataProva,
-          tempo: r.tempo || null,
-          colocacao: r.colocacao ? Number(r.colocacao) : null,
-          status: r.status || "OK",
-          tentativa1: r.tentativa1 || null,
-          tentativa2: r.tentativa2 || null,
-          tentativa3: r.tentativa3 || null,
-          tentativa4: r.tentativa4 || null,
-          tentativa5: r.tentativa5 || null,
-          tentativa6: r.tentativa6 || null,
-          melhor_marca: r.melhor_marca || null,
-          classificacao_parcial: r.classificacao_parcial ? Number(r.classificacao_parcial) : null,
-          classificacao_parcial_final: r.classificacao_parcial_final
-            ? Number(r.classificacao_parcial_final)
-            : null,
-          finalista: !!r.finalista,
-          alturas: r.alturas || [],
-          resultado_final: r.resultado_final || null,
-          publicado: publicar,
-          qualificacao: r.qualificacao || null,
-          reserva: !!r.reserva,
+      (series || []).forEach((serie) => {
+        (serie.raias || []).forEach((r) => {
+          if (!r.inscricoes?.id) return;
+
+          const serieId = r.serie_id || serie.id;
+          // Dedup defensivo: nunca enviar o mesmo atleta+serie duas vezes.
+          const chave = `${serieId}|${r.inscricoes.id}`;
+          if (chavesVistas.has(chave)) return;
+          chavesVistas.add(chave);
+
+          resultados.push({
+            prova_id: provaSelecionada,
+            serie_id: serieId,
+            inscricao_id: r.inscricoes.id,
+            data_resultado: dataProva,
+            tempo: r.tempo || null,
+            colocacao: r.colocacao ? Number(r.colocacao) : null,
+            status: r.status || "OK",
+            tentativa1: r.tentativa1 || null,
+            tentativa2: r.tentativa2 || null,
+            tentativa3: r.tentativa3 || null,
+            tentativa4: r.tentativa4 || null,
+            tentativa5: r.tentativa5 || null,
+            tentativa6: r.tentativa6 || null,
+            melhor_marca: r.melhor_marca || null,
+            classificacao_parcial: r.classificacao_parcial ? Number(r.classificacao_parcial) : null,
+            classificacao_parcial_final: r.classificacao_parcial_final
+              ? Number(r.classificacao_parcial_final)
+              : null,
+            finalista: !!r.finalista,
+            alturas: r.alturas || [],
+            resultado_final: r.resultado_final || null,
+            publicado: publicar,
+            qualificacao: r.qualificacao || null,
+            reserva: !!r.reserva,
+          });
         });
       });
-    });
 
-    const { error } = await salvarResultadosService(provaSelecionada, resultados);
-    if (error) {
-      setMensagem?.(error.message);
-      return;
+      const { error } = await salvarResultadosService(provaSelecionada, resultados);
+      if (error) {
+        setMensagem?.(error.message);
+        return;
+      }
+
+      setHasAlteracoesLocais(false);
+      setMensagem?.(publicar ? "Resultados publicados no boletim com sucesso." : "Rascunho salvo.");
+    } finally {
+      setSalvandoResultados(false);
     }
-
-    setHasAlteracoesLocais(false);
-    setMensagem?.(publicar ? "Resultados publicados no boletim com sucesso." : "Rascunho salvo.");
   }
 
   return {
@@ -433,12 +484,14 @@ export function useSeries({
     setDataProva,
     carregarSeries,
     gerarSeriesDaProva,
+    reequilibrarSeries,
     mudarCampo,
     mudarAltura,
     mudarTentativaAltura,
     pegarValorAltura,
     classificarAutomaticamente,
     salvarResultados,
+    salvandoResultados,
     melhorDasTentativas,
     melhorDasTresPrimeiras,
     calcularResultadoAltura: (raia) => calcularResultadoAltura(raia, config.alturas_salto_altura || [], pegarValorAltura),

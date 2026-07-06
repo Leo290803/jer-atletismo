@@ -88,6 +88,7 @@ export default function EtapaSelecaoProva(props) {
     provaSelecionada,
     selecionarProva,
     gerarSeriesDaProva,
+    reequilibrarSeries,
     carregarSeries,
     abrirGerenciarInscritos,
     mostrarGerenciarInscritos,
@@ -219,6 +220,25 @@ export default function EtapaSelecaoProva(props) {
         <button onClick={() => carregarSeries(provaSelecionada)} style={botaoAzul}>
           Recarregar Series
         </button>
+
+        {reequilibrarSeries && (
+          <button
+            onClick={reequilibrarSeries}
+            style={{
+              padding: "12px 18px",
+              border: "none",
+              borderRadius: 10,
+              background: "#14b8a6",
+              color: "#022c22",
+              fontWeight: "bold",
+              marginRight: 10,
+              marginBottom: 10,
+              cursor: "pointer",
+            }}
+          >
+            Reequilibrar Séries
+          </button>
+        )}
 
         <button onClick={abrirGerenciarInscritos} style={botaoAmarelo}>
           {mostrarGerenciarInscritos ? "Ocultar Inscritos" : "Gerenciar Inscritos"}
