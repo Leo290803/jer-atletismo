@@ -134,6 +134,7 @@ export default function Boletins() {
   const [mostrarEditorLayout, setMostrarEditorLayout] = useState(false);
   const [editarNoDocumento, setEditarNoDocumento] = useState(false);
   const [resultados, setResultados] = useState([]);
+  const [fasesSelecionadas, setFasesSelecionadas] = useState([]); // vazio = todas
   const [proximasFasesPorOrigem, setProximasFasesPorOrigem] = useState({});
   const [mensagem, setMensagem] = useState("");
 
@@ -1010,7 +1011,41 @@ export default function Boletins() {
     }, 150);
   }
 
-  const grupos = agruparPorProva(resultados);
+  const gruposTodos = agruparPorProva(resultados);
+
+  // Normaliza a fase para agrupar variacoes (ex.: "SEMI-FINAL"/"SEMI FINAL")
+  function normalizarFaseBoletim(fase) {
+    const f = String(fase || "QUALIFICACAO")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+      .trim();
+    if (f.includes("SEMI")) return "SEMI-FINAL";
+    if (f.startsWith("FINAL") || f === "FINAL POR TEMPO" || f === "FINAL DIRETA") return "FINAL";
+    if (f.includes("QUALIF")) return "QUALIFICACAO";
+    return f;
+  }
+
+  // Rotulo amigavel para exibir no filtro
+  const rotuloFase = (f) =>
+    ({ "SEMI-FINAL": "Semifinais", FINAL: "Finais", QUALIFICACAO: "Qualificatórias" }[f] || f);
+
+  // Fases realmente presentes nos resultados carregados
+  const fasesDisponiveis = [
+    ...new Set(gruposTodos.map((g) => normalizarFaseBoletim(g.prova?.fase))),
+  ].sort();
+
+  // Aplica o filtro: se nenhuma fase marcada, mostra todas.
+  const grupos =
+    fasesSelecionadas.length === 0
+      ? gruposTodos
+      : gruposTodos.filter((g) => fasesSelecionadas.includes(normalizarFaseBoletim(g.prova?.fase)));
+
+  function alternarFase(fase) {
+    setFasesSelecionadas((atual) =>
+      atual.includes(fase) ? atual.filter((f) => f !== fase) : [...atual, fase]
+    );
+  }
 
   // Fonte de tabela na impressão: nunca abaixo de 9px (~6.8pt) para manter legibilidade no papel.
   const fonteTabelaImpressao = Math.max(9, Number(layoutBoletim.fonteTabelaPx) || 9.5);
@@ -2804,6 +2839,42 @@ export default function Boletins() {
               <button type="button" onClick={limparModeloWord} style={botaoCinza}>Limpar Word</button>
             )}
           </div>
+
+          {fasesDisponiveis.length > 1 && (
+            <div style={{ marginTop: 16, padding: "12px 14px", background: "#f1f5f9", borderRadius: 10 }}>
+              <div style={{ fontWeight: 700, marginBottom: 8, color: "#0f172a" }}>
+                Filtrar por fase{" "}
+                <span style={{ fontWeight: 400, color: "#64748b", fontSize: 13 }}>
+                  (marque uma ou mais; vazio = todas)
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                {fasesDisponiveis.map((fase) => (
+                  <label key={fase} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontWeight: 600 }}>
+                    <input
+                      type="checkbox"
+                      checked={fasesSelecionadas.includes(fase)}
+                      onChange={() => alternarFase(fase)}
+                      style={{ width: 18, height: 18, cursor: "pointer" }}
+                    />
+                    {rotuloFase(fase)}
+                  </label>
+                ))}
+                {fasesSelecionadas.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setFasesSelecionadas([])}
+                    style={{ background: "#e2e8f0", border: "none", borderRadius: 8, padding: "4px 12px", cursor: "pointer", fontWeight: 600 }}
+                  >
+                    Limpar filtro
+                  </button>
+                )}
+              </div>
+              <div style={{ marginTop: 8, fontSize: 13, color: "#475569" }}>
+                Mostrando {grupos.length} de {gruposTodos.length} prova(s).
+              </div>
+            </div>
+          )}
 
           <div style={{ marginTop: 16 }}>
             <button onClick={carregarBoletim} style={botaoVerde}>
