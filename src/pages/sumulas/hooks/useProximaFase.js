@@ -43,9 +43,28 @@ export function useProximaFase({
     [provas, provaSelecionada]
   );
 
+  // Detecta prova de campo (arremesso, lancamento, salto em distancia).
+  // Salto em altura tem logica propria e nao entra na progressao padrao.
+  const ehCampoProximaFase = useMemo(() => {
+    const tipo = String(provaAtual?.tipo || "").toLowerCase();
+    const subtipo = String(provaAtual?.subtipo || "").toLowerCase();
+    return (
+      tipo === "campo" ||
+      subtipo.includes("campo_tentativas") ||
+      subtipo.includes("arremesso") ||
+      subtipo.includes("lancamento") ||
+      subtipo.includes("lançamento") ||
+      (subtipo.includes("salto") && !subtipo.includes("altura"))
+    );
+  }, [provaAtual]);
+
   const regraAutomatica = useMemo(
-    () => calcularRegraAutomaticaProximaFase(series, raiasProximaFase, tipoProximaFase),
-    [series, raiasProximaFase, tipoProximaFase]
+    () =>
+      calcularRegraAutomaticaProximaFase(series, raiasProximaFase, tipoProximaFase, {
+        ehCampo: ehCampoProximaFase,
+        finalistasCampo: Number(config?.finalistas_campo || 8),
+      }),
+    [series, raiasProximaFase, tipoProximaFase, ehCampoProximaFase, config]
   );
 
   useEffect(() => {
@@ -170,6 +189,7 @@ export function useProximaFase({
       classificadosOrdenados,
       raiasProximaFase,
       substituirExistente,
+      ehCampo: ehCampoProximaFase,
     });
 
     if (!resultado.ok) {

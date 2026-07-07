@@ -26,10 +26,29 @@ function multiplicadorSeriesDaFase(fase) {
   return 1;
 }
 
-export function calcularRegraAutomaticaProximaFase(series = [], raiasProximaFase = 8, faseProxima = "FINAL") {
+export function calcularRegraAutomaticaProximaFase(series = [], raiasProximaFase = 8, faseProxima = "FINAL", opcoes = {}) {
   const totalSeries = contarSeriesComAtletas(series);
   const totalRaias = Math.max(1, Number(raiasProximaFase) || 8);
   const totalAtletas = totalAtletasNasSeries(series);
+
+  // CAMPO: a final e uma serie unica com os N melhores da classificacao geral
+  // (N configuravel, default 8). Nao usa raias nem "q por serie".
+  if (opcoes.ehCampo) {
+    const finalistas = Math.max(1, Number(opcoes.finalistasCampo) || 8);
+    const totalClassificados = Math.min(finalistas, Math.max(totalAtletas, 0) || finalistas);
+    return {
+      criterio: "melhores_gerais",
+      qPorSerie: 0,
+      qPorTempo: 0,
+      totalClassificados,
+      raias: 1,
+      totalSeries: 1,
+      ehCampo: true,
+      descricao: `Final de campo: ${totalClassificados} melhores em serie unica (mais 3 tentativas).`,
+      aviso: "",
+    };
+  }
+
   const totalVagasDaFase = totalRaias * multiplicadorSeriesDaFase(faseProxima);
   const totalClassificados = Math.min(totalVagasDaFase, Math.max(totalAtletas, 0) || totalVagasDaFase);
 

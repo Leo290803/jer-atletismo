@@ -135,6 +135,7 @@ export async function gerarProximaFaseNoBanco({
   classificadosOrdenados,
   raiasProximaFase,
   substituirExistente = false,
+  ehCampo = false,
 }) {
   const { data: provaExistente, error: erroBuscaFase } = await buscarProvaFaseExistente(provaAtual, fase);
   if (erroBuscaFase) return { ok: false, error: erroBuscaFase };
@@ -198,31 +199,49 @@ export async function gerarProximaFaseNoBanco({
     inscricaoPorAtleta[inscricao.atleta_id] = inscricao;
   });
 
-  const totalSeries = Math.ceil(
-    classificadosOrdenados.length / Number(regra.raias || raiasProximaFase || 8)
-  );
+  // CAMPO: final e uma SERIE UNICA, sem sorteio de raia (usa ordem).
+  // PISTA: divide em series conforme as raias, com sorteio.
+  const totalSeries = ehCampo
+    ? 1
+    : Math.ceil(classificadosOrdenados.length / Number(regra.raias || raiasProximaFase || 8));
 
   const { data: novasSeries, error: erroSeries } = await criarSeriesProximaFase(novaProva.id, totalSeries);
   if (erroSeries) return { ok: false, error: erroSeries };
 
-  const distribuicaoPorSerie = distribuirEmSeriesBalanceadas(classificadosOrdenados, totalSeries);
   const raiasParaCriar = [];
 
-  distribuicaoPorSerie.forEach((listaSerie, serieIndex) => {
-    const serieCriada = novasSeries[serieIndex];
-
-    (listaSerie || []).forEach((classificado, posicaoNaSerie) => {
+  if (ehCampo) {
+    // Serie unica: todos na ordem da classificacao (melhor primeiro).
+    const serieUnica = novasSeries[0];
+    (classificadosOrdenados || []).forEach((classificado, posicao) => {
       const inscricao = inscricaoPorAtleta[classificado.inscricoes.atleta_id];
       if (!inscricao) return;
-
       raiasParaCriar.push({
-        serie_id: serieCriada.id,
+        serie_id: serieUnica.id,
         inscricao_id: inscricao.id,
-        raia: raiaOficialPorSeed(posicaoNaSerie, regra.raias || raiasProximaFase),
-        ordem: posicaoNaSerie + 1,
+        raia: posicao + 1, // ordem de tentativa (nao e raia fisica)
+        ordem: posicao + 1,
       });
     });
-  });
+  } else {
+    const distribuicaoPorSerie = distribuirEmSeriesBalanceadas(classificadosOrdenados, totalSeries);
+
+    distribuicaoPorSerie.forEach((listaSerie, serieIndex) => {
+      const serieCriada = novasSeries[serieIndex];
+
+      (listaSerie || []).forEach((classificado, posicaoNaSerie) => {
+        const inscricao = inscricaoPorAtleta[classificado.inscricoes.atleta_id];
+        if (!inscricao) return;
+
+        raiasParaCriar.push({
+          serie_id: serieCriada.id,
+          inscricao_id: inscricao.id,
+          raia: raiaOficialPorSeed(posicaoNaSerie, regra.raias || raiasProximaFase),
+          ordem: posicaoNaSerie + 1,
+        });
+      });
+    });
+  }
 
   const { error: erroRaias } = await criarRaiasProximaFase(raiasParaCriar);
   if (erroRaias) return { ok: false, error: erroRaias };
