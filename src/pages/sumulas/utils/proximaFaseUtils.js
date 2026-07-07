@@ -395,14 +395,68 @@ export function raiaOficialPorSeed(posicao, totalRaias) {
   return posicao + 1;
 }
 
+// Pega o identificador da escola do atleta (tenta varios caminhos possiveis).
+function escolaDoClassificado(c) {
+  const insc = c?.inscricoes || {};
+  const atleta = insc.atletas || insc.atleta || c?.atletas || {};
+  return (
+    atleta?.escola_id ||
+    atleta?.escolas?.id ||
+    atleta?.escolas?.nome ||
+    atleta?.escola ||
+    null
+  );
+}
+
 export function distribuirEmSeriesBalanceadas(classificadosOrdenados, totalSeries) {
   const grupos = Array.from({ length: totalSeries }, () => []);
+  // Conta quantos de cada escola ja estao em cada serie
+  const contagemEscola = Array.from({ length: totalSeries }, () => ({}));
+  const lista = classificadosOrdenados || [];
+  const capacidadeBase = Math.ceil(lista.length / totalSeries);
 
-  (classificadosOrdenados || []).forEach((atleta, index) => {
+  lista.forEach((atleta, index) => {
+    // Serie "ideal" pela distribuicao serpentina (espalha os melhores tempos)
     const bloco = Math.floor(index / totalSeries);
     const posicaoNoBloco = index % totalSeries;
-    const serieIndex = bloco % 2 === 0 ? posicaoNoBloco : totalSeries - 1 - posicaoNoBloco;
-    grupos[serieIndex].push(atleta);
+    const serieIdeal = bloco % 2 === 0 ? posicaoNoBloco : totalSeries - 1 - posicaoNoBloco;
+
+    const escola = escolaDoClassificado(atleta);
+
+    // Percorre as series a partir da ideal
+    const ordemSeries = [];
+    for (let offset = 0; offset < totalSeries; offset += 1) {
+      ordemSeries.push((serieIdeal + offset) % totalSeries);
+    }
+
+    // Escolhe a serie com MENOR numero de colegas da mesma escola;
+    // em empate, a que tem menos atletas (balanceamento). Respeita a
+    // preferencia pela serie ideal (por vir primeiro na ordem).
+    let melhorSerie = ordemSeries[0];
+    let melhorRepetido = Infinity;
+    let melhorTamanho = Infinity;
+
+    ordemSeries.forEach((s) => {
+      const repetido = escola ? (contagemEscola[s][escola] || 0) : 0;
+      const tamanho = grupos[s].length;
+      // Penaliza series ja cheias para nao lotar uma so
+      const cheiaDemais = tamanho >= capacidadeBase ? 1 : 0;
+      const repetidoAjustado = repetido + cheiaDemais * 0.5;
+
+      if (
+        repetidoAjustado < melhorRepetido ||
+        (repetidoAjustado === melhorRepetido && tamanho < melhorTamanho)
+      ) {
+        melhorRepetido = repetidoAjustado;
+        melhorTamanho = tamanho;
+        melhorSerie = s;
+      }
+    });
+
+    grupos[melhorSerie].push(atleta);
+    if (escola) {
+      contagemEscola[melhorSerie][escola] = (contagemEscola[melhorSerie][escola] || 0) + 1;
+    }
   });
 
   return grupos;
