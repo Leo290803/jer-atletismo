@@ -434,6 +434,18 @@ export function useSeries({
       // (disparado no onBlur) salve uma versao antiga sem o valor recem-digitado.
       const seriesAtual = seriesRef.current && seriesRef.current.length ? seriesRef.current : series;
 
+      // Converte para inteiro seguro. Se o valor tiver decimal (ex.: "3,82",
+      // que e uma marca, nao uma colocacao), retorna null em vez de truncar.
+      const inteiroOuNull = (v) => {
+        if (v === null || v === undefined || v === "") return null;
+        const texto = String(v).trim().replace(",", ".");
+        const num = Number(texto);
+        if (!Number.isFinite(num)) return null;
+        // So aceita inteiros exatos (colocacao/classificacao sao 1,2,3...)
+        if (!Number.isInteger(num)) return null;
+        return num;
+      };
+
       (seriesAtual || []).forEach((serie) => {
         (serie.raias || []).forEach((r) => {
           if (!r.inscricoes?.id) return;
@@ -450,7 +462,7 @@ export function useSeries({
             inscricao_id: r.inscricoes.id,
             data_resultado: dataProva,
             tempo: r.tempo || null,
-            colocacao: r.colocacao ? Number(r.colocacao) : null,
+            colocacao: inteiroOuNull(r.colocacao),
             status: r.status || "OK",
             tentativa1: r.tentativa1 || null,
             tentativa2: r.tentativa2 || null,
@@ -458,14 +470,12 @@ export function useSeries({
             tentativa4: r.tentativa4 || null,
             tentativa5: r.tentativa5 || null,
             tentativa6: r.tentativa6 || null,
-            melhor_marca: r.melhor_marca || null,
-            classificacao_parcial: r.classificacao_parcial ? Number(r.classificacao_parcial) : null,
-            classificacao_parcial_final: r.classificacao_parcial_final
-              ? Number(r.classificacao_parcial_final)
-              : null,
+            melhor_marca: r.melhor_marca ? String(r.melhor_marca) : null,
+            classificacao_parcial: inteiroOuNull(r.classificacao_parcial),
+            classificacao_parcial_final: inteiroOuNull(r.classificacao_parcial_final),
             finalista: !!r.finalista,
             alturas: r.alturas || [],
-            resultado_final: r.resultado_final || null,
+            resultado_final: r.resultado_final ? String(r.resultado_final) : null,
             publicado: publicar,
             qualificacao: r.qualificacao || null,
             reserva: !!r.reserva,
@@ -483,7 +493,14 @@ export function useSeries({
 
       const { error } = await salvarResultadosService(provaSelecionada, resultados);
       if (error) {
-        setMensagem?.(silencioso ? "Falha ao salvar automaticamente. Salve manualmente." : error.message);
+        // Mostra o detalhe real do erro (ajuda a identificar coluna/tipo invalido)
+        const detalhe = error.message || error.details || error.hint || "erro desconhecido";
+        setMensagem?.(
+          silencioso
+            ? "Falha ao salvar automaticamente: " + detalhe
+            : "Erro ao salvar: " + detalhe
+        );
+        console.error("Erro ao salvar resultados:", error);
         return;
       }
 
