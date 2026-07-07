@@ -918,6 +918,7 @@ export default function Sumulas() {
     gerarSeriesDaProva,
     reequilibrarSeries,
     salvarResultados,
+    autoSalvarRascunho,
     salvandoResultados,
     classificarAutomaticamente,
     mudarCampo,
@@ -1528,26 +1529,37 @@ export default function Sumulas() {
           </button>
         </div>
 
-        <LancamentoOficialTela
-          series={series}
-          provaAtual={provaAtual}
-          dataProva={dataProva}
-          ehSaltoAltura={ehSaltoAltura}
-          ehCampoTentativas={ehCampoTentativas}
-          ehRevezamento={ehRevezamento}
-          ehCombinada={ehCombinada}
-          combinadaInfo={combinadaInfo}
-          config={config}
-          datasCombinada={datasCombinada}
-          pegarValorAltura={pegarValorAltura}
-          mudarTentativaAltura={mudarTentativaAltura}
-          mudarCampo={mudarCampo}
-          calcularResultadoAltura={calcularResultadoAltura}
-          melhorDasTresPrimeiras={melhorDasTresPrimeiras}
-          melhorDasTentativas={melhorDasTentativas}
-          formatarNascimento={formatarNascimento}
-          onRemoverAtleta={inscritos.removerAtletaDaSerie}
-        />
+        <div
+          onBlur={(e) => {
+            // Auto-save ao sair de um campo de input/select (nao dispara ao
+            // navegar entre elementos que nao sao campos).
+            const tag = e.target?.tagName;
+            if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") {
+              autoSalvarRascunho?.();
+            }
+          }}
+        >
+          <LancamentoOficialTela
+            series={series}
+            provaAtual={provaAtual}
+            dataProva={dataProva}
+            ehSaltoAltura={ehSaltoAltura}
+            ehCampoTentativas={ehCampoTentativas}
+            ehRevezamento={ehRevezamento}
+            ehCombinada={ehCombinada}
+            combinadaInfo={combinadaInfo}
+            config={config}
+            datasCombinada={datasCombinada}
+            pegarValorAltura={pegarValorAltura}
+            mudarTentativaAltura={mudarTentativaAltura}
+            mudarCampo={mudarCampo}
+            calcularResultadoAltura={calcularResultadoAltura}
+            melhorDasTresPrimeiras={melhorDasTresPrimeiras}
+            melhorDasTentativas={melhorDasTentativas}
+            formatarNascimento={formatarNascimento}
+            onRemoverAtleta={inscritos.removerAtletaDaSerie}
+          />
+        </div>
 
         {ehCombinada && combinadaInfo && (
           <div className="card combinada-datas-card" style={{ marginBottom: 20 }}>

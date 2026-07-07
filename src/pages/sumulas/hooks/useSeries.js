@@ -409,9 +409,9 @@ export function useSeries({
     setMensagem?.("Classificacao por serie aplicada.");
   }
 
-  async function salvarResultados(publicar = false) {
+  async function salvarResultados(publicar = false, silencioso = false) {
     if (!provaSelecionada) {
-      window.alert("Selecione uma prova.");
+      if (!silencioso) window.alert("Selecione uma prova.");
       return;
     }
 
@@ -465,15 +465,29 @@ export function useSeries({
 
       const { error } = await salvarResultadosService(provaSelecionada, resultados);
       if (error) {
-        setMensagem?.(error.message);
+        setMensagem?.(silencioso ? "Falha ao salvar automaticamente. Salve manualmente." : error.message);
         return;
       }
 
       setHasAlteracoesLocais(false);
-      setMensagem?.(publicar ? "Resultados publicados no boletim com sucesso." : "Rascunho salvo.");
+      setHasAlteracoesLocais(false);
+      setMensagem?.(
+        silencioso
+          ? `Salvo automaticamente ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
+          : publicar
+          ? "Resultados publicados no boletim com sucesso."
+          : "Rascunho salvo."
+      );
     } finally {
       setSalvandoResultados(false);
     }
+  }
+
+  // Auto-save silencioso: chamado quando o usuario sai de um campo (onBlur).
+  async function autoSalvarRascunho() {
+    if (!provaSelecionada) return;
+    if (!hasAlteracoesLocais) return; // so salva se houve mudanca
+    await salvarResultados(false, true);
   }
 
   return {
@@ -491,6 +505,7 @@ export function useSeries({
     pegarValorAltura,
     classificarAutomaticamente,
     salvarResultados,
+    autoSalvarRascunho,
     salvandoResultados,
     melhorDasTentativas,
     melhorDasTresPrimeiras,
