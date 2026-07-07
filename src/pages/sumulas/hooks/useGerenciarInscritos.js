@@ -7,6 +7,7 @@ import {
   carregarInscricoesDaProva as carregarService,
   criarAtletaEAdicionarNaSerie as criarAtletaEAdicionarNaSerieService,
   criarAtletaESubstituir as criarAtletaESubstituirService,
+  moverAtletaDeSerie as moverAtletaDeSerieService,
   removerAtletaDaSerie as removerAtletaDaSerieService,
   removerInscricaoDaProva as removerService,
   substituirInscricaoDaProva as substituirService,
@@ -245,6 +246,31 @@ export function useGerenciarInscritos({
     setMensagem?.("Numero do atleta atualizado.");
   }
 
+  async function moverAtletaDeSerie({ raia, serieDestinoId, raiaDestino }) {
+    if (!raia?.id || !serieDestinoId) {
+      window.alert("Escolha a série e a raia de destino.");
+      return false;
+    }
+
+    setMensagem?.("Movendo atleta de série...");
+
+    const { error } = await moverAtletaDeSerieService({
+      raiaId: raia.id,
+      inscricaoId: raia.inscricoes?.id,
+      serieDestinoId,
+      raiaDestino: Number(raiaDestino),
+    });
+
+    if (error) {
+      setMensagem?.("Erro ao mover atleta: " + error.message);
+      return false;
+    }
+
+    await carregarSeries?.(provaSelecionada);
+    setMensagem?.("Atleta movido de série. O resultado anterior foi apagado.");
+    return true;
+  }
+
   async function buscarEscolas(termo = "") {
     const { data, error } = await buscarEscolasService(termo);
     if (error) {
@@ -326,6 +352,7 @@ export function useGerenciarInscritos({
     setEscolasEncontradas,
     buscarEscolas,
     atualizarNumeroAtleta,
+    moverAtletaDeSerie,
     acrescentarAtletaNaSerie,
     removerAtletaDaSerie,
   };

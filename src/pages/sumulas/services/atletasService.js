@@ -45,6 +45,43 @@ export async function removerAtletaDaSerie({ raiaId, inscricaoId }) {
   return { error: null };
 }
 
+// Move um atleta de uma serie para outra na MESMA prova. Muda o serie_id da
+// raia e a raia (posicao). Apaga o resultado antigo (ligado a serie antiga),
+// pois ele nao faz mais sentido na serie nova. Nao regenera as series.
+export async function moverAtletaDeSerie({ raiaId, inscricaoId, serieDestinoId, raiaDestino }) {
+  if (!raiaId || !serieDestinoId) {
+    return { error: new Error("Dados insuficientes para mover o atleta.") };
+  }
+
+  // Verifica se a raia destino ja esta ocupada na serie destino
+  const { data: ocupada, error: erroCheck } = await supabase
+    .from("raias")
+    .select("id")
+    .eq("serie_id", serieDestinoId)
+    .eq("raia", raiaDestino)
+    .maybeSingle();
+
+  if (erroCheck) return { error: erroCheck };
+  if (ocupada) {
+    return { error: new Error(`A raia ${raiaDestino} ja esta ocupada na serie de destino.`) };
+  }
+
+  // Apaga o resultado antigo do atleta (estava ligado a serie de origem)
+  if (inscricaoId) {
+    await supabase.from("resultados").delete().eq("inscricao_id", inscricaoId);
+  }
+
+  // Move a raia para a serie destino, na raia escolhida
+  const { error: erroMover } = await supabase
+    .from("raias")
+    .update({ serie_id: serieDestinoId, raia: raiaDestino })
+    .eq("id", raiaId);
+
+  if (erroMover) return { error: erroMover };
+
+  return { error: null };
+}
+
 export async function substituirInscricaoDaProva(inscricaoId, atletaId) {
   await supabase.from("resultados").delete().eq("inscricao_id", inscricaoId);
   return supabase.from("inscricoes").update({ atleta_id: atletaId }).eq("id", inscricaoId);

@@ -58,6 +58,92 @@ function CelulaNumeroEditavel({ atleta, onEditarNumero }) {
   );
 }
 
+// Controle inline para mover o atleta para outra serie + raia da mesma prova.
+function MoverAtletaSerie({ raia, serie, todasSeries = [], totalRaias = 8, onMover }) {
+  const [aberto, setAberto] = useState(false);
+  const [serieDestino, setSerieDestino] = useState("");
+  const [raiaDestino, setRaiaDestino] = useState("");
+
+  if (!onMover) return null;
+
+  // Series diferentes da atual
+  const outrasSeries = (todasSeries || []).filter((s) => s.id !== serie.id);
+
+  // Raias livres na serie destino escolhida
+  const serieAlvo = outrasSeries.find((s) => s.id === serieDestino);
+  const raiasOcupadas = new Set((serieAlvo?.raias || []).map((r) => Number(r.raia)));
+  const raiasLivres = [];
+  for (let n = 1; n <= totalRaias; n += 1) {
+    if (!raiasOcupadas.has(n)) raiasLivres.push(n);
+  }
+
+  if (!aberto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAberto(true)}
+        title="Mover este atleta para outra série"
+        style={{ background: "#0ea5e9", color: "#fff", border: "none", borderRadius: 8, padding: "6px 10px", fontWeight: "bold", cursor: "pointer" }}
+      >
+        Mover
+      </button>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
+      <select
+        value={serieDestino}
+        onChange={(e) => {
+          setSerieDestino(e.target.value);
+          setRaiaDestino("");
+        }}
+        style={{ padding: "5px 6px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 12 }}
+      >
+        <option value="">Série...</option>
+        {outrasSeries.map((s) => (
+          <option key={s.id} value={s.id}>
+            Série {s.numero_serie}
+          </option>
+        ))}
+      </select>
+
+      <select
+        value={raiaDestino}
+        onChange={(e) => setRaiaDestino(e.target.value)}
+        disabled={!serieDestino}
+        style={{ padding: "5px 6px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 12 }}
+      >
+        <option value="">Raia...</option>
+        {raiasLivres.map((n) => (
+          <option key={n} value={n}>
+            Raia {n}
+          </option>
+        ))}
+      </select>
+
+      <button
+        type="button"
+        disabled={!serieDestino || !raiaDestino}
+        onClick={async () => {
+          const ok = await onMover({ raia, serieDestinoId: serieDestino, raiaDestino });
+          if (ok) setAberto(false);
+        }}
+        style={{ background: "#22c55e", color: "#052e16", border: "none", borderRadius: 6, padding: "5px 8px", fontWeight: "bold", cursor: "pointer", fontSize: 12 }}
+      >
+        OK
+      </button>
+      <button
+        type="button"
+        onClick={() => setAberto(false)}
+        style={{ background: "#e2e8f0", color: "#0f172a", border: "none", borderRadius: 6, padding: "5px 8px", cursor: "pointer", fontSize: 12 }}
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
 export function TabelaRevezamento({ serie, mudarCampo, inputTabela, titulares = 4 }) {
   function chaveEscola(raia) {
     const atleta = raia.inscricoes?.atletas;
@@ -196,7 +282,7 @@ export function TabelaRevezamento({ serie, mudarCampo, inputTabela, titulares = 
   );
 }
 
-export function TabelaPista({ serie, mudarCampo, inputTabela, formatarNascimento, fase, modoImpressao = false, onRemover, onEditarNumero }) {
+export function TabelaPista({ serie, mudarCampo, inputTabela, formatarNascimento, fase, modoImpressao = false, onRemover, onEditarNumero, onMoverSerie, todasSeries, totalRaias = 8 }) {
   // Coluna "Q" nunca aparece na impressao da sumula (o arbitro preenche em
   // branco; qualificacao so e definida depois, ao gerar a proxima fase).
   // Na tela de edicao, aparece apenas em fase classificatoria.
@@ -285,22 +371,31 @@ export function TabelaPista({ serie, mudarCampo, inputTabela, formatarNascimento
 
                 {onRemover && (
                   <td className="nao-imprimir" style={{ textAlign: "center" }}>
-                    <button
-                      type="button"
-                      onClick={() => onRemover({ raia: r, serie })}
-                      title="Remover atleta da série (desistência)"
-                      style={{
-                        background: "#ef4444",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: 8,
-                        padding: "6px 10px",
-                        fontWeight: "bold",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Remover
-                    </button>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        onClick={() => onRemover({ raia: r, serie })}
+                        title="Remover atleta da série (desistência)"
+                        style={{
+                          background: "#ef4444",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: 8,
+                          padding: "6px 10px",
+                          fontWeight: "bold",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Remover
+                      </button>
+                      <MoverAtletaSerie
+                        raia={r}
+                        serie={serie}
+                        todasSeries={todasSeries}
+                        totalRaias={totalRaias}
+                        onMover={onMoverSerie}
+                      />
+                    </div>
                   </td>
                 )}
               </tr>
@@ -322,6 +417,9 @@ export function TabelaCampo({
   modoImpressao = false,
   onRemover,
   onEditarNumero,
+  onMoverSerie,
+  todasSeries,
+  totalRaias = 8,
 }) {
   const faseNormalizada = String(fase || "QUALIFICACAO").toUpperCase();
   const mostrarColunaQ = !modoImpressao && !["FINAL", "FINAL POR TEMPO"].includes(faseNormalizada);
@@ -474,22 +572,31 @@ export function TabelaCampo({
 
                 {onRemover && (
                   <td className="nao-imprimir" style={{ textAlign: "center" }}>
-                    <button
-                      type="button"
-                      onClick={() => onRemover({ raia: r, serie })}
-                      title="Remover atleta da série (desistência)"
-                      style={{
-                        background: "#ef4444",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: 8,
-                        padding: "6px 10px",
-                        fontWeight: "bold",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Remover
-                    </button>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        onClick={() => onRemover({ raia: r, serie })}
+                        title="Remover atleta da série (desistência)"
+                        style={{
+                          background: "#ef4444",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: 8,
+                          padding: "6px 10px",
+                          fontWeight: "bold",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Remover
+                      </button>
+                      <MoverAtletaSerie
+                        raia={r}
+                        serie={serie}
+                        todasSeries={todasSeries}
+                        totalRaias={totalRaias}
+                        onMover={onMoverSerie}
+                      />
+                    </div>
                   </td>
                 )}
               </tr>
