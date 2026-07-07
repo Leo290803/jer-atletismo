@@ -559,16 +559,26 @@ export default function Boletins() {
     );
   }
 
-  // Linha compacta das tentativas: "T: 5.20 · 5.45 · X · 5.51 · - · -"
+  // Linha das tentativas numeradas: "1ª: 5.20 · 2ª: 5.45 · 3ª: X · 4ª: 5.51"
   function tentativasCompactas(r) {
     const brutas = [r.tentativa1, r.tentativa2, r.tentativa3, r.tentativa4, r.tentativa5, r.tentativa6];
-    const valores = brutas.map((v) => {
-      const t = String(v ?? "").trim();
-      return t === "" ? "-" : t;
+
+    // Descobre ate qual tentativa vale a pena mostrar (ultima preenchida)
+    let ultimaComValor = -1;
+    brutas.forEach((v, i) => {
+      if (String(v ?? "").trim() !== "") ultimaComValor = i;
     });
-    // So mostra se houver ao menos uma tentativa preenchida
-    if (!valores.some((v) => v !== "-")) return "";
-    return "T: " + valores.join(" · ");
+
+    if (ultimaComValor < 0) return ""; // nenhuma tentativa preenchida
+
+    const ordinais = ["1ª", "2ª", "3ª", "4ª", "5ª", "6ª"];
+    const partes = [];
+    for (let i = 0; i <= ultimaComValor; i += 1) {
+      const t = String(brutas[i] ?? "").trim();
+      partes.push(`${ordinais[i]}: ${t === "" ? "-" : t}`);
+    }
+
+    return partes.join("  ·  ");
   }
 
   function medalha(pos) {
@@ -829,7 +839,7 @@ export default function Boletins() {
       '.col-escola { width: 27%; }',
       '.col-municipio { width: 13%; }',
       '.col-resultado { width: 10%; text-align: center; }',
-      '.linha-tentativas-word { font-size: 0.85em; color: #334155; margin-top: 2px; }',
+      '.linha-tentativas-word { font-size: 0.95em; color: #334155; margin-top: 2px; font-weight: 600; }',
       '.col-extra { width: 10%; text-align: center; }',
       '.classificados-word .col-num { width: 8%; }',
       '.classificados-word .col-atleta { width: 42%; }',
@@ -1679,9 +1689,9 @@ export default function Boletins() {
           }
 
           .linha-tentativas {
-            margin-top: 3px;
-            font-size: 0.82em;
-            color: #475569;
+            margin-top: 4px;
+            font-size: 0.95em;
+            color: #334155;
             font-weight: 600;
             letter-spacing: 0.01em;
           }
