@@ -884,6 +884,7 @@ export default function ArbitroSumula() {
       tempo: r.tempo || "",
       marca: marcaParaNumero(ehProvaCampo ? r.marca || melhorTentativaTexto(r.tentativas, 6) : r.marca),
       tentativas: r.tentativas,
+      alturas: ehSaltoAltura ? r.alturas_obj || {} : {},
       classificacao: classificacaoParcial[r.id] || null,
       observacao: r.observacao || "",
       updated_at: new Date().toISOString(),
