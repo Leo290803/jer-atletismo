@@ -561,6 +561,54 @@ export default function Boletins() {
   }
 
   // Linha das tentativas numeradas: "1ª: 5.20 · 2ª: 5.45 · 3ª: X · 4ª: 5.51"
+  // Detecta se a prova e salto em altura (formato de alturas O/X, diferente
+  // do arremesso/lancamento que usa marcas nas tentativas).
+  function ehSaltoAltura(prova) {
+    const subtipo = String(prova?.subtipo || "").toLowerCase();
+    const nome = String(prova?.nome || "").toLowerCase();
+    return subtipo.includes("salto_altura") || nome.includes("salto em altura");
+  }
+
+  // Monta a linha de alturas do salto em altura: "1,15: O · 1,20: XO · 1,25: XXX"
+  // Aceita os dois formatos de dados usados no sistema:
+  //  - objeto: { "1.15": ["O","X",""], "1.20": [...] }  (sumula digital)
+  //  - array:  [ { altura: "1.15", valor: "O" }, ... ]  (sumula de lancamento)
+  function alturasCompactas(r) {
+    const dados = r?.alturas;
+    if (!dados) return "";
+
+    const porAltura = {}; // { "1.15": "O", "1.20": "XO", ... }
+
+    if (Array.isArray(dados)) {
+      // Formato array: cada item tem { altura, valor }
+      dados.forEach((item) => {
+        const alt = String(item?.altura ?? "").trim();
+        const val = String(item?.valor ?? "").trim().toUpperCase();
+        if (!alt || !val) return;
+        porAltura[alt] = (porAltura[alt] || "") + val;
+      });
+    } else if (typeof dados === "object") {
+      // Formato objeto: { "1.15": ["O","X",""] }
+      Object.keys(dados).forEach((alt) => {
+        const tentativas = Array.isArray(dados[alt]) ? dados[alt] : [];
+        const seq = tentativas
+          .map((t) => String(t ?? "").trim().toUpperCase())
+          .filter((t) => t !== "")
+          .join("");
+        if (seq) porAltura[alt.trim()] = seq;
+      });
+    }
+
+    const alturas = Object.keys(porAltura);
+    if (!alturas.length) return "";
+
+    // Ordena por altura crescente e formata (ponto -> virgula)
+    alturas.sort((a, b) => parseFloat(a) - parseFloat(b));
+    return alturas
+      .map((alt) => `${String(alt).replace(".", ",")}: ${porAltura[alt]}`)
+      .join("  ·  ");
+  }
+
   function tentativasCompactas(r) {
     const brutas = [r.tentativa1, r.tentativa2, r.tentativa3, r.tentativa4, r.tentativa5, r.tentativa6];
 
@@ -863,7 +911,7 @@ export default function Boletins() {
       const conteudoSeries = seriesDaProva.map((serie) => (
         '<div class="serie-bloco">' +
           '<h4>Serie ' + serie.numeroSerie + '</h4>' +
-          gerarTabelaResultados(serie.resultados, serieTemResultadoReal(serie), ehProvaDeCampo(grupo.prova)) +
+          gerarTabelaResultados(serie.resultados, serieTemResultadoReal(serie), ehProvaDeCampo(grupo.prova), ehSaltoAltura(grupo.prova)) +
         '</div>'
       )).join('');
       const classificadosProximaFase = obterClassificadosProximaFase(resultadosOrdenados);
@@ -875,7 +923,7 @@ export default function Boletins() {
           '</div>'
         : '';
       const conteudo = final
-        ? '<h4>Classificacao geral</h4>' + gerarTabelaResultados(resultadosOrdenados, true, ehProvaDeCampo(grupo.prova))
+        ? '<h4>Classificacao geral</h4>' + gerarTabelaResultados(resultadosOrdenados, true, ehProvaDeCampo(grupo.prova), ehSaltoAltura(grupo.prova))
         : conteudoSeries + conteudoClassificados;
 
       return '<div class="secao"><h3>' + escaparHtml(titulo) + '</h3>' + conteudo + '</div>';
@@ -909,7 +957,7 @@ export default function Boletins() {
     setMensagem('Word com resultados gerado sem capa e com numeracao de paginas.');
   }
 
-  function gerarTabelaResultados(resultadosTabela, mostrarColocacao = true, provaDeCampo = false) {
+  function gerarTabelaResultados(resultadosTabela, mostrarColocacao = true, provaDeCampo = false, ehSaltoAlturaProva = false) {
     if (!resultadosTabela.length) {
       return '<div class="resultado-nao-publicado">Resultado ainda nao publicado.</div>';
     }
@@ -937,7 +985,7 @@ export default function Boletins() {
                 : "-";
               const classificacao = mostrarColocacao && r.qualificacao ? ` <strong>${escaparHtml(r.qualificacao)}</strong>` : "";
               const nomeCol = ehEquipe ? htmlListaAtletasEquipe(r) : escaparHtml(atleta?.nome || "");
-              const tentativas = provaDeCampo ? tentativasCompactas(r) : "";
+              const tentativas = ehSaltoAlturaProva ? alturasCompactas(r) : (provaDeCampo ? tentativasCompactas(r) : "");
               const nomeComTentativas = tentativas
                 ? nomeCol + '<div class="linha-tentativas-word">' + escaparHtml(tentativas) + '</div>'
                 : nomeCol;
@@ -3095,7 +3143,7 @@ export default function Boletins() {
                       resultados={resultadosOrdenados}
                       resultadoFinal={resultadoFinal}
                       provaDeCampo={ehProvaDeCampo(grupo.prova)}
-                      formatarTentativas={tentativasCompactas}
+                      formatarTentativas={ehSaltoAltura(grupo.prova) ? alturasCompactas : tentativasCompactas}
                     />
                   </>
                 ) : (
@@ -3115,7 +3163,7 @@ export default function Boletins() {
                           resultadoFinal={resultadoFinal}
                           mostrarColocacao={serieTemResultadoReal(serie)}
                           provaDeCampo={ehProvaDeCampo(grupo.prova)}
-                          formatarTentativas={tentativasCompactas}
+                          formatarTentativas={ehSaltoAltura(grupo.prova) ? alturasCompactas : tentativasCompactas}
                         />
                       </div>
                     ))}
