@@ -1350,8 +1350,8 @@ export default function ArbitroSumula() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f8fafc", padding: 24 }}>
-      <div style={{ maxWidth: 1220, margin: "0 auto" }}>
+    <div style={{ minHeight: "100vh", background: "#f8fafc", padding: "16px 12px", overflowX: "hidden" }}>
+      <div style={{ maxWidth: 1220, margin: "0 auto", width: "100%" }}>
         <header
           style={{
             position: "sticky",
@@ -1362,6 +1362,9 @@ export default function ArbitroSumula() {
             padding: "20px 24px",
             boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
             marginBottom: 24,
+            width: "100%",
+            maxWidth: "100%",
+            boxSizing: "border-box",
           }}
         >
           <div
@@ -1488,6 +1491,8 @@ export default function ArbitroSumula() {
                   background: "#ffffff",
                   padding: 16,
                   boxShadow: "0 10px 30px rgba(15, 23, 42, 0.06)",
+                  maxWidth: "100%",
+                  overflow: "hidden",
                 }}
               >
                 <h3 style={{ margin: "0 0 12px", fontSize: 16, color: "#0f172a" }}>
@@ -1507,7 +1512,7 @@ export default function ArbitroSumula() {
                   )}
                 </div>
 
-                <div style={{ overflowX: "auto" }}>
+                <div style={{ overflowX: "auto", width: "100%", maxWidth: "100%", WebkitOverflowScrolling: "touch" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", minWidth: ehSaltoAltura ? 1800 : 1220 }}>
                     <thead>
                       <tr style={{ background: "#e2e8f0", color: "#0f172a" }}>
