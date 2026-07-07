@@ -156,22 +156,48 @@ export function obterRankingParaProximaFase(series = [], provaAtual, opcoes = {}
 
   const todos = [];
 
+  // Deteccao robusta do tipo de prova (subtipo pode variar: campo_tentativas,
+  // salto, arremesso, lancamento, ou tipo === "campo").
+  const tipoProva = String(provaAtual?.tipo || "").toLowerCase();
+  const subtipoProva = String(provaAtual?.subtipo || "").toLowerCase();
+  const nomeProva = String(provaAtual?.nome || "").toLowerCase();
+  const ehSaltoAltura = subtipoProva.includes("salto_altura") || nomeProva.includes("salto em altura");
+  const ehCampoTentativas =
+    !ehSaltoAltura &&
+    (tipoProva === "campo" ||
+      subtipoProva.includes("campo") ||
+      subtipoProva.includes("arremesso") ||
+      subtipoProva.includes("lancamento") ||
+      subtipoProva.includes("lançamento") ||
+      subtipoProva.includes("salto") ||
+      nomeProva.includes("arremesso") ||
+      nomeProva.includes("lancamento") ||
+      nomeProva.includes("lançamento") ||
+      nomeProva.includes("salto em distancia") ||
+      nomeProva.includes("salto em distância") ||
+      nomeProva.includes("salto triplo"));
+
   (series || []).forEach((serie) => {
     (serie.raias || []).forEach((r) => {
       if (!r.inscricoes?.id || !r.inscricoes?.atleta_id) return;
 
       let valor;
 
-      if (provaAtual?.subtipo === "campo_tentativas") {
+      if (ehCampoTentativas) {
         valor = marcaParaNumero(r.melhor_marca || (melhorDasTentativasFn ? melhorDasTentativasFn(r) : ""));
-      } else if (provaAtual?.subtipo === "salto_altura") {
+        // No campo, se tem colocacao preenchida, entra mesmo sem marca legivel.
+        const colBruta = String(r.colocacao ?? r.colocacao_final ?? r.classificacao ?? "").replace(/[^\d]/g, "");
+        const temColocacao = parseInt(colBruta, 10) > 0;
+        if ((valor === null || valor === 999999) && !temColocacao) return;
+        if (valor === null || valor === 999999) valor = 0; // placeholder; ordena pela colocacao
+      } else if (ehSaltoAltura) {
         valor = marcaParaNumero(r.resultado_final || (calcularResultadoAlturaFn ? calcularResultadoAlturaFn(r) : ""));
+        if (valor === null || valor === 999999) return;
       } else {
         if (r.status !== "OK") return;
         valor = r.tempo ? tempoParaNumero(r.tempo) : null;
+        if (valor === null || valor === 999999) return;
       }
-
-      if (valor === null || valor === 999999) return;
 
       todos.push({
         ...r,
@@ -185,7 +211,26 @@ export function obterRankingParaProximaFase(series = [], provaAtual, opcoes = {}
     return todos.sort((a, b) => a.valorClassificacao - b.valorClassificacao);
   }
 
-  return todos.sort((a, b) => b.valorClassificacao - a.valorClassificacao);
+  // Le a colocacao removendo sufixos como "º" (ex.: "10º" -> 10)
+  const colocacaoNumero = (r) => {
+    const bruta = r?.colocacao ?? r?.colocacao_final ?? r?.classificacao ?? "";
+    const limpo = String(bruta).replace(/[^\d]/g, "");
+    const n = parseInt(limpo, 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+
+  // CAMPO: respeita a COLOCACAO ja preenchida na sumula (col.). Pega quem esta
+  // em 1o, 2o, 3o... exatamente como aparece na tela. So cai para a marca se
+  // a colocacao nao estiver definida (empate/sem colocacao).
+  return todos.sort((a, b) => {
+    const colA = colocacaoNumero(a);
+    const colB = colocacaoNumero(b);
+
+    if (colA && colB) return colA - colB; // 1o antes de 2o...
+    if (colA && !colB) return -1;
+    if (!colA && colB) return 1;
+    return b.valorClassificacao - a.valorClassificacao;
+  });
 }
 
 export function selecionarClassificados(ranking = [], regra, provaAtual) {
