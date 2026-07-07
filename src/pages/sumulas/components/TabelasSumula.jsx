@@ -1,5 +1,62 @@
 import { getNumeroAtleta } from "../../../utils/getNumeroAtleta";
 import { marcaParaNumero, tempoParaNumero } from "../utils/formatadores";
+import { useState } from "react";
+
+// Celula do numero do atleta que vira editavel ao clicar. Salva ao sair (blur)
+// ou Enter. Se onEditarNumero nao for passado, mostra so o texto (ex.: impressao).
+function CelulaNumeroEditavel({ atleta, onEditarNumero }) {
+  const [editando, setEditando] = useState(false);
+  const [valor, setValor] = useState("");
+
+  const numeroAtual = getNumeroAtleta(atleta);
+  const atletaId = atleta?.id;
+
+  if (!onEditarNumero || !atletaId) {
+    return <td>{numeroAtual}</td>;
+  }
+
+  function iniciar() {
+    setValor(numeroAtual === "-" ? "" : numeroAtual);
+    setEditando(true);
+  }
+
+  function confirmar() {
+    setEditando(false);
+    const novo = String(valor).trim();
+    if (novo !== "" && novo !== (numeroAtual === "-" ? "" : numeroAtual)) {
+      onEditarNumero(atletaId, novo);
+    }
+  }
+
+  if (editando) {
+    return (
+      <td>
+        <input
+          autoFocus
+          value={valor}
+          onChange={(e) => setValor(e.target.value)}
+          onBlur={confirmar}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") confirmar();
+            if (e.key === "Escape") setEditando(false);
+          }}
+          style={{ width: 56, padding: "4px 6px", borderRadius: 6, border: "1px solid #2563eb", textAlign: "center" }}
+        />
+      </td>
+    );
+  }
+
+  return (
+    <td
+      onClick={iniciar}
+      title="Clique para corrigir o número"
+      style={{ cursor: "pointer" }}
+    >
+      {numeroAtual}
+      <span className="nao-imprimir" style={{ color: "#94a3b8", fontSize: 10, marginLeft: 4 }}>✎</span>
+    </td>
+  );
+}
 
 export function TabelaRevezamento({ serie, mudarCampo, inputTabela, titulares = 4 }) {
   function chaveEscola(raia) {
@@ -139,7 +196,7 @@ export function TabelaRevezamento({ serie, mudarCampo, inputTabela, titulares = 
   );
 }
 
-export function TabelaPista({ serie, mudarCampo, inputTabela, formatarNascimento, fase, modoImpressao = false, onRemover }) {
+export function TabelaPista({ serie, mudarCampo, inputTabela, formatarNascimento, fase, modoImpressao = false, onRemover, onEditarNumero }) {
   // Coluna "Q" nunca aparece na impressao da sumula (o arbitro preenche em
   // branco; qualificacao so e definida depois, ao gerar a proxima fase).
   // Na tela de edicao, aparece apenas em fase classificatoria.
@@ -184,7 +241,7 @@ export function TabelaPista({ serie, mudarCampo, inputTabela, formatarNascimento
             return (
               <tr key={r.id}>
                 <td>{r.raia}</td>
-                <td>{getNumeroAtleta(atleta)}</td>
+                <CelulaNumeroEditavel atleta={atleta} onEditarNumero={onEditarNumero} />
                 <td>{atleta?.nome}</td>
                 <td>{atleta?.escolas?.nome}</td>
                 <td>{formatarNascimento(atleta?.data_nascimento)}</td>
@@ -264,6 +321,7 @@ export function TabelaCampo({
   fase,
   modoImpressao = false,
   onRemover,
+  onEditarNumero,
 }) {
   const faseNormalizada = String(fase || "QUALIFICACAO").toUpperCase();
   const mostrarColunaQ = !modoImpressao && !["FINAL", "FINAL POR TEMPO"].includes(faseNormalizada);
@@ -319,7 +377,7 @@ export function TabelaCampo({
 
             return (
               <tr key={r.id}>
-                <td>{getNumeroAtleta(atleta)}</td>
+                <CelulaNumeroEditavel atleta={atleta} onEditarNumero={onEditarNumero} />
                 <td>{atleta?.nome}</td>
                 <td>{atleta?.escolas?.nome}</td>
                 <td>{formatarNascimento(atleta?.data_nascimento)}</td>

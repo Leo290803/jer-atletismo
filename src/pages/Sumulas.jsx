@@ -612,6 +612,7 @@ function LancamentoOficialTela({
   melhorDasTentativas,
   formatarNascimento,
   onRemoverAtleta,
+  onEditarNumero,
 }) {
   const subprovasCombinada = [...(combinadaInfo?.subprovas || [])].sort(
     (a, b) => (a?.ordem || 0) - (b?.ordem || 0)
@@ -846,6 +847,7 @@ function LancamentoOficialTela({
                   formatarNascimento={formatarNascimento}
                   fase={provaAtual?.fase}
                   onRemover={onRemoverAtleta}
+                  onEditarNumero={onEditarNumero}
                 />
               )}
 
@@ -866,6 +868,7 @@ function LancamentoOficialTela({
                   formatarNascimento={formatarNascimento}
                   fase={provaAtual?.fase}
                   onRemover={onRemoverAtleta}
+                  onEditarNumero={onEditarNumero}
                 />
               )}
             </div>
@@ -1558,6 +1561,7 @@ export default function Sumulas() {
             melhorDasTentativas={melhorDasTentativas}
             formatarNascimento={formatarNascimento}
             onRemoverAtleta={inscritos.removerAtletaDaSerie}
+            onEditarNumero={inscritos.atualizarNumeroAtleta}
           />
         </div>
 

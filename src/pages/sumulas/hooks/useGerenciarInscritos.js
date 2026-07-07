@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   adicionarAtletaNaProva as adicionarService,
+  atualizarNumeroAtleta as atualizarNumeroAtletaService,
   buscarAtletas as buscarService,
   buscarEscolas as buscarEscolasService,
   carregarInscricoesDaProva as carregarService,
@@ -231,6 +232,19 @@ export function useGerenciarInscritos({
     return true;
   }
 
+  async function atualizarNumeroAtleta(atletaId, novoNumero) {
+    if (!atletaId) return;
+
+    const { error } = await atualizarNumeroAtletaService(atletaId, novoNumero);
+    if (error) {
+      setMensagem?.("Erro ao atualizar numero: " + error.message);
+      return;
+    }
+
+    await carregarSeries?.(provaSelecionada);
+    setMensagem?.("Numero do atleta atualizado.");
+  }
+
   async function buscarEscolas(termo = "") {
     const { data, error } = await buscarEscolasService(termo);
     if (error) {
@@ -311,6 +325,7 @@ export function useGerenciarInscritos({
     escolasEncontradas,
     setEscolasEncontradas,
     buscarEscolas,
+    atualizarNumeroAtleta,
     acrescentarAtletaNaSerie,
     removerAtletaDaSerie,
   };

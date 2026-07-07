@@ -60,6 +60,31 @@ export async function buscarEscolas(termo = "") {
 
 // Cria (ou reaproveita) um atleta e o adiciona diretamente numa serie existente,
 // na proxima raia/ordem livre, sem regerar as series.
+// Atualiza o numero (de competicao) do atleta na tabela atletas.
+// Vale para todas as provas, pois o numero e um dado do proprio atleta.
+export async function atualizarNumeroAtleta(atletaId, novoNumero) {
+  const numero = String(novoNumero ?? "").trim();
+  // Tenta gravar em numero_competicao (campo principal exibido) e numero.
+  const { error: erroComp } = await supabase
+    .from("atletas")
+    .update({ numero_competicao: numero || null })
+    .eq("id", atletaId);
+
+  // Alguns bancos podem nao ter numero_competicao; tenta numero como fallback.
+  if (erroComp) {
+    const { error: erroNum } = await supabase
+      .from("atletas")
+      .update({ numero: numero || null })
+      .eq("id", atletaId);
+    if (erroNum) return { error: erroNum };
+    return { error: null };
+  }
+
+  // Garante que numero tambem fique alinhado (quando existir a coluna).
+  await supabase.from("atletas").update({ numero: numero || null }).eq("id", atletaId);
+  return { error: null };
+}
+
 export async function criarAtletaEAdicionarNaSerie({ dadosAtleta, provaAtual, serie }) {
   const nome = String(dadosAtleta?.nome || "").trim().toUpperCase();
   const numero = String(dadosAtleta?.numero || "").trim();
