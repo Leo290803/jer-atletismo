@@ -26,14 +26,24 @@ function colunaNaoExiste(error, coluna) {
 }
 
 function tempoParaNumero(tempo) {
-  if (!tempo) return 999999;
-  const limpo = String(tempo).replace(",", ".").trim();
-  if (limpo.includes(":")) {
-    const partes = limpo.split(":").map(Number);
-    if (partes.length === 2) return partes[0] * 60 + partes[1];
-    if (partes.length === 3) return partes[0] * 3600 + partes[1] * 60 + partes[2];
+  if (tempo === null || tempo === undefined) return 999999;
+  let t = String(tempo).trim();
+  if (!t) return 999999;
+
+  // Aceita formatos do atletismo BR: 2.44"30, 2:44.30, 44"30, 12.34, 12,34, 58
+  t = t.replace(/\s/g, "");
+  const tinhaDoisPontos = t.includes(":");
+  const tinhaAspas = t.includes('"');
+  const grupos = t.split(/[.,:"']+/).filter((x) => x !== "");
+  const nums = grupos.map((x) => Number(x)).filter((x) => !Number.isNaN(x));
+
+  if (nums.length === 0) return 999999;
+  if (nums.length === 3) return nums[0] * 60 + nums[1] + nums[2] / 100;
+  if (nums.length === 2) {
+    if (tinhaDoisPontos && !tinhaAspas) return nums[0] * 60 + nums[1];
+    return nums[0] + nums[1] / 100;
   }
-  return Number(limpo) || 999999;
+  return nums[0] || 999999;
 }
 
 function marcaParaNumero(valor) {
