@@ -176,6 +176,24 @@ function ordenarResultadosParaClassificacao(resultados) {
     });
 }
 
+const ALTURAS_SALTO = [
+  "1.15", "1.20", "1.25", "1.30", "1.35", "1.40",
+  "1.45", "1.50", "1.55", "1.60", "1.65", "1.70",
+  "1.75", "1.80",
+];
+
+// Resultado do salto em altura: a maior altura em que houve pelo menos um "O"
+// (valido). alturasObj = { "1.15": ["O","X",""], ... }
+function calcularResultadoSaltoAltura(alturasObj) {
+  let melhor = "";
+  ALTURAS_SALTO.forEach((altura) => {
+    const tentativas = (alturasObj && alturasObj[altura]) || [];
+    const passou = tentativas.some((t) => String(t || "").toUpperCase() === "O");
+    if (passou) melhor = altura;
+  });
+  return melhor;
+}
+
 function normalizarResultado(r) {
   return {
     ...r,
@@ -183,6 +201,12 @@ function normalizarResultado(r) {
     tentativas: Array.isArray(r.tentativas)
       ? r.tentativas
       : r.tentativas || ["", "", "", "", "", ""],
+    alturas_obj:
+      r.alturas_obj && typeof r.alturas_obj === "object" && !Array.isArray(r.alturas_obj)
+        ? r.alturas_obj
+        : (r.alturas && typeof r.alturas === "object" && !Array.isArray(r.alturas))
+        ? r.alturas
+        : {},
   };
 }
 
@@ -217,9 +241,21 @@ export default function ArbitroSumula() {
     });
   }, [availableSumulas, nomeArbitro]);
 
+  const ehSaltoAltura = useMemo(() => {
+    const subtipo = String(sumula?.prova?.subtipo || "").toLowerCase();
+    const nome = String(sumula?.prova?.nome || "").toLowerCase();
+    return subtipo.includes("salto_altura") || subtipo === "salto_altura" || nome.includes("salto em altura");
+  }, [sumula]);
+
   const ehProvaCampo = useMemo(() => {
     const tipo = String(sumula?.prova?.tipo || "").toLowerCase();
     const subtipo = String(sumula?.prova?.subtipo || "").toLowerCase();
+    const nome = String(sumula?.prova?.nome || "").toLowerCase();
+
+    // Salto em altura tem layout proprio (colunas de altura), nao entra aqui.
+    if (subtipo.includes("salto_altura") || nome.includes("salto em altura")) {
+      return false;
+    }
 
     return (
       tipo === "campo" ||
@@ -342,12 +378,14 @@ export default function ArbitroSumula() {
           tentativa4: ehProvaCampo ? (r.tentativas?.[3] || null) : null,
           tentativa5: ehProvaCampo ? (r.tentativas?.[4] || null) : null,
           tentativa6: ehProvaCampo ? (r.tentativas?.[5] || null) : null,
-          melhor_marca: ehProvaCampo ? melhorMarcaCampo : null,
+          melhor_marca: ehSaltoAltura ? (calcularResultadoSaltoAltura(r.alturas_obj) || null) : (ehProvaCampo ? melhorMarcaCampo : null),
           classificacao_parcial: classificacaoParcial[r.id] || null,
           classificacao_parcial_final: ehProvaCampo ? classificacaoParcial[r.id] || null : null,
-          finalista: ehProvaCampo,
-          alturas: [],
-          resultado_final: ehProvaCampo ? melhorMarcaCampo : r.tempo || null,
+          finalista: ehProvaCampo || ehSaltoAltura,
+          alturas: ehSaltoAltura ? r.alturas_obj || {} : [],
+          resultado_final: ehSaltoAltura
+            ? (calcularResultadoSaltoAltura(r.alturas_obj) || null)
+            : (ehProvaCampo ? melhorMarcaCampo : r.tempo || null),
           publicado: true,
           qualificacao: r.resultado || null,
         };
@@ -397,7 +435,7 @@ export default function ArbitroSumula() {
         throw new Error("Erro ao inserir resultados da pista: " + error.message);
       }
     }
-  }, [ehProvaCampo, resultados, sumula]);
+  }, [ehProvaCampo, ehSaltoAltura, resultados, sumula]);
 
   const executarRpcComFallback = useCallback(async (nomeRpc, parametros, fallbackFn) => {
     const { error } = await supabase.rpc(nomeRpc, parametros);
@@ -612,6 +650,19 @@ export default function ArbitroSumula() {
           const tentativas = [...(r.tentativas || ["", "", "", "", "", ""])];
           tentativas[index] = valor;
           return { ...r, tentativas };
+        }
+        // Edicao de salto em altura: campo = "altura.<altura>.<indiceTentativa>"
+        if (campo.startsWith("altura.")) {
+          const partes = campo.split(".");
+          // altura pode ter ponto (1.15), entao junta o meio e pega o ultimo como indice
+          const idxTentativa = Number(partes[partes.length - 1]);
+          const nomeAltura = partes.slice(1, partes.length - 1).join(".");
+          const alturasObj = { ...(r.alturas_obj || {}) };
+          const tentativasAltura = [...(alturasObj[nomeAltura] || ["", "", ""])];
+          tentativasAltura[idxTentativa] = String(valor || "").toUpperCase().slice(-1);
+          alturasObj[nomeAltura] = tentativasAltura;
+          const resultadoFinal = calcularResultadoSaltoAltura(alturasObj);
+          return { ...r, alturas_obj: alturasObj, marca: resultadoFinal, resultado_final: resultadoFinal };
         }
         return { ...r, [campo]: valor };
       })
@@ -987,7 +1038,7 @@ export default function ArbitroSumula() {
 
     if (!salvo) return;
 
-    const conferencia = construirConferenciaResultado(itensSerie, ehProvaCampo);
+    const conferencia = construirConferenciaResultado(itensSerie, ehProvaCampo || ehSaltoAltura);
     setClassificacaoConferencia(conferencia.ordenados);
     setSerieEmConferencia(serieNumero);
     setConferenciaAberta(true);
@@ -1011,7 +1062,7 @@ export default function ArbitroSumula() {
   function confirmarClassificacao() {
     if (!serieEmConferencia) return;
     const itensSerie = obterItensDaSerie(serieEmConferencia);
-    const conferencia = construirConferenciaResultado(itensSerie, ehProvaCampo);
+    const conferencia = construirConferenciaResultado(itensSerie, ehProvaCampo || ehSaltoAltura);
     setClassificacaoConferencia(conferencia.ordenados);
     setSeriesConfirmadas((old) => ({ ...old, [serieEmConferencia]: true }));
     setStatusFluxo("classificacao_confirmada");
@@ -1049,7 +1100,7 @@ export default function ArbitroSumula() {
 
     if (!confirmar) return;
 
-    const conferenciaFinal = construirConferenciaResultado(itensSerie, ehProvaCampo);
+    const conferenciaFinal = construirConferenciaResultado(itensSerie, ehProvaCampo || ehSaltoAltura);
     const listaFinal = itensSerie.map((r) => ({
       ...r,
       classificacao: conferenciaFinal.mapaColocacao[r.id] || null,
@@ -1456,7 +1507,7 @@ export default function ArbitroSumula() {
                 </div>
 
                 <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1220 }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: ehSaltoAltura ? 1800 : 1220 }}>
                     <thead>
                       <tr style={{ background: "#e2e8f0", color: "#0f172a" }}>
                         {!ehProvaCampo && (
@@ -1466,7 +1517,7 @@ export default function ArbitroSumula() {
                         <th style={{ textAlign: "left", padding: "10px 8px", fontSize: 12 }}>ATLETA</th>
                         <th style={{ textAlign: "left", padding: "10px 8px", fontSize: 12 }}>ESCOLA</th>
                         <th style={{ textAlign: "left", padding: "10px 8px", fontSize: 12 }}>NASCIMENTO</th>
-                        {!ehProvaCampo && (
+                        {!ehProvaCampo && !ehSaltoAltura && (
                           <th style={{ textAlign: "left", padding: "10px 8px", fontSize: 12 }}>TEMPO</th>
                         )}
                         {ehProvaCampo && [1, 2, 3].map((tentativa) => (
@@ -1494,9 +1545,17 @@ export default function ArbitroSumula() {
                         {ehProvaCampo && (
                           <th style={{ textAlign: "left", padding: "10px 8px", fontSize: 12 }}>RESULTADO FINAL</th>
                         )}
+                        {ehSaltoAltura && ALTURAS_SALTO.map((altura) => (
+                          <th key={`th-altura-${altura}`} colSpan={3} style={{ textAlign: "center", padding: "8px 4px", fontSize: 11, background: "#dbeafe" }}>
+                            {altura}
+                          </th>
+                        ))}
+                        {ehSaltoAltura && (
+                          <th style={{ textAlign: "left", padding: "10px 8px", fontSize: 12 }}>RESULT.</th>
+                        )}
                         <th style={{ textAlign: "left", padding: "10px 8px", fontSize: 12 }}>COLOCAÇÃO</th>
                         <th style={{ textAlign: "left", padding: "10px 8px", fontSize: 12 }}>Q</th>
-                        {!ehProvaCampo && (
+                        {!ehProvaCampo && !ehSaltoAltura && (
                           <th style={{ textAlign: "left", padding: "10px 8px", fontSize: 12 }}>STATUS</th>
                         )}
                       </tr>
@@ -1515,7 +1574,7 @@ export default function ArbitroSumula() {
                             <td style={{ padding: 8, fontSize: 12, fontWeight: 700 }}>{r.atleta?.nome || "-"}</td>
                             <td style={{ padding: 8, fontSize: 12 }}>{r.atleta?.escolas?.nome || "-"}</td>
                             <td style={{ padding: 8, fontSize: 12 }}>{formatarDataNascimento(r.atleta?.data_nascimento)}</td>
-                            {!ehProvaCampo && (
+                            {!ehProvaCampo && !ehSaltoAltura && (
                               <td style={{ padding: 8 }}>
                                 <input
                                   value={r.tempo || ""}
@@ -1587,6 +1646,28 @@ export default function ArbitroSumula() {
                                 />
                               </td>
                             )}
+                            {ehSaltoAltura && ALTURAS_SALTO.flatMap((altura) =>
+                              [0, 1, 2].map((idx) => {
+                                const tentativasAltura = (r.alturas_obj || {})[altura] || ["", "", ""];
+                                return (
+                                  <td key={`${r.id}-alt-${altura}-${idx}`} style={{ padding: 3 }}>
+                                    <input
+                                      value={tentativasAltura[idx] || ""}
+                                      disabled={!editable}
+                                      maxLength={1}
+                                      onChange={(e) => atualizarResultado(r.id, `altura.${altura}.${idx}`, e.target.value)}
+                                      placeholder="-"
+                                      style={{ width: 24, textAlign: "center", padding: "6px 2px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 12 }}
+                                    />
+                                  </td>
+                                );
+                              })
+                            )}
+                            {ehSaltoAltura && (
+                              <td style={{ padding: 8, fontSize: 13, fontWeight: 700, color: "#0f172a" }}>
+                                {calcularResultadoSaltoAltura(r.alturas_obj) || "-"}
+                              </td>
+                            )}
                             <td style={{ padding: 8 }}>
                               <input
                                 value={r.classificacao || ""}
@@ -1604,7 +1685,7 @@ export default function ArbitroSumula() {
                                 style={{ width: 70, padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 12 }}
                               />
                             </td>
-                            {!ehProvaCampo && (
+                            {!ehProvaCampo && !ehSaltoAltura && (
                               <td style={{ padding: 8 }}>
                                 <select
                                   value={r.observacao || "OK"}
