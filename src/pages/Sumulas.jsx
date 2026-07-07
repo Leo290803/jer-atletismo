@@ -685,22 +685,37 @@ function LancamentoOficialTela({
         if (ehCombinada) {
           return (
             <div key={serie.id + "-combinada-lancamento"} style={{ display: "grid", gap: 16 }}>
-              {subprovasCombinada.map((subprova) => (
+              {subprovasCombinada.map((subprova) => {
+                const chaveSub = "sub" + subprova.ordem;
+                const dataAtualSub = datasCombinada[chaveSub] || datasCombinada["dia" + subprova.dia] || "";
+                return (
                 <div key={serie.id + "-subprova-lancamento-" + subprova.ordem}>
-                  <h4 style={{ margin: "10px 0 8px", color: "#0f2744" }}>
-                    {subprova.nome} {subprova.implemento ? "- " + subprova.implemento : ""} • Dia {subprova.dia} • {datasCombinada["dia" + subprova.dia] || "Data a definir"}
-                  </h4>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", margin: "10px 0 8px" }}>
+                    <h4 style={{ margin: 0, color: "#0f2744" }}>
+                      {subprova.nome} {subprova.implemento ? "- " + subprova.implemento : ""} • Dia {subprova.dia}
+                    </h4>
+                    <label className="nao-imprimir" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#475569" }}>
+                      Data:
+                      <input
+                        type="date"
+                        value={dataAtualSub}
+                        onChange={(e) => atualizarDataCombinada(chaveSub, e.target.value)}
+                        style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid #cbd5e1" }}
+                      />
+                    </label>
+                  </div>
                   <TabelaCombinadaProva
                     serie={serie}
                     subprova={subprova}
                     subprovas={subprovasCombinada}
-                    dataSubprova={datasCombinada["dia" + subprova.dia]}
+                    dataSubprova={dataAtualSub}
                     mudarCampo={mudarCampo}
                     inputTabela={inputTabelaLancamento}
                     formatarNascimento={formatarNascimento}
                   />
                 </div>
-              ))}
+                );
+              })}
 
               <div>
                 <h4 style={{ margin: "10px 0 8px", color: "#0f2744" }}>Resultado final da combinada</h4>
@@ -1283,7 +1298,8 @@ export default function Sumulas() {
       const salvo = window.localStorage.getItem(chave);
       if (salvo) {
         const datas = JSON.parse(salvo);
-        setDatasCombinada({ dia1: datas.dia1 || dataProva || "", dia2: datas.dia2 || "" });
+        // Restaura dia1/dia2 e tambem as datas por subprova (sub1, sub2...)
+        setDatasCombinada({ ...datas, dia1: datas.dia1 || dataProva || "", dia2: datas.dia2 || "" });
         return;
       }
     } catch {
