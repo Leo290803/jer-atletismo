@@ -908,7 +908,7 @@ export default function Boletins() {
         <thead>
           <tr>
             <th class="col-pos">Colocacao</th>
-            <th class="col-raia">Raia</th>
+            ${provaDeCampo ? "" : '<th class="col-raia">Raia</th>'}
             <th class="col-num">N&ordm;</th>
             <th class="col-atleta">Atleta / Equipe</th>
             <th class="col-escola">Escola</th>
@@ -934,7 +934,7 @@ export default function Boletins() {
               return `
                 <tr>
                   <td class="col-pos">${colocacao}${classificacao}</td>
-                  <td class="col-raia">${raiaValor}</td>
+                  ${provaDeCampo ? "" : `<td class="col-raia">${raiaValor}</td>`}
                   <td class="col-num">${ehEquipe ? "" : getNumeroAtleta(atleta)}</td>
                   <td class="col-atleta">${nomeComTentativas}</td>
                   <td class="col-escola">${escaparHtml(atleta?.escolas?.nome || "")}</td>
@@ -3289,7 +3289,7 @@ function TabelaResultados({ resultados, resultadoFinal, mostrarColocacao = true,
       <thead>
         <tr>
           <th>Colocação</th>
-          <th>Raia</th>
+          {!provaDeCampo && <th>Raia</th>}
           <th>N&ordm;</th>
           <th>Atleta / Equipe</th>
           <th>Escola</th>
@@ -3316,7 +3316,7 @@ function TabelaResultados({ resultados, resultadoFinal, mostrarColocacao = true,
                   "-"
                 )}
               </td>
-              <td style={{ textAlign: "center" }}>{r.raia ?? "-"}</td>
+              {!provaDeCampo && <td style={{ textAlign: "center" }}>{r.raia ?? "-"}</td>}
               <td>{ehEquipe ? "" : getNumeroAtleta(atleta)}</td>
               <td>
                 {ehEquipe ? <ListaAtletasEquipe resultado={r} /> : atleta?.nome}
