@@ -246,9 +246,14 @@ export function useGerenciarInscritos({
     setMensagem?.("Numero do atleta atualizado.");
   }
 
-  async function moverAtletaDeSerie({ raia, serieDestinoId, raiaDestino }) {
+  async function moverAtletaDeSerie({ raia, serieDestinoId, raiaDestino, ehCampo = false }) {
     if (!raia?.id || !serieDestinoId) {
-      window.alert("Escolha a série e a raia de destino.");
+      window.alert("Escolha a série de destino.");
+      return false;
+    }
+    // No campo nao ha raia (usa ordem). Na pista, a raia e obrigatoria.
+    if (!ehCampo && !raiaDestino) {
+      window.alert("Escolha a raia de destino.");
       return false;
     }
 
@@ -258,7 +263,8 @@ export function useGerenciarInscritos({
       raiaId: raia.id,
       inscricaoId: raia.inscricoes?.id,
       serieDestinoId,
-      raiaDestino: Number(raiaDestino),
+      raiaDestino: ehCampo ? null : Number(raiaDestino),
+      ehCampo,
     });
 
     if (error) {

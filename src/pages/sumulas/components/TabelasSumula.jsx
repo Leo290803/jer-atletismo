@@ -59,7 +59,7 @@ function CelulaNumeroEditavel({ atleta, onEditarNumero }) {
 }
 
 // Controle inline para mover o atleta para outra serie + raia da mesma prova.
-function MoverAtletaSerie({ raia, serie, todasSeries = [], totalRaias = 8, onMover }) {
+function MoverAtletaSerie({ raia, serie, todasSeries = [], totalRaias = 8, onMover, ehCampo = false }) {
   const [aberto, setAberto] = useState(false);
   const [serieDestino, setSerieDestino] = useState("");
   const [raiaDestino, setRaiaDestino] = useState("");
@@ -69,7 +69,7 @@ function MoverAtletaSerie({ raia, serie, todasSeries = [], totalRaias = 8, onMov
   // Series diferentes da atual
   const outrasSeries = (todasSeries || []).filter((s) => s.id !== serie.id);
 
-  // Raias livres na serie destino escolhida
+  // Raias livres na serie destino escolhida (so para pista)
   const serieAlvo = outrasSeries.find((s) => s.id === serieDestino);
   const raiasOcupadas = new Set((serieAlvo?.raias || []).map((r) => Number(r.raia)));
   const raiasLivres = [];
@@ -90,6 +90,8 @@ function MoverAtletaSerie({ raia, serie, todasSeries = [], totalRaias = 8, onMov
     );
   }
 
+  const podeConfirmar = serieDestino && (ehCampo || raiaDestino);
+
   return (
     <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
       <select
@@ -108,25 +110,28 @@ function MoverAtletaSerie({ raia, serie, todasSeries = [], totalRaias = 8, onMov
         ))}
       </select>
 
-      <select
-        value={raiaDestino}
-        onChange={(e) => setRaiaDestino(e.target.value)}
-        disabled={!serieDestino}
-        style={{ padding: "5px 6px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 12 }}
-      >
-        <option value="">Raia...</option>
-        {raiasLivres.map((n) => (
-          <option key={n} value={n}>
-            Raia {n}
-          </option>
-        ))}
-      </select>
+      {/* Dropdown de raia so aparece na PISTA. No campo, entra na proxima ordem. */}
+      {!ehCampo && (
+        <select
+          value={raiaDestino}
+          onChange={(e) => setRaiaDestino(e.target.value)}
+          disabled={!serieDestino}
+          style={{ padding: "5px 6px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 12 }}
+        >
+          <option value="">Raia...</option>
+          {raiasLivres.map((n) => (
+            <option key={n} value={n}>
+              Raia {n}
+            </option>
+          ))}
+        </select>
+      )}
 
       <button
         type="button"
-        disabled={!serieDestino || !raiaDestino}
+        disabled={!podeConfirmar}
         onClick={async () => {
-          const ok = await onMover({ raia, serieDestinoId: serieDestino, raiaDestino });
+          const ok = await onMover({ raia, serieDestinoId: serieDestino, raiaDestino, ehCampo });
           if (ok) setAberto(false);
         }}
         style={{ background: "#22c55e", color: "#052e16", border: "none", borderRadius: 6, padding: "5px 8px", fontWeight: "bold", cursor: "pointer", fontSize: 12 }}
@@ -603,6 +608,7 @@ export function TabelaCampo({
                         todasSeries={todasSeries}
                         totalRaias={totalRaias}
                         onMover={onMoverSerie}
+                        ehCampo
                       />
                     </div>
                   </td>

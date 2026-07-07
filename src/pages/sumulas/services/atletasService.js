@@ -46,35 +46,48 @@ export async function removerAtletaDaSerie({ raiaId, inscricaoId }) {
 }
 
 // Move um atleta de uma serie para outra na MESMA prova. Muda o serie_id da
-// raia e a raia (posicao). Apaga o resultado antigo (ligado a serie antiga),
-// pois ele nao faz mais sentido na serie nova. Nao regenera as series.
-export async function moverAtletaDeSerie({ raiaId, inscricaoId, serieDestinoId, raiaDestino }) {
+// raia e a raia/ordem. Apaga o resultado antigo (ligado a serie antiga).
+// Em provas de CAMPO nao ha raia: usa a proxima ordem livre da serie destino.
+export async function moverAtletaDeSerie({ raiaId, inscricaoId, serieDestinoId, raiaDestino, ehCampo = false }) {
   if (!raiaId || !serieDestinoId) {
     return { error: new Error("Dados insuficientes para mover o atleta.") };
   }
 
-  // Verifica se a raia destino ja esta ocupada na serie destino
-  const { data: ocupada, error: erroCheck } = await supabase
+  // Carrega as raias da serie destino para calcular posicao/checar ocupacao
+  const { data: raiasDestino, error: erroDestino } = await supabase
     .from("raias")
-    .select("id")
-    .eq("serie_id", serieDestinoId)
-    .eq("raia", raiaDestino)
-    .maybeSingle();
+    .select("raia,ordem")
+    .eq("serie_id", serieDestinoId);
 
-  if (erroCheck) return { error: erroCheck };
-  if (ocupada) {
-    return { error: new Error(`A raia ${raiaDestino} ja esta ocupada na serie de destino.`) };
+  if (erroDestino) return { error: erroDestino };
+
+  let novaRaia;
+  let novaOrdem;
+
+  if (ehCampo) {
+    // Campo: nao ha raia fisica. Coloca na proxima ORDEM livre.
+    const ordens = (raiasDestino || []).map((r) => Number(r.ordem) || 0);
+    novaOrdem = (ordens.length ? Math.max(...ordens) : 0) + 1;
+    novaRaia = novaOrdem; // mantem raia = ordem por consistencia
+  } else {
+    // Pista: usa a raia escolhida, checando se esta livre.
+    const ocupada = (raiasDestino || []).some((r) => Number(r.raia) === Number(raiaDestino));
+    if (ocupada) {
+      return { error: new Error(`A raia ${raiaDestino} ja esta ocupada na serie de destino.`) };
+    }
+    novaRaia = Number(raiaDestino);
+    const ordens = (raiasDestino || []).map((r) => Number(r.ordem) || 0);
+    novaOrdem = (ordens.length ? Math.max(...ordens) : 0) + 1;
   }
 
-  // Apaga o resultado antigo do atleta (estava ligado a serie de origem)
+  // Apaga o resultado antigo (estava ligado a serie de origem)
   if (inscricaoId) {
     await supabase.from("resultados").delete().eq("inscricao_id", inscricaoId);
   }
 
-  // Move a raia para a serie destino, na raia escolhida
   const { error: erroMover } = await supabase
     .from("raias")
-    .update({ serie_id: serieDestinoId, raia: raiaDestino })
+    .update({ serie_id: serieDestinoId, raia: novaRaia, ordem: novaOrdem })
     .eq("id", raiaId);
 
   if (erroMover) return { error: erroMover };
