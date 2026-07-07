@@ -333,20 +333,28 @@ export function TabelaPista({ serie, mudarCampo, inputTabela, formatarNascimento
                 <td>{formatarNascimento(atleta?.data_nascimento)}</td>
 
                 <td>
-                  <input
-                    value={r.tempo}
-                    onChange={(e) => mudarCampo(serie.id, r.id, "tempo", e.target.value)}
-                    placeholder=""
-                    style={inputTabela}
-                  />
+                  {modoImpressao ? (
+                    <span className="valor-impressao">{r.tempo || ""}</span>
+                  ) : (
+                    <input
+                      value={r.tempo}
+                      onChange={(e) => mudarCampo(serie.id, r.id, "tempo", e.target.value)}
+                      placeholder=""
+                      style={inputTabela}
+                    />
+                  )}
                 </td>
 
                 <td>
-                  <input
-                    value={r.colocacao}
-                    onChange={(e) => mudarCampo(serie.id, r.id, "colocacao", e.target.value)}
-                    style={inputTabela}
-                  />
+                  {modoImpressao ? (
+                    <span className="valor-impressao">{r.colocacao || ""}</span>
+                  ) : (
+                    <input
+                      value={r.colocacao}
+                      onChange={(e) => mudarCampo(serie.id, r.id, "colocacao", e.target.value)}
+                      style={inputTabela}
+                    />
+                  )}
                 </td>
 
                 {mostrarColunaQ && (

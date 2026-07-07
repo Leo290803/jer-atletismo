@@ -61,12 +61,46 @@
   nav,
   aside,
   button,
-  input,
-  select,
-  textarea,
   .card:not(.sumula-print) {
     display: none !important;
     visibility: hidden !important;
+  }
+
+  /* Por padrao, esconde todos os campos de formulario na impressao */
+  input,
+  select,
+  textarea {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Mas os inputs de resultado DENTRO da sumula reaparecem como texto limpo */
+  .sumula-print input {
+    display: inline-block !important;
+    visibility: visible !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
+    text-align: center !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-size: inherit !important;
+    color: #000 !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+  }
+
+  /* Selects (status) e colunas .nao-imprimir dentro da sumula ficam ocultos */
+  .sumula-print select,
+  .sumula-print .nao-imprimir {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  .valor-impressao {
+    font-weight: 600 !important;
   }
 
   #root,
