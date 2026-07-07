@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   classificarCampo,
   melhorDasTentativas,
@@ -138,6 +138,12 @@ export function useSeries({
 }) {
   const hoje = new Date().toISOString().slice(0, 10);
   const [series, setSeries] = useState([]);
+  // Ref sempre com o valor mais recente de series, para o auto-save (onBlur)
+  // nunca salvar uma versao desatualizada do estado.
+  const seriesRef = useRef(series);
+  useEffect(() => {
+    seriesRef.current = series;
+  }, [series]);
   const [dataProva, setDataProva] = useState(hoje);
   const [hasAlteracoesLocais, setHasAlteracoesLocais] = useState(false);
   const [salvandoResultados, setSalvandoResultados] = useState(false);
@@ -424,7 +430,11 @@ export function useSeries({
       const resultados = [];
       const chavesVistas = new Set();
 
-      (series || []).forEach((serie) => {
+      // Usa sempre o estado MAIS RECENTE (ref), evitando que o auto-save
+      // (disparado no onBlur) salve uma versao antiga sem o valor recem-digitado.
+      const seriesAtual = seriesRef.current && seriesRef.current.length ? seriesRef.current : series;
+
+      (seriesAtual || []).forEach((serie) => {
         (serie.raias || []).forEach((r) => {
           if (!r.inscricoes?.id) return;
 
@@ -463,6 +473,14 @@ export function useSeries({
         });
       });
 
+      // PROTECAO CRITICA: nunca prosseguir com lista vazia. O servico faz
+      // "delete tudo + insert"; se a lista estiver vazia, apagaria todos os
+      // resultados sem inserir nada. No auto-save, apenas aborta silenciosamente.
+      if (!resultados.length) {
+        if (!silencioso) setMensagem?.("Nenhum resultado para salvar.");
+        return;
+      }
+
       const { error } = await salvarResultadosService(provaSelecionada, resultados);
       if (error) {
         setMensagem?.(silencioso ? "Falha ao salvar automaticamente. Salve manualmente." : error.message);
@@ -484,10 +502,19 @@ export function useSeries({
   }
 
   // Auto-save silencioso: chamado quando o usuario sai de um campo (onBlur).
-  async function autoSalvarRascunho() {
+  // Auto-save silencioso com debounce: aguarda 800ms apos a ultima edicao
+  // (garante que o estado ja atualizou e agrupa varias edicoes num so save).
+  const autoSaveTimerRef = useRef(null);
+  function autoSalvarRascunho() {
     if (!provaSelecionada) return;
-    if (!hasAlteracoesLocais) return; // so salva se houve mudanca
-    await salvarResultados(false, true);
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+    autoSaveTimerRef.current = setTimeout(() => {
+      // salvarResultados usa seriesRef (estado atual) e aborta se lista vazia,
+      // entao e seguro chamar sem depender de closure de hasAlteracoesLocais.
+      salvarResultados(false, true);
+    }, 800);
   }
 
   return {

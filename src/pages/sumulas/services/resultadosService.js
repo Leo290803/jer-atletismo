@@ -12,12 +12,22 @@ export async function carregarResultadosDigitais(sumulaId) {
 }
 
 export async function salvarResultados(provaId, resultados) {
+  // Proteção: nunca apagar tudo se não há nada para inserir.
+  if (!resultados || resultados.length === 0) {
+    return { error: null, semDados: true };
+  }
+
   const { error: erroDelete } = await supabase.from("resultados").delete().eq("prova_id", provaId);
   if (erroDelete) {
     return { error: erroDelete };
   }
 
-  return supabase.from("resultados").insert(resultados);
+  const { error: erroInsert } = await supabase.from("resultados").insert(resultados);
+  if (erroInsert) {
+    return { error: erroInsert };
+  }
+
+  return { error: null };
 }
 
 export async function apagarResultadosDaProva(provaId) {
