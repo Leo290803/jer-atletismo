@@ -154,7 +154,54 @@ function MoverAtletaSerie({ raia, serie, todasSeries = [], totalRaias = 8, onMov
   );
 }
 
-export function TabelaRevezamento({ serie, mudarCampo, inputTabela, titulares = 4 }) {
+// Move uma equipe de revezamento inteira (todos os atletas do grupo) para outra serie.
+function MoverEquipeRevezamento({ grupo, serieAtualId, todasSeries, onMoverSerie }) {
+  const [aberto, setAberto] = useState(false);
+  const [serieDestino, setSerieDestino] = useState("");
+
+  const outrasSeries = (todasSeries || []).filter((s) => s.id !== serieAtualId);
+
+  async function confirmar() {
+    if (!serieDestino) {
+      window.alert("Escolha a série de destino.");
+      return;
+    }
+    // Move cada atleta da equipe (titulares + reservas) para a serie destino
+    const raias = (grupo.linhas || []).map((l) => l.raia).filter(Boolean);
+    for (const raia of raias) {
+      await onMoverSerie({ raia, serieDestinoId: serieDestino, autoRaia: true, ehCampo: false });
+    }
+    setAberto(false);
+    setSerieDestino("");
+  }
+
+  if (!aberto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAberto(true)}
+        style={{ background: "#2563eb", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 12 }}
+      >
+        Mover equipe
+      </button>
+    );
+  }
+
+  return (
+    <span style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+      <select value={serieDestino} onChange={(e) => setSerieDestino(e.target.value)} style={{ fontSize: 12 }}>
+        <option value="">Série destino...</option>
+        {outrasSeries.map((s) => (
+          <option key={s.id} value={s.id}>Série {s.numero_serie}</option>
+        ))}
+      </select>
+      <button type="button" onClick={confirmar} style={{ background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontSize: 12 }}>OK</button>
+      <button type="button" onClick={() => setAberto(false)} style={{ background: "#94a3b8", color: "#fff", border: "none", borderRadius: 6, padding: "4px 8px", cursor: "pointer", fontSize: 12 }}>X</button>
+    </span>
+  );
+}
+
+export function TabelaRevezamento({ serie, mudarCampo, inputTabela, titulares = 4, onRemover, onEditarNumero, onMoverSerie, onAdicionarAtleta, todasSeries }) {
   function chaveEscola(raia) {
     const atleta = raia.inscricoes?.atletas;
     const escola = atleta?.escolas?.nome || "SEM ESCOLA";
@@ -193,6 +240,7 @@ export function TabelaRevezamento({ serie, mudarCampo, inputTabela, titulares = 
   });
 
   return (
+    <>
     <table width="100%" cellPadding="10">
       <caption style={{ captionSide: "top", textAlign: "left", fontSize: 12, opacity: 0.7, paddingBottom: 6 }}>
         Titulares por equipe: {titulares}. Marque os atletas excedentes como reserva.
@@ -207,6 +255,7 @@ export function TabelaRevezamento({ serie, mudarCampo, inputTabela, titulares = 
           <th>Raia</th>
           <th>Classificação</th>
           <th className="nao-imprimir">Reserva</th>
+          <th className="nao-imprimir">Ações</th>
         </tr>
       </thead>
 
@@ -225,7 +274,9 @@ export function TabelaRevezamento({ serie, mudarCampo, inputTabela, titulares = 
                 key={chaveLinha}
                 style={linha.reserva ? { fontStyle: "italic", opacity: 0.85 } : undefined}
               >
-                <td>{getNumeroAtleta(atleta)}</td>
+                <td>
+                  <CelulaNumeroEditavel atleta={atleta} onEditarNumero={onEditarNumero} />
+                </td>
                 <td>
                   {atleta?.nome || ""}
                   {linha.reserva ? " (reserva)" : ""}
@@ -283,12 +334,44 @@ export function TabelaRevezamento({ serie, mudarCampo, inputTabela, titulares = 
                     onChange={(e) => mudarCampo(serie.id, r.id, "reserva", e.target.checked)}
                   />
                 </td>
+
+                <td className="nao-imprimir" style={{ textAlign: "center", whiteSpace: "nowrap" }}>
+                  {onRemover && (
+                    <button
+                      type="button"
+                      onClick={() => onRemover(r)}
+                      style={{ background: "#dc2626", color: "#fff", border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontSize: 12, marginRight: 4 }}
+                    >
+                      Remover
+                    </button>
+                  )}
+                  {index === 0 && onMoverSerie && (todasSeries?.length || 0) > 1 && (
+                    <MoverEquipeRevezamento
+                      grupo={grupo}
+                      serieAtualId={serie.id}
+                      todasSeries={todasSeries}
+                      onMoverSerie={onMoverSerie}
+                    />
+                  )}
+                </td>
               </tr>
             );
           });
         })}
       </tbody>
     </table>
+    {onAdicionarAtleta && (
+      <div className="nao-imprimir" style={{ marginTop: 8 }}>
+        <button
+          type="button"
+          onClick={() => onAdicionarAtleta(serie)}
+          style={{ background: "#16a34a", color: "#fff", border: "none", borderRadius: 6, padding: "6px 14px", cursor: "pointer", fontSize: 13, fontWeight: 600 }}
+        >
+          + Adicionar atleta
+        </button>
+      </div>
+    )}
+    </>
   );
 }
 

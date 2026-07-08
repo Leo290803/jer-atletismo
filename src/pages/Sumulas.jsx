@@ -615,6 +615,7 @@ function LancamentoOficialTela({
   onEditarNumero,
   onMoverSerie,
   onAdicionarSerie,
+  onAdicionarAtletaRevezamento,
 }) {
   const subprovasCombinada = [...(combinadaInfo?.subprovas || [])].sort(
     (a, b) => (a?.ordem || 0) - (b?.ordem || 0)
@@ -877,6 +878,11 @@ function LancamentoOficialTela({
                   mudarCampo={mudarCampo}
                   inputTabela={inputTabelaLancamento}
                   titulares={titularesDoRevezamento(provaAtual)}
+                  onRemover={onRemoverAtleta}
+                  onEditarNumero={onEditarNumero}
+                  onMoverSerie={onMoverSerie}
+                  onAdicionarAtleta={onAdicionarAtletaRevezamento}
+                  todasSeries={series}
                 />
               )}
 
@@ -1613,6 +1619,11 @@ export default function Sumulas() {
             onEditarNumero={inscritos.atualizarNumeroAtleta}
             onMoverSerie={inscritos.moverAtletaDeSerie}
             onAdicionarSerie={adicionarSerieVazia}
+            onAdicionarAtletaRevezamento={() => {
+              // Rola para o topo, onde ficam a selecao da prova e a gestao
+              // de inscritos (buscar e adicionar atletas).
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
           />
         </div>
 
