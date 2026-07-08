@@ -732,20 +732,24 @@ export default function Boletins() {
       });
   }
 
-  // Remove do boletim de RESULTADOS atletas sem nenhum resultado lancado.
-  // Linhas do boletim de largada (startlist-) sao preservadas, pois nele
-  // e esperado listar atletas sem resultado.
+  function temResultadoLancado(r) {
+    return !!(
+      (r.tempo && String(r.tempo).trim() !== "") ||
+      (r.melhor_marca && String(r.melhor_marca).trim() !== "") ||
+      (r.resultado_final && String(r.resultado_final).trim() !== "") ||
+      r.tentativa1 || r.tentativa2 || r.tentativa3 ||
+      r.tentativa4 || r.tentativa5 || r.tentativa6
+    );
+  }
+
+  // Prova/serie JA CORRIDA (tem algum resultado): mostra so quem tem resultado.
+  // Prova/serie AINDA NAO CORRIDA (nenhum resultado): mostra todos os atletas,
+  // para servir de lista de participantes para os professores.
   function filtrarComResultado(lista) {
-    return (lista || []).filter((r) => {
-      if (String(r.id || "").startsWith("startlist-")) return true;
-      const temAlgo =
-        (r.tempo && String(r.tempo).trim() !== "") ||
-        (r.melhor_marca && String(r.melhor_marca).trim() !== "") ||
-        (r.resultado_final && String(r.resultado_final).trim() !== "") ||
-        r.tentativa1 || r.tentativa2 || r.tentativa3 ||
-        r.tentativa4 || r.tentativa5 || r.tentativa6;
-      return !!temAlgo;
-    });
+    const itens = lista || [];
+    const jaCorreu = itens.some(temResultadoLancado);
+    if (!jaCorreu) return itens;
+    return itens.filter(temResultadoLancado);
   }
 
   function agruparPorSerieBoletim(lista) {
@@ -765,7 +769,14 @@ export default function Boletins() {
       grupos[chave].resultados.push(r);
     });
 
-    return Object.values(grupos).sort((a, b) => {
+    return Object.values(grupos)
+      .map((grupo) => ({
+        ...grupo,
+        // Filtro por serie: serie corrida mostra so quem tem resultado;
+        // serie ainda nao corrida mostra todos (lista de participantes).
+        resultados: filtrarComResultado(grupo.resultados),
+      }))
+      .sort((a, b) => {
       const serieA = Number(a.numeroSerie);
       const serieB = Number(b.numeroSerie);
 
@@ -918,9 +929,7 @@ export default function Boletins() {
     const secoes = grupos.map((grupo) => {
       const fase = grupo.prova?.fase || 'QUALIFICACAO';
       const final = ehFinalDaProva(fase);
-      const resultadosOrdenados = ordenarResultados(filtrarComResultado(grupo.resultados), final);
-      // Prova sem nenhum resultado (ainda nao corrida): nao entra no boletim.
-      if (!resultadosOrdenados.length) return '';
+      const resultadosOrdenados = ordenarResultados(grupo.resultados, final);
       const seriesDaProva = agruparPorSerieBoletim(resultadosOrdenados);
       const titulo = formatarData(grupo.data) + ' - ' +
         (grupo.prova?.nome || '') + ' - ' +
@@ -942,7 +951,7 @@ export default function Boletins() {
           '</div>'
         : '';
       const conteudo = final
-        ? '<h4>Classificacao geral</h4>' + gerarTabelaResultados(resultadosOrdenados, true, ehProvaDeCampo(grupo.prova), ehSaltoAltura(grupo.prova))
+        ? '<h4>Classificacao geral</h4>' + gerarTabelaResultados(filtrarComResultado(resultadosOrdenados), true, ehProvaDeCampo(grupo.prova), ehSaltoAltura(grupo.prova))
         : conteudoSeries + conteudoClassificados;
 
       return '<div class="secao"><h3>' + escaparHtml(titulo) + '</h3>' + conteudo + '</div>';
@@ -3102,9 +3111,7 @@ export default function Boletins() {
           {grupos.map((grupo, index) => {
             const fase = grupo.prova?.fase || "QUALIFICAÇÃO";
             const final = ehFinalDaProva(fase);
-            const resultadosOrdenados = ordenarResultados(filtrarComResultado(grupo.resultados), final);
-            // Prova sem nenhum resultado (ainda nao corrida): nao entra no boletim.
-            if (!resultadosOrdenados.length) return null;
+            const resultadosOrdenados = ordenarResultados(grupo.resultados, final);
             const seriesDaProva = agruparPorSerieBoletim(resultadosOrdenados);
             const classificadosProximaFase = obterClassificadosProximaFase(resultadosOrdenados);
 
@@ -3164,7 +3171,7 @@ export default function Boletins() {
                     <h4>Classificação Geral</h4>
 
                     <TabelaResultados
-                      resultados={resultadosOrdenados}
+                      resultados={filtrarComResultado(resultadosOrdenados)}
                       resultadoFinal={resultadoFinal}
                       provaDeCampo={ehProvaDeCampo(grupo.prova)}
                       formatarTentativas={ehSaltoAltura(grupo.prova) ? alturasCompactas : tentativasCompactas}
