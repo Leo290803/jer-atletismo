@@ -48,7 +48,7 @@ export async function removerAtletaDaSerie({ raiaId, inscricaoId }) {
 // Move um atleta de uma serie para outra na MESMA prova. Muda o serie_id da
 // raia e a raia/ordem. Apaga o resultado antigo (ligado a serie antiga).
 // Em provas de CAMPO nao ha raia: usa a proxima ordem livre da serie destino.
-export async function moverAtletaDeSerie({ raiaId, inscricaoId, serieDestinoId, raiaDestino, ehCampo = false }) {
+export async function moverAtletaDeSerie({ raiaId, inscricaoId, serieDestinoId, raiaDestino, ehCampo = false, autoRaia = false }) {
   if (!raiaId || !serieDestinoId) {
     return { error: new Error("Dados insuficientes para mover o atleta.") };
   }
@@ -69,6 +69,21 @@ export async function moverAtletaDeSerie({ raiaId, inscricaoId, serieDestinoId, 
     const ordens = (raiasDestino || []).map((r) => Number(r.ordem) || 0);
     novaOrdem = (ordens.length ? Math.max(...ordens) : 0) + 1;
     novaRaia = novaOrdem; // mantem raia = ordem por consistencia
+  } else if (autoRaia) {
+    // Arrastar: acha a primeira raia livre; se todas ocupadas, cria uma a mais.
+    const ocupadas = new Set((raiasDestino || []).map((r) => Number(r.raia)));
+    let livre = null;
+    for (let i = 1; i <= 8; i += 1) {
+      if (!ocupadas.has(i)) { livre = i; break; }
+    }
+    if (livre === null) {
+      // Todas as 8 ocupadas: cria uma raia extra (9, 10...)
+      const maxRaia = (raiasDestino || []).reduce((m, r) => Math.max(m, Number(r.raia) || 0), 8);
+      livre = maxRaia + 1;
+    }
+    novaRaia = livre;
+    const ordens = (raiasDestino || []).map((r) => Number(r.ordem) || 0);
+    novaOrdem = (ordens.length ? Math.max(...ordens) : 0) + 1;
   } else {
     // Pista: usa a raia escolhida, checando se esta livre.
     const ocupada = (raiasDestino || []).some((r) => Number(r.raia) === Number(raiaDestino));

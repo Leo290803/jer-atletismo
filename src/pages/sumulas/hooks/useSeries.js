@@ -436,6 +436,13 @@ export function useSeries({
 
       // Converte para inteiro seguro. Se o valor tiver decimal (ex.: "3,82",
       // que e uma marca, nao uma colocacao), retorna null em vez de truncar.
+      // Status permitidos (evita violar a check constraint do banco).
+      const STATUS_VALIDOS = new Set(["OK", "DQ", "DNS", "ABD", "DNF", "NM"]);
+      const statusSeguro = (v) => {
+        const s = String(v || "OK").trim().toUpperCase();
+        return STATUS_VALIDOS.has(s) ? s : "OK";
+      };
+
       const inteiroOuNull = (v) => {
         if (v === null || v === undefined || v === "") return null;
         const texto = String(v).trim().replace(",", ".");
@@ -463,7 +470,7 @@ export function useSeries({
             data_resultado: dataProva,
             tempo: r.tempo || null,
             colocacao: inteiroOuNull(r.colocacao),
-            status: r.status || "OK",
+            status: statusSeguro(r.status),
             tentativa1: r.tentativa1 || null,
             tentativa2: r.tentativa2 || null,
             tentativa3: r.tentativa3 || null,

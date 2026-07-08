@@ -2,6 +2,10 @@ import { getNumeroAtleta } from "../../../utils/getNumeroAtleta";
 import { marcaParaNumero, tempoParaNumero } from "../utils/formatadores";
 import { useState } from "react";
 
+// Guarda qual atleta esta sendo arrastado (o drag atravessa series/tabelas
+// diferentes, entao usamos um estado fora do React para carregar a referencia).
+const arrastando = { raia: null, serieOrigemId: null, onMover: null, ehCampo: false };
+
 // Celula do numero do atleta que vira editavel ao clicar. Salva ao sair (blur)
 // ou Enter. Se onEditarNumero nao for passado, mostra so o texto (ex.: impressao).
 function CelulaNumeroEditavel({ atleta, onEditarNumero }) {
@@ -295,7 +299,42 @@ export function TabelaPista({ serie, mudarCampo, inputTabela, formatarNascimento
   const mostrarColunaQ = !modoImpressao && !["FINAL", "FINAL POR TEMPO"].includes(faseNormalizada);
 
   return (
-    <table className="tabela-pista-oficial" width="100%" cellPadding="10">
+    <table
+      className="tabela-pista-oficial"
+      width="100%"
+      cellPadding="10"
+      onDragOver={(e) => {
+        // Permite soltar nesta serie
+        if (onMoverSerie && arrastando.raia) {
+          e.preventDefault();
+          if (arrastando.serieOrigemId !== serie.id) {
+            e.currentTarget.style.outline = "2px dashed #2563eb";
+            e.currentTarget.style.outlineOffset = "-2px";
+          }
+        }
+      }}
+      onDragLeave={(e) => {
+        e.currentTarget.style.outline = "";
+      }}
+      onDrop={async (e) => {
+        e.preventDefault();
+        e.currentTarget.style.outline = "";
+        if (!onMoverSerie || !arrastando.raia) return;
+        // Nao faz nada se soltar na mesma serie de origem
+        if (arrastando.serieOrigemId === serie.id) {
+          arrastando.raia = null;
+          return;
+        }
+        const raiaMovida = arrastando.raia;
+        arrastando.raia = null; // limpa antes pra evitar duplo-drop
+        await onMoverSerie({
+          raia: raiaMovida,
+          serieDestinoId: serie.id,
+          autoRaia: true, // acha a raia livre sozinho; cria vaga se cheia
+          ehCampo: false,
+        });
+      }}
+    >
       <colgroup>
         <col className="pista-col-raia" />
         <col className="pista-col-numero" />
@@ -330,7 +369,17 @@ export function TabelaPista({ serie, mudarCampo, inputTabela, formatarNascimento
             const atleta = r.inscricoes?.atletas;
 
             return (
-              <tr key={r.id}>
+              <tr
+                key={r.id}
+                draggable={!!onMoverSerie && !modoImpressao}
+                onDragStart={() => {
+                  if (!onMoverSerie) return;
+                  arrastando.raia = r;
+                  arrastando.serieOrigemId = serie.id;
+                  arrastando.ehCampo = false;
+                }}
+                style={onMoverSerie && !modoImpressao ? { cursor: "grab" } : undefined}
+              >
                 <td>{r.raia}</td>
                 <CelulaNumeroEditavel atleta={atleta} onEditarNumero={onEditarNumero} />
                 <td>{atleta?.nome}</td>

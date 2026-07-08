@@ -246,13 +246,14 @@ export function useGerenciarInscritos({
     setMensagem?.("Numero do atleta atualizado.");
   }
 
-  async function moverAtletaDeSerie({ raia, serieDestinoId, raiaDestino, ehCampo = false }) {
+  async function moverAtletaDeSerie({ raia, serieDestinoId, raiaDestino, ehCampo = false, autoRaia = false }) {
     if (!raia?.id || !serieDestinoId) {
-      window.alert("Escolha a série de destino.");
+      if (!autoRaia) window.alert("Escolha a série de destino.");
       return false;
     }
-    // No campo nao ha raia (usa ordem). Na pista, a raia e obrigatoria.
-    if (!ehCampo && !raiaDestino) {
+    // No campo nao ha raia (usa ordem). Na pista, a raia e obrigatoria —
+    // exceto quando autoRaia (arrastar), que acha a raia livre sozinho.
+    if (!ehCampo && !autoRaia && !raiaDestino) {
       window.alert("Escolha a raia de destino.");
       return false;
     }
@@ -263,8 +264,9 @@ export function useGerenciarInscritos({
       raiaId: raia.id,
       inscricaoId: raia.inscricoes?.id,
       serieDestinoId,
-      raiaDestino: ehCampo ? null : Number(raiaDestino),
+      raiaDestino: ehCampo || autoRaia ? null : Number(raiaDestino),
       ehCampo,
+      autoRaia,
     });
 
     if (error) {
