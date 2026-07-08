@@ -2,8 +2,21 @@ export function contarErros(valor) {
   return (String(valor || "").toUpperCase().match(/X/g) || []).length;
 }
 
+// Normaliza uma altura para comparacao: "1,50" / "1.5" / "1.50" -> 1.5 (numero).
+// Assim a busca funciona mesmo que o formato lancado seja diferente do configurado.
+function alturaNumero(altura) {
+  const n = Number(String(altura ?? "").replace(",", ".").trim());
+  return Number.isFinite(n) ? n : null;
+}
+
 export function pegarValorAltura(raia, altura) {
-  const item = (raia.alturas || []).find((a) => a.altura === altura);
+  const alvo = alturaNumero(altura);
+  // Compara por valor numerico (1.5 === 1.50), nao por texto exato.
+  const item = (raia.alturas || []).find((a) => {
+    if (a.altura === altura) return true; // match exato (rapido)
+    const na = alturaNumero(a.altura);
+    return na !== null && alvo !== null && na === alvo;
+  });
   return item?.valor || "";
 }
 
