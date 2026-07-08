@@ -1,5 +1,6 @@
 import { getNumeroAtleta } from "../../../utils/getNumeroAtleta";
 import { marcaParaNumero, tempoParaNumero } from "../utils/formatadores";
+import { calcularPontosCombinada } from "../../../data/calcularPontosCombinada";
 import { useState } from "react";
 
 // Guarda qual atleta esta sendo arrastado (o drag atravessa series/tabelas
@@ -675,6 +676,30 @@ const TIPO_PONTOS_COMBINADA = "combinada_pontos";
 const TIPO_TENTATIVA_COMBINADA = "combinada_tentativa";
 const STATUS_SEM_CLASSIFICACAO = new Set(["DQ", "DNS", "ABD", "DNF", "NM"]);
 
+// Obtem a marca lancada de uma subprova, seja campo (melhor tentativa) ou
+// pista (tempo em tentativaN). Usada para calcular os pontos automaticamente.
+function obterMarcaSubprova(raia, subprova) {
+  const ehCampo = subprova?.subtipo === "campo_tentativas";
+  if (ehCampo) {
+    const melhor = obterMelhorTentativaCombinada(raia, subprova.ordem);
+    return melhor?.texto || "";
+  }
+  return raia?.["tentativa" + subprova.ordem] || "";
+}
+
+// Pontos de uma subprova para uso nos calculos de total/classificacao.
+// Prioriza o valor calculado pela marca (tabela oficial); cai no salvo se nao der.
+function pontosSubprovaParaTotal(raia, subprova, chaveCombinada) {
+  if (chaveCombinada) {
+    const marca = obterMarcaSubprova(raia, subprova);
+    if (marca && String(marca).trim() !== "") {
+      const pts = calcularPontosCombinada(chaveCombinada, subprova?.nome, marca);
+      if (pts > 0) return String(pts);
+    }
+  }
+  return obterPontosCombinada(raia, subprova?.ordem);
+}
+
 function obterPontosCombinada(raia, ordem) {
   const dados = Array.isArray(raia?.alturas) ? raia.alturas : [];
   const item = dados.find(
@@ -682,6 +707,17 @@ function obterPontosCombinada(raia, ordem) {
   );
 
   return item?.pontos || "";
+}
+
+// Pontos calculados AUTOMATICAMENTE pela marca lancada, usando a tabela oficial.
+// marca: o resultado da subprova (tempo "14.20"/"2:40.00" ou distancia "9,60").
+// Se nao houver marca calculavel, cai no valor eventualmente salvo (compat).
+function pontosCombinadaEfetivo(raia, subprova, marca, chaveCombinada) {
+  if (chaveCombinada && marca !== null && marca !== undefined && String(marca).trim() !== "") {
+    const pts = calcularPontosCombinada(chaveCombinada, subprova?.nome, marca);
+    if (pts > 0) return String(pts);
+  }
+  return obterPontosCombinada(raia, subprova?.ordem);
 }
 
 function numeroPontos(valor) {
@@ -731,18 +767,18 @@ function ordenarLinhasCombinada(serie) {
   return [...(serie.raias || [])].sort((a, b) => (a.ordem || a.raia || 0) - (b.ordem || b.raia || 0));
 }
 
-function calcularTotalPontosCombinada(raia, subprovas = [], pontosAlterados = {}) {
+function calcularTotalPontosCombinada(raia, subprovas = [], pontosAlterados = {}, chaveCombinada = null) {
   return subprovas.reduce((total, subprova) => {
     const chave = String(subprova.ordem);
     const pontos = Object.prototype.hasOwnProperty.call(pontosAlterados, chave)
       ? pontosAlterados[chave]
-      : obterPontosCombinada(raia, subprova.ordem);
+      : pontosSubprovaParaTotal(raia, subprova, chaveCombinada);
 
     return total + numeroPontos(pontos);
   }, 0);
 }
 
-function linhaComPontosCompletos(raia, subprovas = [], alteracaoAtual) {
+function linhaComPontosCompletos(raia, subprovas = [], alteracaoAtual, chaveCombinada = null) {
   return subprovas.every((subprova) => {
     if (
       alteracaoAtual &&
@@ -752,7 +788,7 @@ function linhaComPontosCompletos(raia, subprovas = [], alteracaoAtual) {
       return temPontosValidos(alteracaoAtual.valor);
     }
 
-    return temPontosValidos(obterPontosCombinada(raia, subprova.ordem));
+    return temPontosValidos(pontosSubprovaParaTotal(raia, subprova, chaveCombinada));
   });
 }
 
@@ -843,7 +879,7 @@ function mapaClassificacaoPorTempo(linhas, pegarNumero) {
   return mapa;
 }
 
-function montarResumoCombinada(serie, subprovas, alteracaoAtual = null) {
+function montarResumoCombinada(serie, subprovas, alteracaoAtual = null, chaveCombinada = null) {
   const linhas = ordenarLinhasCombinada(serie);
 
   const resumo = linhas.map((raia) => {
@@ -854,8 +890,8 @@ function montarResumoCombinada(serie, subprovas, alteracaoAtual = null) {
         ? { [String(alteracaoAtual.ordem)]: alteracaoAtual.valor }
         : {};
 
-    const completo = linhaComPontosCompletos(raia, subprovas, alteracaoAtual);
-    const total = completo ? calcularTotalPontosCombinada(raia, subprovas, pontosAlterados) : 0;
+    const completo = linhaComPontosCompletos(raia, subprovas, alteracaoAtual, chaveCombinada);
+    const total = completo ? calcularTotalPontosCombinada(raia, subprovas, pontosAlterados, chaveCombinada) : 0;
     const statusAlterado =
       alteracaoAtual && Number(alteracaoAtual.raiaId) === Number(raia.id)
         ? alteracaoAtual.status
@@ -966,6 +1002,7 @@ export function TabelaCombinadaProva({
   subprova,
   subprovas,
   dataSubprova,
+  chaveCombinada,
   mudarCampo,
   inputTabela,
   formatarNascimento,
@@ -1135,7 +1172,9 @@ export function TabelaCombinadaProva({
 
                   <td>
                     <input
-                      value={obterPontosCombinada(raia, subprova.ordem)}
+                      readOnly
+                      title="Pontos calculados automaticamente pela tabela oficial"
+                      value={pontosCombinadaEfetivo(raia, subprova, resultadoSubprova, chaveCombinada)}
                       onChange={(e) =>
                         atualizarPontosCombinada({
                           serie,
@@ -1191,7 +1230,9 @@ export function TabelaCombinadaProva({
                   <td>{classificacaoSubprova.get(raia.id) || ""}</td>
                   <td>
                     <input
-                      value={obterPontosCombinada(raia, subprova.ordem)}
+                      readOnly
+                      title="Pontos calculados automaticamente pela tabela oficial"
+                      value={pontosCombinadaEfetivo(raia, subprova, raia["tentativa" + subprova.ordem], chaveCombinada)}
                       onChange={(e) =>
                         atualizarPontosCombinada({
                           serie,
@@ -1218,12 +1259,13 @@ export function TabelaCombinadaProva({
 export function TabelaCombinadaFinal({
   serie,
   subprovas,
+  chaveCombinada,
   mudarCampo,
   inputTabela,
   formatarNascimento,
 }) {
   const linhas = ordenarLinhasCombinada(serie);
-  const { resumo, colocacaoPorRaia } = montarResumoCombinada(serie, subprovas);
+  const { resumo, colocacaoPorRaia } = montarResumoCombinada(serie, subprovas, null, chaveCombinada);
   const resumoPorRaia = new Map(resumo.map((item) => [item.raia.id, item]));
 
   function mudarStatus(raia, valor) {
@@ -1358,6 +1400,7 @@ export function TabelaCombinada({
           subprova={subprova}
           subprovas={subprovasOrdenadas}
           dataSubprova={datasCombinada["dia" + subprova.dia]}
+          chaveCombinada={combinadaInfo?.chave}
           mudarCampo={mudarCampo}
           inputTabela={inputTabela}
           formatarNascimento={formatarNascimento}
@@ -1367,6 +1410,7 @@ export function TabelaCombinada({
       <TabelaCombinadaFinal
         serie={serie}
         subprovas={subprovasOrdenadas}
+        chaveCombinada={combinadaInfo?.chave}
         mudarCampo={mudarCampo}
         inputTabela={inputTabela}
         formatarNascimento={formatarNascimento}
