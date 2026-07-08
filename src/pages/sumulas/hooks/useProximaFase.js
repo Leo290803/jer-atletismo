@@ -80,17 +80,24 @@ export function useProximaFase({
 
   function regraAtual() {
     if (mostrarOpcoesAvancadas) {
+      const qPorSerieManual = Number(qAutomaticos) || 0;
+      // Se o usuario definiu Q >= 1 por serie, o criterio e SEMPRE "q_q"
+      // (separa primeiros de serie + melhores tempos), mesmo que a regra
+      // automatica tivesse sugerido "melhores_gerais". Assim o Q digitado
+      // e respeitado e a marcacao separa Q e q corretamente.
+      const criterioEfetivo = qPorSerieManual >= 1 ? "q_q" : criterioClassificacao;
+
       return {
-        criterio: criterioClassificacao,
-        qPorSerie: Number(qAutomaticos) || 0,
+        criterio: criterioEfetivo,
+        qPorSerie: qPorSerieManual,
         qPorTempo: Number(qTempos) || 0,
         totalClassificados: Number(quantidadeClassificados) || Number(raiasProximaFase) || 8,
         raias: Number(raiasProximaFase) || 8,
         totalSeries: regraAutomatica.totalSeries || 0,
         descricao:
-          criterioClassificacao === "melhores_gerais"
+          criterioEfetivo === "melhores_gerais"
             ? `Melhores resultados gerais ate ${Number(quantidadeClassificados) || Number(raiasProximaFase) || 8} atleta(s).`
-            : `${Number(qAutomaticos) || 0} classificado(s) por serie + ${Number(qTempos) || 0} melhor(es) tempo(s)/marca(s).`,
+            : `${qPorSerieManual} classificado(s) por serie + ${Number(qTempos) || 0} melhor(es) tempo(s)/marca(s).`,
         aviso: "",
       };
     }
