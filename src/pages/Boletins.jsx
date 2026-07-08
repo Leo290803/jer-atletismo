@@ -982,7 +982,7 @@ export default function Boletins() {
               const atleta = r.inscricoes?.atletas;
               const ehEquipe = !!r.equipe;
               const colocacao = mostrarColocacao
-                ? (r.colocacao ? `${r.colocacao}&ordm;` : `${i + 1}&ordm;`)
+                ? (r.colocacao ? `${r.colocacao}&ordm;` : "-")
                 : "-";
               const classificacao = mostrarColocacao && r.qualificacao ? ` <strong>${escaparHtml(r.qualificacao)}</strong>` : "";
               const nomeCol = ehEquipe ? htmlListaAtletasEquipe(r) : escaparHtml(atleta?.nome || "");
@@ -3445,7 +3445,7 @@ function TabelaResultados({ resultados, resultadoFinal, mostrarColocacao = true,
               <td>
                 {mostrarColocacao ? (
                   <>
-                    {r.colocacao ? `${r.colocacao}º` : `${i + 1}º`}
+                    {r.colocacao ? `${r.colocacao}º` : "-"}
                     {r.qualificacao && <span className="qualificacao-inline">{r.qualificacao}</span>}
                   </>
                 ) : (
