@@ -732,6 +732,20 @@ export default function Boletins() {
       });
   }
 
+  // Remove do boletim atletas sem nenhum resultado lancado
+  // (sem tempo, sem marca, sem tentativas e sem resultado final).
+  function filtrarComResultado(lista) {
+    return (lista || []).filter((r) => {
+      const temAlgo =
+        (r.tempo && String(r.tempo).trim() !== "") ||
+        (r.melhor_marca && String(r.melhor_marca).trim() !== "") ||
+        (r.resultado_final && String(r.resultado_final).trim() !== "") ||
+        r.tentativa1 || r.tentativa2 || r.tentativa3 ||
+        r.tentativa4 || r.tentativa5 || r.tentativa6;
+      return !!temAlgo;
+    });
+  }
+
   function agruparPorSerieBoletim(lista) {
     const grupos = {};
 
@@ -902,7 +916,7 @@ export default function Boletins() {
     const secoes = grupos.map((grupo) => {
       const fase = grupo.prova?.fase || 'QUALIFICACAO';
       const final = ehFinalDaProva(fase);
-      const resultadosOrdenados = ordenarResultados(grupo.resultados, final);
+      const resultadosOrdenados = ordenarResultados(filtrarComResultado(grupo.resultados), final);
       const seriesDaProva = agruparPorSerieBoletim(resultadosOrdenados);
       const titulo = formatarData(grupo.data) + ' - ' +
         (grupo.prova?.nome || '') + ' - ' +
@@ -3084,7 +3098,7 @@ export default function Boletins() {
           {grupos.map((grupo, index) => {
             const fase = grupo.prova?.fase || "QUALIFICAÇÃO";
             const final = ehFinalDaProva(fase);
-            const resultadosOrdenados = ordenarResultados(grupo.resultados, final);
+            const resultadosOrdenados = ordenarResultados(filtrarComResultado(grupo.resultados), final);
             const seriesDaProva = agruparPorSerieBoletim(resultadosOrdenados);
             const classificadosProximaFase = obterClassificadosProximaFase(resultadosOrdenados);
 
