@@ -891,7 +891,10 @@ function montarResumoCombinada(serie, subprovas, alteracaoAtual = null, chaveCom
         : {};
 
     const completo = linhaComPontosCompletos(raia, subprovas, alteracaoAtual, chaveCombinada);
-    const total = completo ? calcularTotalPontosCombinada(raia, subprovas, pontosAlterados, chaveCombinada) : 0;
+    // Total conta os pontos das provas JA lancadas (parcial continua):
+    // soma o que ja existe, mesmo que faltem provas. Assim a colocacao
+    // parcial aparece durante os dias da combinada.
+    const total = calcularTotalPontosCombinada(raia, subprovas, pontosAlterados, chaveCombinada);
     const statusAlterado =
       alteracaoAtual && Number(alteracaoAtual.raiaId) === Number(raia.id)
         ? alteracaoAtual.status
@@ -908,7 +911,7 @@ function montarResumoCombinada(serie, subprovas, alteracaoAtual = null, chaveCom
   });
 
   const classificados = resumo
-    .filter((item) => item.completo && !item.semClassificacao)
+    .filter((item) => item.total > 0 && !item.semClassificacao)
     .sort((a, b) => b.total - a.total);
 
   const colocacaoPorRaia = new Map();
@@ -927,11 +930,11 @@ function montarResumoCombinada(serie, subprovas, alteracaoAtual = null, chaveCom
   return { resumo, colocacaoPorRaia };
 }
 
-function recalcularTotaisEClassificacaoCombinada({ serie, subprovas, mudarCampo, alteracaoAtual = null }) {
-  const { resumo, colocacaoPorRaia } = montarResumoCombinada(serie, subprovas, alteracaoAtual);
+function recalcularTotaisEClassificacaoCombinada({ serie, subprovas, mudarCampo, alteracaoAtual = null, chaveCombinada = null }) {
+  const { resumo, colocacaoPorRaia } = montarResumoCombinada(serie, subprovas, alteracaoAtual, chaveCombinada);
 
   resumo.forEach((item) => {
-    const totalTexto = item.completo ? String(item.total) : "";
+    const totalTexto = item.total > 0 ? String(item.total) : "";
     const colocacaoTexto = item.semClassificacao
       ? item.raia.status || ""
       : colocacaoPorRaia.get(item.raia.id) || "";
@@ -1275,6 +1278,7 @@ export function TabelaCombinadaFinal({
       serie,
       subprovas,
       mudarCampo,
+      chaveCombinada,
       alteracaoAtual: {
         raiaId: raia.id,
         ordem: 0,
@@ -1312,7 +1316,7 @@ export function TabelaCombinadaFinal({
             const itemResumo = resumoPorRaia.get(raia.id);
             const totalPontos =
               raia.resultado_final ||
-              (itemResumo?.completo ? String(itemResumo.total) : "") ||
+              (itemResumo && itemResumo.total > 0 ? String(itemResumo.total) : "") ||
               "";
             const colocacaoAutomatica = itemResumo?.semClassificacao
               ? raia.status || ""
