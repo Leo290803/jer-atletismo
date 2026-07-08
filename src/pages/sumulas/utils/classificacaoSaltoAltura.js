@@ -11,9 +11,17 @@ function alturaNumero(altura) {
 
 export function pegarValorAltura(raia, altura) {
   const alvo = alturaNumero(altura);
-  // Compara por valor numerico (1.5 === 1.50), nao por texto exato.
-  const item = (raia.alturas || []).find((a) => {
-    if (a.altura === altura) return true; // match exato (rapido)
+  const lista = raia.alturas || [];
+
+  // 1) Match exato de texto tem prioridade. Evita que colunas distintas
+  //    porem numericamente iguais (ex.: "1.5" e "1.50") leiam o valor
+  //    uma da outra quando ambas existem na configuracao.
+  const exato = lista.find((a) => a.altura === altura);
+  if (exato) return exato.valor || "";
+
+  // 2) Fallback numerico (1.5 === 1.50) para formatos diferentes
+  //    entre o lancado e o configurado.
+  const item = lista.find((a) => {
     const na = alturaNumero(a.altura);
     return na !== null && alvo !== null && na === alvo;
   });

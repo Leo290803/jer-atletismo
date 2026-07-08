@@ -395,7 +395,14 @@ export function useSeries({
       return;
     }
 
-    if (provaAtual.subtipo === "salto_altura") {
+    // Mesma deteccao usada na renderizacao da grade (Sumulas.jsx):
+    // subtipo OU nome. Sem isso, provas com subtipo nulo/errado no banco
+    // caiam em classificarCampo (tentativas) e o Classificar nao fazia nada.
+    const ehSaltoAltura =
+      provaAtual.subtipo === "salto_altura" ||
+      String(provaAtual.nome || "").toUpperCase().includes("SALTO EM ALTURA");
+
+    if (ehSaltoAltura) {
       setHasAlteracoesLocais(true);
       setSeries((old) => classificarSaltoAltura(old, config));
       setMensagem?.("Classificacao oficial do salto em altura aplicada.");
