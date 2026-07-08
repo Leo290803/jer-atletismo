@@ -732,10 +732,12 @@ export default function Boletins() {
       });
   }
 
-  // Remove do boletim atletas sem nenhum resultado lancado
-  // (sem tempo, sem marca, sem tentativas e sem resultado final).
+  // Remove do boletim de RESULTADOS atletas sem nenhum resultado lancado.
+  // Linhas do boletim de largada (startlist-) sao preservadas, pois nele
+  // e esperado listar atletas sem resultado.
   function filtrarComResultado(lista) {
     return (lista || []).filter((r) => {
+      if (String(r.id || "").startsWith("startlist-")) return true;
       const temAlgo =
         (r.tempo && String(r.tempo).trim() !== "") ||
         (r.melhor_marca && String(r.melhor_marca).trim() !== "") ||
@@ -917,6 +919,8 @@ export default function Boletins() {
       const fase = grupo.prova?.fase || 'QUALIFICACAO';
       const final = ehFinalDaProva(fase);
       const resultadosOrdenados = ordenarResultados(filtrarComResultado(grupo.resultados), final);
+      // Prova sem nenhum resultado (ainda nao corrida): nao entra no boletim.
+      if (!resultadosOrdenados.length) return '';
       const seriesDaProva = agruparPorSerieBoletim(resultadosOrdenados);
       const titulo = formatarData(grupo.data) + ' - ' +
         (grupo.prova?.nome || '') + ' - ' +
@@ -3099,6 +3103,8 @@ export default function Boletins() {
             const fase = grupo.prova?.fase || "QUALIFICAÇÃO";
             const final = ehFinalDaProva(fase);
             const resultadosOrdenados = ordenarResultados(filtrarComResultado(grupo.resultados), final);
+            // Prova sem nenhum resultado (ainda nao corrida): nao entra no boletim.
+            if (!resultadosOrdenados.length) return null;
             const seriesDaProva = agruparPorSerieBoletim(resultadosOrdenados);
             const classificadosProximaFase = obterClassificadosProximaFase(resultadosOrdenados);
 
