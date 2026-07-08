@@ -614,6 +614,7 @@ function LancamentoOficialTela({
   onRemoverAtleta,
   onEditarNumero,
   onMoverSerie,
+  onAdicionarSerie,
 }) {
   const subprovasCombinada = [...(combinadaInfo?.subprovas || [])].sort(
     (a, b) => (a?.ordem || 0) - (b?.ordem || 0)
@@ -897,6 +898,30 @@ function LancamentoOficialTela({
           </div>
         );
       })}
+
+      {/* Botao para criar uma serie vazia (so pista) e distribuir atletas arrastando */}
+      {onAdicionarSerie && !ehSaltoAltura && !ehCampoTentativas && !ehRevezamento && !ehCombinada && (
+        <div className="nao-imprimir" style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            onClick={() => onAdicionarSerie()}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 8,
+              border: "1px dashed #2563eb",
+              background: "#eff6ff",
+              color: "#1d4ed8",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            + Criar nova série vazia
+          </button>
+          <span style={{ marginLeft: 10, fontSize: 13, color: "#64748b" }}>
+            Cria uma série sem atletas. Arraste atletas de outras séries para cá.
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -940,6 +965,7 @@ export default function Sumulas() {
     dataProva,
     setDataProva,
     carregarSeries,
+    adicionarSerieVazia,
     gerarSeriesDaProva,
     reequilibrarSeries,
     salvarResultados,
@@ -1586,6 +1612,7 @@ export default function Sumulas() {
             onRemoverAtleta={inscritos.removerAtletaDaSerie}
             onEditarNumero={inscritos.atualizarNumeroAtleta}
             onMoverSerie={inscritos.moverAtletaDeSerie}
+            onAdicionarSerie={adicionarSerieVazia}
           />
         </div>
 

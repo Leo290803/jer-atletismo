@@ -22,6 +22,33 @@ export async function carregarSeries(provaId) {
     .order("numero_serie", { ascending: true });
 }
 
+// Cria uma serie nova VAZIA (sem atletas) na prova, com o proximo numero
+// de serie disponivel. Usada para o usuario distribuir atletas manualmente
+// (arrastando) quando precisa de uma serie a mais.
+export async function adicionarSerieVazia(provaId) {
+  if (!provaId) return { error: new Error("Prova nao informada.") };
+
+  // Descobre o proximo numero de serie
+  const { data: existentes, error: erroBusca } = await supabase
+    .from("series")
+    .select("numero_serie")
+    .eq("prova_id", provaId);
+
+  if (erroBusca) return { error: erroBusca };
+
+  const numeros = (existentes || []).map((s) => Number(s.numero_serie) || 0);
+  const proximo = (numeros.length ? Math.max(...numeros) : 0) + 1;
+
+  const { data, error } = await supabase
+    .from("series")
+    .insert({ prova_id: provaId, numero_serie: proximo })
+    .select()
+    .single();
+
+  if (error) return { error };
+  return { data, numeroSerie: proximo };
+}
+
 export async function carregarInscricoesParaSeries(provaId) {
   return supabase
     .from("inscricoes")

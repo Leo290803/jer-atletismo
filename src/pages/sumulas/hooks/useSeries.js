@@ -12,6 +12,7 @@ import {
 import { classificarPista } from "../utils/classificacaoPista";
 import {
   carregarSeries as carregarSeriesService,
+  adicionarSerieVazia as adicionarSerieVaziaService,
   gerarSeriesDaProva as gerarSeriesService,
   reequilibrarSeries as reequilibrarSeriesService,
 } from "../services/seriesService";
@@ -541,6 +542,21 @@ export function useSeries({
     }, 800);
   }
 
+  async function adicionarSerieVazia(provaId = provaSelecionada) {
+    if (!provaId) {
+      window.alert("Selecione uma prova primeiro.");
+      return false;
+    }
+    const { error, numeroSerie } = await adicionarSerieVaziaService(provaId);
+    if (error) {
+      window.alert("Nao foi possivel criar a serie: " + error.message);
+      return false;
+    }
+    // Recarrega para a nova serie (vazia) aparecer na tela
+    await carregarSeries(provaId);
+    return numeroSerie;
+  }
+
   return {
     series,
     hasAlteracoesLocais,
@@ -548,6 +564,7 @@ export function useSeries({
     dataProva,
     setDataProva,
     carregarSeries,
+    adicionarSerieVazia,
     gerarSeriesDaProva,
     reequilibrarSeries,
     mudarCampo,
