@@ -11,12 +11,20 @@ export function calcularResultadoAltura(raia, alturas, pegarValorAlturaFn = pega
   let melhor = "";
 
   for (const altura of alturas || []) {
-    const valor = String(pegarValorAlturaFn(raia, altura) || "").toUpperCase();
+    // Normaliza: remove espacos e deixa maiusculo. Ex.: "X O" -> "XO", " O" -> "O".
+    const valor = String(pegarValorAlturaFn(raia, altura) || "")
+      .toUpperCase()
+      .replace(/\s/g, "");
 
-    if (["O", "XO", "XXO"].includes(valor)) {
+    // Venceu a altura se tem pelo menos um "O" (valido) E nao e so falhas.
+    // "O", "XO", "XXO" sao validos. "XXX" (3 erros) nao vence.
+    const venceu = valor.includes("O");
+
+    if (venceu) {
       melhor = altura;
     }
 
+    // Se falhou as 3 tentativas nesta altura (XXX) e nao passou, para.
     if (valor === "XXX") break;
   }
 
