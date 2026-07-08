@@ -891,8 +891,9 @@ export default function Boletins() {
       '.linha-tentativas-word { font-size: 0.95em; color: #334155; margin-top: 2px; font-weight: 600; }',
       '.col-extra { width: 10%; text-align: center; }',
       '.classificados-word .col-num { width: 8%; }',
-      '.classificados-word .col-atleta { width: 42%; }',
-      '.classificados-word .col-escola { width: 50%; }',
+      '.classificados-word .col-atleta { width: 37%; }',
+      '.classificados-word .col-escola { width: 42%; }',
+      '.classificados-word .col-tempo { width: 13%; text-align: center; }',
       '.resultado-nao-publicado { margin: 2px 0 4px; padding: 3px 5px; border: 0.6px dashed #64748b; font-size: 7pt; color: #334155; }'
     ].join('\n');
 
@@ -1016,6 +1017,7 @@ export default function Boletins() {
             <th class="col-num">N&ordm;</th>
             <th class="col-atleta">Nome</th>
             <th class="col-escola">Escola</th>
+            <th class="col-tempo">Tempo/Marca</th>
           </tr>
         </thead>
         <tbody>
@@ -1023,11 +1025,13 @@ export default function Boletins() {
             .map((r) => {
               const atleta = r.inscricoes?.atletas;
               const ehEquipe = !!r.equipe;
+              const tempoMarca = r.tempo || r.melhor_marca || r.marca || r.resultado_final || "";
               return `
                 <tr>
                   <td class="col-num">${ehEquipe ? "" : escaparHtml(getNumeroAtleta(atleta))}</td>
                   <td class="col-atleta">${ehEquipe ? htmlListaAtletasEquipe(r) : escaparHtml(atleta?.nome || "")}</td>
                   <td class="col-escola">${escaparHtml(atleta?.escolas?.nome || "")}</td>
+                  <td class="col-tempo">${escaparHtml(String(tempoMarca))}</td>
                 </tr>
               `;
             })
@@ -3369,6 +3373,7 @@ function TabelaClassificadosProximaFase({ classificados }) {
           <th>N&ordm;</th>
           <th>Nome</th>
           <th>Escola</th>
+          <th>Tempo/Marca</th>
         </tr>
       </thead>
 
@@ -3376,12 +3381,14 @@ function TabelaClassificadosProximaFase({ classificados }) {
         {classificados.map((r) => {
           const atleta = r.inscricoes?.atletas;
           const ehEquipe = !!r.equipe;
+          const tempoMarca = r.tempo || r.melhor_marca || r.marca || r.resultado_final || "";
 
           return (
             <tr key={r.id}>
               <td>{ehEquipe ? "" : getNumeroAtleta(atleta)}</td>
               <td>{ehEquipe ? <ListaAtletasEquipe resultado={r} /> : atleta?.nome}</td>
               <td>{atleta?.escolas?.nome}</td>
+              <td>{tempoMarca}</td>
             </tr>
           );
         })}
